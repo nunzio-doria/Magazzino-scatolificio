@@ -55,9 +55,10 @@ export async function getMyProfile() {
 }
 
 // --- PRODUCTS ----------------------------------------------------
-export async function listProducts({ search = '', onlyLowStock = false } = {}) {
+export async function listProducts({ search = '', onlyLowStock = false, categoria = null } = {}) {
   let query = supabase.from('products').select('*').order('codice_articolo', { ascending: true });
 
+  if (categoria) query = query.eq('categoria', categoria);
   if (search) {
     query = query.or(
       `codice_articolo.ilike.%${search}%,descrizione.ilike.%${search}%,codice_barre.ilike.%${search}%,locazione.ilike.%${search}%`
@@ -98,6 +99,21 @@ export async function updateProduct(id, patch) {
 export async function deleteProduct(id) {
   const { error } = await supabase.from('products').delete().eq('id', id);
   if (error) throw error;
+}
+
+/**
+ * Importa/aggiorna in massa gli articoli di una categoria (upsert su
+ * categoria + codice_articolo) tramite la funzione SQL bulk_upsert_products.
+ * @param {'cuscinetti'|'cinghie'|'pezzi_ricambio'} categoria
+ * @param {object[]} rows righe già mappate ai campi della tabella products
+ */
+export async function bulkUpsertProducts(categoria, rows) {
+  const { data, error } = await supabase.rpc('bulk_upsert_products', {
+    p_categoria: categoria,
+    p_rows: rows,
+  });
+  if (error) throw error;
+  return data?.[0] ?? null;
 }
 
 // --- TRANSAZIONI (deposito/prelievo) ------------------------------

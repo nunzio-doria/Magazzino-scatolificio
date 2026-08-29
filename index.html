@@ -18,6 +18,7 @@
 <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js"></script>
 <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 
 <link rel="stylesheet" href="./style.css">
 </head>
@@ -172,13 +173,36 @@
       </div>
     </section>
 
-    <!-- ============ VISTA ARTICOLI (consultazione + admin CRUD) ============ -->
+    <!-- ============ VISTA MAGAZZINO (consultazione + admin CRUD + import Excel) ============ -->
     <section id="view-products" class="hidden">
       <div class="flex items-center justify-between mb-3">
-        <h2 class="font-display font-bold text-xl uppercase tracking-wide">Articoli</h2>
+        <h2 class="font-display font-bold text-xl uppercase tracking-wide">Magazzino</h2>
         <button id="product-new-btn" data-admin-only class="hidden rounded-lg bg-amber-400 hover:bg-amber-300 text-graphite-950 font-display font-semibold uppercase text-xs tracking-wide px-3 py-2 transition-colors">
           + Nuovo
         </button>
+      </div>
+
+      <!-- Tab categorie -->
+      <div class="grid grid-cols-3 gap-2 mb-4">
+        <button type="button" data-category-tab="cuscinetti" class="category-tab card-plate rounded-lg py-2.5 text-xs font-display font-semibold uppercase tracking-wide border-2 border-graphite-700">Cuscinetti</button>
+        <button type="button" data-category-tab="cinghie" class="category-tab card-plate rounded-lg py-2.5 text-xs font-display font-semibold uppercase tracking-wide border-2 border-graphite-700">Cinghie</button>
+        <button type="button" data-category-tab="pezzi_ricambio" class="category-tab card-plate rounded-lg py-2.5 text-xs font-display font-semibold uppercase tracking-wide border-2 border-graphite-700">Pezzi ricambio</button>
+      </div>
+
+      <!-- Import Excel (Admin, solo per categorie con formato definito) -->
+      <div id="product-import-wrap" data-admin-only class="hidden card-plate rounded-xl p-4 mb-4">
+        <div class="flex items-center justify-between gap-3 mb-1.5">
+          <p class="font-display font-semibold uppercase tracking-wide text-sm text-graphite-200">Carica da Excel</p>
+          <label id="product-import-label" for="product-import-input" class="cursor-pointer shrink-0 rounded-lg bg-graphite-700 hover:bg-graphite-600 text-graphite-100 text-xs font-display font-semibold uppercase tracking-wide px-3 py-2 transition-colors">
+            Scegli file .xlsx
+          </label>
+          <input id="product-import-input" type="file" accept=".xlsx,.xls" class="hidden">
+        </div>
+        <p id="product-import-hint" class="text-xs text-graphite-500 leading-relaxed"></p>
+        <p id="product-import-result" class="hidden text-xs mt-2 rounded-lg px-3 py-2"></p>
+      </div>
+      <div id="product-import-pending" data-admin-only class="hidden card-plate rounded-xl p-4 mb-4 text-sm text-graphite-500">
+        Import da Excel non ancora configurato per questa categoria — inventario in sospeso. Puoi comunque aggiungere articoli manualmente con "+ Nuovo".
       </div>
 
       <div class="flex gap-2 mb-3">
@@ -196,7 +220,7 @@
         <div class="skeleton h-16 w-full"></div>
       </div>
       <div id="product-list" class="hidden space-y-2"></div>
-      <div id="product-empty-state" class="hidden text-center py-10 text-graphite-500 text-sm">Nessun articolo trovato.</div>
+      <div id="product-empty-state" class="hidden text-center py-10 text-graphite-500 text-sm">Nessun articolo trovato in questa categoria.</div>
     </section>
 
     <!-- ============ VISTA DASHBOARD (solo Admin) ============ -->
@@ -259,7 +283,7 @@
         <span class="nav-icon-wrap transition-transform">
           <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z"/></svg>
         </span>
-        <span class="text-[10px] font-display font-semibold uppercase tracking-wide">Articoli</span>
+        <span class="text-[10px] font-display font-semibold uppercase tracking-wide">Magazzino</span>
         <span class="nav-dot w-1 h-1 rounded-full bg-amber-400"></span>
       </button>
       <button data-nav-target="dashboard" data-admin-only class="hidden nav-item flex flex-col items-center gap-1 py-3 text-graphite-500">
@@ -285,12 +309,30 @@
 
     <form id="product-form" class="p-5 space-y-4">
       <div>
+        <label class="block text-xs font-display font-semibold uppercase tracking-wide text-graphite-400 mb-1.5">Categoria *</label>
+        <select id="product-categoria" required class="w-full rounded-lg bg-graphite-800 border border-graphite-700 px-3.5 py-2.5 text-sm focus:border-amber-400 outline-none transition-colors">
+          <option value="cuscinetti">Cuscinetti</option>
+          <option value="cinghie">Cinghie</option>
+          <option value="pezzi_ricambio">Pezzi di ricambio</option>
+        </select>
+      </div>
+      <div>
         <label class="block text-xs font-display font-semibold uppercase tracking-wide text-graphite-400 mb-1.5">Codice articolo *</label>
         <input id="product-codice-articolo" required type="text" class="w-full rounded-lg bg-graphite-800 border border-graphite-700 px-3.5 py-2.5 font-mono text-sm focus:border-amber-400 outline-none transition-colors">
       </div>
       <div>
-        <label class="block text-xs font-display font-semibold uppercase tracking-wide text-graphite-400 mb-1.5">Descrizione *</label>
-        <input id="product-descrizione" required type="text" class="w-full rounded-lg bg-graphite-800 border border-graphite-700 px-3.5 py-2.5 text-sm focus:border-amber-400 outline-none transition-colors">
+        <label class="block text-xs font-display font-semibold uppercase tracking-wide text-graphite-400 mb-1.5">Descrizione</label>
+        <input id="product-descrizione" type="text" placeholder="Facoltativa" class="w-full rounded-lg bg-graphite-800 border border-graphite-700 px-3.5 py-2.5 text-sm focus:border-amber-400 outline-none transition-colors">
+      </div>
+      <div id="product-linea-macchina-wrap" class="hidden grid grid-cols-2 gap-3">
+        <div>
+          <label class="block text-xs font-display font-semibold uppercase tracking-wide text-graphite-400 mb-1.5">Linea</label>
+          <input id="product-linea" type="text" placeholder="es. Linea 2" class="w-full rounded-lg bg-graphite-800 border border-graphite-700 px-3.5 py-2.5 text-sm focus:border-amber-400 outline-none transition-colors">
+        </div>
+        <div>
+          <label class="block text-xs font-display font-semibold uppercase tracking-wide text-graphite-400 mb-1.5">Macchina</label>
+          <input id="product-macchina" type="text" placeholder="es. Confezionatrice 1" class="w-full rounded-lg bg-graphite-800 border border-graphite-700 px-3.5 py-2.5 text-sm focus:border-amber-400 outline-none transition-colors">
+        </div>
       </div>
       <div class="grid grid-cols-2 gap-3">
         <div>
@@ -314,7 +356,18 @@
       </div>
       <div>
         <label class="block text-xs font-display font-semibold uppercase tracking-wide text-graphite-400 mb-1.5">Codice a barre</label>
-        <input id="product-codice-barre" type="text" placeholder="Se vuoto, usa il codice articolo" class="w-full rounded-lg bg-graphite-800 border border-graphite-700 px-3.5 py-2.5 font-mono text-sm focus:border-amber-400 outline-none transition-colors">
+        <div class="flex gap-2">
+          <input id="product-codice-barre" type="text" placeholder="Se vuoto, usa il codice articolo" class="flex-1 rounded-lg bg-graphite-800 border border-graphite-700 px-3.5 py-2.5 font-mono text-sm focus:border-amber-400 outline-none transition-colors">
+          <button id="product-scan-barcode-btn" type="button" aria-label="Scansiona codice a barre" class="shrink-0 w-11 rounded-lg border border-graphite-700 hover:border-amber-400 text-graphite-300 hover:text-amber-300 flex items-center justify-center transition-colors">
+            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 4.5v3m0-3h3m-3 0L9 9m11.25-4.5v3m0-3h-3m3 0L15 9M3.75 19.5v-3m0 3h3m-3 0L9 15m11.25 4.5v-3m0 3h-3m3 0L15 15M3.75 12h16.5"/></svg>
+          </button>
+        </div>
+        <p class="text-[11px] text-graphite-500 mt-1">Usa il codice già stampato sulla confezione: nessun nuovo barcode viene generato.</p>
+      </div>
+
+      <div id="product-barcode-scanner-wrap" class="hidden">
+        <div id="product-barcode-scanner-reader" class="w-full min-h-[200px] relative"></div>
+        <button id="product-scan-barcode-stop" type="button" class="w-full mt-2 text-xs text-graphite-500 hover:text-graphite-300 py-1.5 transition-colors">Annulla scansione</button>
       </div>
 
       <div id="product-barcode-preview-wrap" class="hidden bg-white rounded-lg p-3 flex justify-center">

@@ -113,6 +113,14 @@ body {
   transform: scale(1.02);
 }
 
+/* ---- Tab categoria magazzino -------------------------------------- */
+.category-tab { transition: all 160ms ease; color: #6b7078; }
+.category-tab-active {
+  background: rgba(255, 159, 28, 0.12) !important;
+  border-color: rgba(255, 159, 28, 0.5) !important;
+  color: #ffc266 !important;
+}
+
 /* ---- Reader camera ---------------------------------------------- */
 #scanner-reader {
   border-radius: 0.85rem;
@@ -120,7 +128,13 @@ body {
   border: 2px dashed #4a4f58;
 }
 #scanner-reader video { border-radius: 0.7rem; }
-#scanner-reader { cursor: crosshair; }
+#scanner-reader,
+#product-barcode-scanner-reader {
+  cursor: crosshair;
+  position: relative;
+}
+#product-barcode-scanner-reader { border-radius: 0.85rem; overflow: hidden; border: 2px dashed #4a4f58; }
+#product-barcode-scanner-reader video { border-radius: 0.7rem; }
 
 /* Anello di feedback visivo al tocco per la messa a fuoco manuale */
 .focus-ring {
