@@ -120,6 +120,26 @@ body {
   border: 2px dashed #4a4f58;
 }
 #scanner-reader video { border-radius: 0.7rem; }
+#scanner-reader { cursor: crosshair; }
+
+/* Anello di feedback visivo al tocco per la messa a fuoco manuale */
+.focus-ring {
+  position: absolute;
+  width: 56px;
+  height: 56px;
+  margin-left: -28px;
+  margin-top: -28px;
+  border: 2px solid #ff9f1c;
+  border-radius: 999px;
+  pointer-events: none;
+  z-index: 20;
+  animation: focus-ring-anim 550ms ease-out forwards;
+}
+@keyframes focus-ring-anim {
+  0% { transform: scale(1.35); opacity: 0; }
+  25% { opacity: 1; }
+  100% { transform: scale(0.85); opacity: 0; }
+}
 
 /* ---- Modal ------------------------------------------------------ */
 #product-modal {

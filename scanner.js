@@ -3,12 +3,15 @@
 // =============================================================
 
 import { getProductByBarcode, processTransaction } from './supabase.js';
-import { toastSuccess, toastError, toastWarning } from './toast.js';
+import { toastSuccess, toastError, toastWarning, toastInfo } from './toast.js';
 
 let html5Qrcode = null;
 let currentMode = null; // 'deposito' | 'prelievo'
 let currentProduct = null;
 let isCameraRunning = false;
+let availableCameras = []; // [{ id, label }]
+let activeCameraIndex = 0;
+let supportsManualFocus = false;
 
 const els = {};
 
@@ -31,6 +34,8 @@ export function initScanner() {
   els.cancelBtn = document.getElementById('scan-cancel-btn');
   els.modeBanner = document.getElementById('scan-mode-banner');
   els.stopCameraBtn = document.getElementById('scanner-stop-btn');
+  els.switchCameraBtn = document.getElementById('scanner-switch-btn');
+  els.focusHint = document.getElementById('scanner-focus-hint');
 
   els.modeDeposito.addEventListener('click', () => selectMode('deposito'));
   els.modePrelievo.addEventListener('click', () => selectMode('prelievo'));
@@ -43,6 +48,8 @@ export function initScanner() {
   els.cancelBtn.addEventListener('click', resetResult);
   els.confirmBtn.addEventListener('click', confirmTransaction);
   els.stopCameraBtn.addEventListener('click', stopCamera);
+  els.switchCameraBtn.addEventListener('click', switchCamera);
+  els.reader.addEventListener('click', handleTapToFocus);
 
   resetAll();
 }
@@ -67,14 +74,33 @@ async function startCamera() {
   try {
     // eslint-disable-next-line no-undef
     html5Qrcode = new Html5Qrcode('scanner-reader');
-    await html5Qrcode.start(
-      { facingMode: 'environment' },
-      { fps: 12, qrbox: { width: 260, height: 140 }, aspectRatio: 1.6 },
-      (decodedText) => handleDetectedCode(decodedText),
-      () => {} // ignora i frame senza rilevamento
-    );
+    await ensureCameraList();
+
+    const chosen = availableCameras[activeCameraIndex];
+    const cameraConfig = chosen ? { deviceId: { exact: chosen.id } } : { facingMode: 'environment' };
+
+    try {
+      await html5Qrcode.start(
+        cameraConfig,
+        { fps: 12, qrbox: { width: 260, height: 140 }, aspectRatio: 1.6 },
+        (decodedText) => handleDetectedCode(decodedText),
+        () => {} // ignora i frame senza rilevamento
+      );
+    } catch (startErr) {
+      // Se il deviceId scelto non è avviabile, fallback sul facingMode generico
+      console.warn('Avvio con deviceId fallito, riprovo con facingMode.', startErr);
+      await html5Qrcode.start(
+        { facingMode: 'environment' },
+        { fps: 12, qrbox: { width: 260, height: 140 }, aspectRatio: 1.6 },
+        (decodedText) => handleDetectedCode(decodedText),
+        () => {}
+      );
+    }
+
     isCameraRunning = true;
     els.stopCameraBtn.classList.remove('hidden');
+    els.switchCameraBtn.classList.toggle('hidden', availableCameras.length < 2);
+    await enableContinuousFocus();
   } catch (err) {
     console.error(err);
     toastError('Impossibile accedere alla fotocamera. Usa l\'inserimento manuale.');
@@ -92,6 +118,125 @@ async function stopCamera() {
   }
   isCameraRunning = false;
   els.stopCameraBtn.classList.add('hidden');
+  els.switchCameraBtn.classList.add('hidden');
+  els.focusHint?.classList.add('hidden');
+}
+
+/** Recupera l'elenco fotocamere una sola volta e sceglie l'obiettivo principale di default */
+async function ensureCameraList() {
+  if (availableCameras.length) return;
+  try {
+    // eslint-disable-next-line no-undef
+    const cams = await Html5Qrcode.getCameras();
+    availableCameras = cams || [];
+    activeCameraIndex = pickDefaultCameraIndex(availableCameras);
+  } catch (err) {
+    console.warn('Impossibile enumerare le fotocamere, uso facingMode di default.', err);
+    availableCameras = [];
+  }
+}
+
+/**
+ * Sceglie l'obiettivo posteriore "principale", evitando l'ultra-grandangolo
+ * (spesso indicato come "0.5x"/"0.6x"/"ultra wide") che molti telefoni
+ * espongono come fotocamera separata e che il browser talvolta seleziona
+ * di default, rendendo difficile la messa a fuoco ravvicinata.
+ */
+function pickDefaultCameraIndex(cameras) {
+  if (!cameras.length) return 0;
+  let bestIdx = 0;
+  let bestScore = -Infinity;
+  cameras.forEach((cam, idx) => {
+    const l = (cam.label || '').toLowerCase();
+    let score = 0;
+    if (/front|user|selfie|anteriore/.test(l)) score -= 100;
+    if (/back|rear|posteriore|environment/.test(l)) score += 10;
+    if (/ultra.?wide|grandangolare|0\.5x|0\.6x/.test(l)) score -= 25;
+    if (/tele(photo)?|zoom|[2-9]x/.test(l)) score -= 8;
+    if (/\bwide\b/.test(l) && !/ultra/.test(l)) score += 6;
+    if (/main|principale|normal/.test(l)) score += 8;
+    if (score > bestScore) {
+      bestScore = score;
+      bestIdx = idx;
+    }
+  });
+  return bestIdx;
+}
+
+/** Passa manualmente alla fotocamera successiva disponibile (utile se l'euristica sbaglia obiettivo) */
+async function switchCamera() {
+  if (availableCameras.length < 2) return;
+  activeCameraIndex = (activeCameraIndex + 1) % availableCameras.length;
+  await stopCamera();
+  await startCamera();
+  const label = availableCameras[activeCameraIndex]?.label || `Fotocamera ${activeCameraIndex + 1}`;
+  toastInfo(`Fotocamera attiva: ${label}`, 2500);
+}
+
+/** Attiva la messa a fuoco continua automatica, se supportata dal dispositivo */
+async function enableContinuousFocus() {
+  supportsManualFocus = false;
+  try {
+    const capabilities = html5Qrcode.getRunningTrackCapabilities?.();
+    if (!capabilities || !capabilities.focusMode) {
+      els.focusHint?.classList.add('hidden');
+      return;
+    }
+    if (capabilities.focusMode.includes('continuous')) {
+      await html5Qrcode.applyVideoConstraints({ advanced: [{ focusMode: 'continuous' }] });
+    }
+    if (capabilities.focusMode.includes('single-shot') || capabilities.focusMode.includes('manual')) {
+      supportsManualFocus = true;
+    }
+    els.focusHint?.classList.toggle('hidden', !supportsManualFocus);
+  } catch (err) {
+    console.warn('Messa a fuoco automatica non supportata su questo dispositivo.', err);
+    els.focusHint?.classList.add('hidden');
+  }
+}
+
+/** Tocca lo schermo per forzare la messa a fuoco sul punto indicato (utile per barcode piccoli/vicini) */
+async function handleTapToFocus(event) {
+  if (!isCameraRunning || !html5Qrcode) return;
+  showFocusRing(event.clientX, event.clientY, els.reader);
+  if (!supportsManualFocus) return;
+
+  try {
+    const capabilities = html5Qrcode.getRunningTrackCapabilities?.();
+    if (!capabilities || !capabilities.focusMode) return;
+
+    const advanced = [];
+    const videoEl = els.reader.querySelector('video');
+    if (capabilities.pointsOfInterest && videoEl) {
+      const rect = videoEl.getBoundingClientRect();
+      const x = Math.min(1, Math.max(0, (event.clientX - rect.left) / rect.width));
+      const y = Math.min(1, Math.max(0, (event.clientY - rect.top) / rect.height));
+      advanced.push({ pointsOfInterest: [{ x, y }] });
+    }
+    if (capabilities.focusMode.includes('single-shot')) {
+      advanced.push({ focusMode: 'single-shot' });
+    }
+    if (advanced.length) await html5Qrcode.applyVideoConstraints({ advanced });
+
+    // Dopo lo scatto singolo, torna alla messa a fuoco continua
+    if (capabilities.focusMode.includes('continuous')) {
+      setTimeout(() => {
+        html5Qrcode?.applyVideoConstraints({ advanced: [{ focusMode: 'continuous' }] }).catch(() => {});
+      }, 1500);
+    }
+  } catch (err) {
+    console.warn('Tap-to-focus non riuscito.', err);
+  }
+}
+
+function showFocusRing(clientX, clientY, container) {
+  const rect = container.getBoundingClientRect();
+  const ring = document.createElement('div');
+  ring.className = 'focus-ring';
+  ring.style.left = `${clientX - rect.left}px`;
+  ring.style.top = `${clientY - rect.top}px`;
+  container.appendChild(ring);
+  setTimeout(() => ring.remove(), 550);
 }
 
 let lastCode = null;
@@ -170,6 +315,8 @@ function resetAll() {
   els.manualForm.classList.add('hidden');
   els.modeDeposito.classList.remove('mode-active-deposito');
   els.modePrelievo.classList.remove('mode-active-prelievo');
+  els.switchCameraBtn?.classList.add('hidden');
+  els.focusHint?.classList.add('hidden');
   resetResult();
 }
 
