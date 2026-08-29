@@ -25,15 +25,21 @@ Nessun bundler richiesto: tutti i moduli sono `<script type="module">` con impor
 
 ## Il Magazzino: 3 categorie
 
-La vista "Magazzino" è divisa in tre tab:
+La vista "Magazzino" è divisa in tre tab e mostra la lista/ricerca degli articoli. L'**import da Excel è stato spostato in Impostazioni** (icona ingranaggio in alto a destra, al posto del vecchio tasto Esci — il logout ora si trova dentro Impostazioni insieme all'import).
 
 - **Cuscinetti** — import Excel su 3 colonne (A→C): `Codice`, `Locazione`, `Quantità`. La scorta minima non è ancora definita, quindi viene impostata automaticamente a **5** per ogni articolo importato. Per assegnare il barcode a un cuscinetto (quello già stampato sulla scatola, senza generarne uno nuovo), apri l'articolo e premi l'icona di scansione accanto al campo "Codice a barre": si apre la fotocamera, inquadri il codice e viene inserito automaticamente nel campo.
-- **Cinghie** — import Excel su 7 colonne (A→G): `Codice`, `Locazione`, `Quantità`, `Linea`, `Macchina`, `Punto di utilizzo`, `Scorta minima`.
+- **Cinghie** — import Excel su 7 colonne (A→G): `Codice`, `Locazione`, `Quantità`, `Linea`, `Macchina`, `Punto di utilizzo`, `Scorta minima`. Nella vista Magazzino, quando questa categoria è attiva, compare un **filtro Linea** (Tutte / L1 / L2 / L1-L2): selezionando L1 vedi anche gli articoli L1-L2 (e viceversa per L2), perché quegli articoli servono entrambe le linee; selezionando "Solo L1-L2" vedi solo quelli esclusivi di entrambe.
 - **Pezzi di ricambio** — in sospeso: l'inventario non è stato ancora popolato, quindi l'import Excel non è configurato per questa categoria (i formati non sono stati definiti). Restano comunque disponibili la creazione manuale dell'articolo e tutte le altre funzionalità (barcode, deposito/prelievo, report). Quando sarà pronto l'elenco/formato del file, si potrà aggiungere l'import allo stesso modo delle altre due categorie.
 
 **Formato dei file Excel**: la prima riga può contenere le intestazioni (vengono riconosciute automaticamente e saltate se la prima cella contiene "codice") oppure i dati possono partire direttamente dalla riga 1 — le colonne vengono lette per **posizione** (A, B, C…), non per nome. Il codice articolo è univoco all'interno della stessa categoria: ricaricando un file con codici già presenti, gli articoli vengono **aggiornati** (locazione, quantità, scorta minima, linea/macchina, punto di utilizzo) invece che duplicati.
 
-L'import è disponibile solo per l'Admin, dalla vista Magazzino → tab della categoria → "Carica da Excel".
+L'import è disponibile solo per l'Admin, dalla vista **Impostazioni** → tab della categoria → "Carica da Excel".
+
+### Nuovo articolo: Linea e Macchina
+
+Nel form articolo (categoria Cinghie):
+- **Linea** è un menu a tendina fisso con solo tre valori possibili: `L1`, `L2`, `L1-L2`.
+- **Macchina** è una combobox (campo di testo con suggerimenti): propone solo i valori di macchina già presenti tra gli articoli registrati, senza duplicati, ma resta possibile digitarne uno nuovo se serve censire una macchina non ancora vista.
 
 ## Database Supabase (già configurato)
 

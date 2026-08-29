@@ -114,8 +114,8 @@ body {
 }
 
 /* ---- Tab categoria magazzino -------------------------------------- */
-.category-tab { transition: all 160ms ease; color: #6b7078; }
-.category-tab-active {
+.category-tab, .import-category-tab { transition: all 160ms ease; color: #6b7078; }
+.category-tab-active, .import-category-tab-active {
   background: rgba(255, 159, 28, 0.12) !important;
   border-color: rgba(255, 159, 28, 0.5) !important;
   color: #ffc266 !important;

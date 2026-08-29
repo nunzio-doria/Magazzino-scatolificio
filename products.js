@@ -2,7 +2,7 @@
 // products.js — Magazzino: categorie, CRUD, import Excel, barcode
 // =============================================================
 
-import { listProducts, createProduct, updateProduct, deleteProduct, bulkUpsertProducts } from './supabase.js';
+import { listProducts, createProduct, updateProduct, deleteProduct, bulkUpsertProducts, listDistinctMacchine } from './supabase.js';
 import { toastSuccess, toastError, toastInfo } from './toast.js';
 import { isAdmin } from './auth.js';
 import { startCamera, stopCamera } from './camera.js';
@@ -12,6 +12,7 @@ let currentList = [];
 let editingId = null;
 let searchDebounce = null;
 let currentCategory = 'cuscinetti';
+let importCategory = 'cuscinetti';
 
 const CATEGORY_LABELS = {
   cuscinetti: 'Cuscinetti',
@@ -62,7 +63,11 @@ export function initProducts() {
   els.newBtn = document.getElementById('product-new-btn');
   els.lowStockToggle = document.getElementById('product-lowstock-toggle');
   els.categoryTabs = document.querySelectorAll('[data-category-tab]');
+  els.lineaFilterWrap = document.getElementById('product-linea-filter-wrap');
+  els.lineaFilter = document.getElementById('product-linea-filter');
 
+  // Import Excel (ora nella vista Impostazioni, con proprie tab categoria)
+  els.importCategoryTabs = document.querySelectorAll('[data-import-category-tab]');
   els.importWrap = document.getElementById('product-import-wrap');
   els.importPending = document.getElementById('product-import-pending');
   els.importInput = document.getElementById('product-import-input');
@@ -77,6 +82,7 @@ export function initProducts() {
   els.deleteBtn = document.getElementById('product-delete-btn');
   els.categoriaSelect = document.getElementById('product-categoria');
   els.lineaMacchinaWrap = document.getElementById('product-linea-macchina-wrap');
+  els.macchinaDatalist = document.getElementById('product-macchina-options');
   els.barcodePreviewWrap = document.getElementById('product-barcode-preview-wrap');
   els.barcodeSvg = document.getElementById('product-barcode-svg');
   els.printLabelBtn = document.getElementById('product-print-label-btn');
@@ -89,6 +95,7 @@ export function initProducts() {
     searchDebounce = setTimeout(refresh, 280);
   });
   els.lowStockToggle.addEventListener('change', refresh);
+  els.lineaFilter?.addEventListener('change', refresh);
   els.newBtn.addEventListener('click', () => openModal());
   els.closeModalBtn.addEventListener('click', closeModal);
   els.form.addEventListener('submit', handleSubmit);
@@ -102,28 +109,41 @@ export function initProducts() {
   els.categoryTabs.forEach((btn) => {
     btn.addEventListener('click', () => setCategory(btn.dataset.categoryTab));
   });
+  els.importCategoryTabs.forEach((btn) => {
+    btn.addEventListener('click', () => setImportCategory(btn.dataset.importCategoryTab));
+  });
 
   // Anteprima barcode live mentre si digita il codice a barre
   document.getElementById('product-codice-barre').addEventListener('input', updateBarcodePreview);
 
   setCategory(currentCategory);
+  setImportCategory(importCategory);
 }
 
 function setCategory(category) {
   currentCategory = category;
   els.categoryTabs.forEach((btn) => btn.classList.toggle('category-tab-active', btn.dataset.categoryTab === category));
 
+  const showLineaFilter = category === 'cinghie';
+  els.lineaFilterWrap.classList.toggle('hidden', !showLineaFilter);
+  if (!showLineaFilter && els.lineaFilter) els.lineaFilter.value = '';
+
+  refresh();
+}
+
+/** Seleziona la categoria di destinazione per l'import Excel (vista Impostazioni) */
+function setImportCategory(category) {
+  importCategory = category;
+  els.importCategoryTabs.forEach((btn) => btn.classList.toggle('import-category-tab-active', btn.dataset.importCategoryTab === category));
+
   const importConfig = CATEGORY_IMPORT_CONFIG[category];
-  const admin = isAdmin();
-  els.importWrap.classList.toggle('hidden', !(importConfig && admin));
-  els.importPending.classList.toggle('hidden', !(!importConfig && admin));
+  els.importWrap.classList.toggle('hidden', !importConfig);
+  els.importPending.classList.toggle('hidden', !!importConfig);
   if (importConfig) {
     els.importHint.textContent = importConfig.hint;
     els.importResult.classList.add('hidden');
     els.importInput.value = '';
   }
-
-  refresh();
 }
 
 export async function refresh() {
@@ -136,6 +156,10 @@ export async function refresh() {
       onlyLowStock: els.lowStockToggle.checked,
       categoria: currentCategory,
     });
+    if (currentCategory === 'cinghie' && els.lineaFilter?.value) {
+      const wanted = els.lineaFilter.value;
+      currentList = currentList.filter((p) => matchesLineaFilter(p.linea, wanted));
+    }
     renderList();
   } catch (err) {
     console.error(err);
@@ -143,6 +167,14 @@ export async function refresh() {
   } finally {
     els.skeleton.classList.add('hidden');
   }
+}
+
+/** L1-L2 è valido sia per il filtro L1 sia per il filtro L2 (serve entrambe le linee) */
+function matchesLineaFilter(productLinea, wanted) {
+  if (!wanted) return true;
+  if (productLinea === wanted) return true;
+  if (wanted !== 'L1-L2' && productLinea === 'L1-L2') return true;
+  return false;
 }
 
 function renderList() {
@@ -185,6 +217,7 @@ function openModal(product = null) {
   els.deleteBtn.classList.toggle('hidden', !product);
   els.form.reset();
   stopBarcodeScan();
+  populateMacchinaOptions();
 
   els.categoriaSelect.value = product?.categoria || currentCategory;
   document.getElementById('product-codice-articolo').value = product?.codice_articolo || '';
@@ -201,6 +234,16 @@ function openModal(product = null) {
   updateBarcodePreview();
   els.modal.classList.remove('hidden');
   requestAnimationFrame(() => els.modal.classList.add('modal-visible'));
+}
+
+/** Popola la combobox "Macchina" con i soli valori già registrati (nessuna ripetizione) */
+async function populateMacchinaOptions() {
+  try {
+    const values = await listDistinctMacchine();
+    els.macchinaDatalist.innerHTML = values.map((v) => `<option value="${escapeHtml(v)}"></option>`).join('');
+  } catch (err) {
+    console.warn('Impossibile caricare l\'elenco delle macchine registrate.', err);
+  }
 }
 
 function updateLineaMacchinaVisibility() {
@@ -351,7 +394,7 @@ async function handleImportFileChange(e) {
   e.target.value = ''; // permette di ricaricare lo stesso file una seconda volta
   if (!file) return;
 
-  const config = CATEGORY_IMPORT_CONFIG[currentCategory];
+  const config = CATEGORY_IMPORT_CONFIG[importCategory];
   if (!config) return;
 
   showImportResult(`Lettura di "${file.name}"…`, 'info');
@@ -381,13 +424,13 @@ async function handleImportFileChange(e) {
     }
 
     showImportResult(`Importazione di ${mapped.length} righe in corso…`, 'info');
-    const result = await bulkUpsertProducts(currentCategory, mapped);
+    const result = await bulkUpsertProducts(importCategory, mapped);
     showImportResult(
       `Importazione completata: ${result.totale} articoli (${result.inseriti} nuovi, ${result.aggiornati} aggiornati).`,
       'success'
     );
-    toastSuccess(`${CATEGORY_LABELS[currentCategory]}: importazione completata.`);
-    refresh();
+    toastSuccess(`${CATEGORY_LABELS[importCategory]}: importazione completata.`);
+    if (importCategory === currentCategory) refresh();
   } catch (err) {
     console.error(err);
     showImportResult('Errore durante la lettura o l\'importazione del file. Verifica che sia un .xlsx valido con le colonne nell\'ordine corretto.', 'error');

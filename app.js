@@ -7,7 +7,7 @@ import { initScanner, teardownScanner } from './scanner.js';
 import { initProducts, refresh as refreshProducts } from './products.js';
 import { initDashboard, refresh as refreshDashboard } from './dashboard.js';
 
-const VIEWS = ['scanner', 'products', 'dashboard'];
+const VIEWS = ['scanner', 'products', 'dashboard', 'settings'];
 let modulesInitialized = false;
 let currentView = 'scanner';
 
@@ -16,12 +16,15 @@ function onAuthed(profile) {
   document.getElementById('app-shell').classList.remove('hidden');
 
   document.getElementById('user-name').textContent = profile.full_name || profile.email;
-  document.getElementById('user-role-badge').textContent = profile.role === 'admin' ? 'Admin' : 'Operatore';
+  const roleLabel = profile.role === 'admin' ? 'Admin' : 'Operatore';
+  document.getElementById('user-role-badge').textContent = roleLabel;
   document.getElementById('user-role-badge').className = `text-[10px] font-display font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${
     profile.role === 'admin' ? 'bg-amber-500/20 text-amber-300' : 'bg-sky-500/20 text-sky-300'
   }`;
+  document.getElementById('settings-user-name').textContent = profile.full_name || profile.email;
+  document.getElementById('settings-user-role').textContent = roleLabel;
 
-  // Elementi visibili solo all'admin (gestione articoli, dashboard, nuovo articolo)
+  // Elementi visibili solo all'admin (gestione articoli, dashboard, import Excel)
   document.querySelectorAll('[data-admin-only]').forEach((el) => {
     el.classList.toggle('hidden', !isAdmin());
   });
@@ -46,6 +49,7 @@ function initNav() {
   document.querySelectorAll('[data-nav-target]').forEach((btn) => {
     btn.addEventListener('click', () => switchView(btn.dataset.navTarget));
   });
+  document.getElementById('settings-btn').addEventListener('click', () => switchView('settings'));
 }
 
 function switchView(view) {

@@ -116,6 +116,14 @@ export async function bulkUpsertProducts(categoria, rows) {
   return data?.[0] ?? null;
 }
 
+/** Elenco delle "macchina" già registrate (valori distinti, non vuoti), per la combobox del form articolo */
+export async function listDistinctMacchine() {
+  const { data, error } = await supabase.from('products').select('macchina').not('macchina', 'is', null);
+  if (error) throw error;
+  const values = new Set(data.map((r) => r.macchina).filter((v) => v && v.trim()));
+  return Array.from(values).sort((a, b) => a.localeCompare(b, 'it'));
+}
+
 // --- TRANSAZIONI (deposito/prelievo) ------------------------------
 /**
  * Esegue in modo atomico deposito o prelievo tramite la funzione SQL
