@@ -4,7 +4,7 @@
 // mette in cache solo l'involucro dell'app (HTML/CSS/JS/icone locali).
 // =============================================================
 
-const CACHE_NAME = 'magazzino-shell-v3';
+const CACHE_NAME = 'magazzino-shell-v4';
 const APP_SHELL = [
   './',
   './index.html',
