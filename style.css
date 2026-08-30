@@ -1,15 +1,15 @@
 /* =============================================================
-   style.css — Tema "placard industriale": animazioni e componenti
-   custom non esprimibili con le sole utility Tailwind.
+   style.css — Tema chiaro "Scatolificio Sarno": animazioni e
+   componenti custom non esprimibili con le sole utility Tailwind.
    ============================================================= */
 
 :root {
-  color-scheme: dark;
+  color-scheme: light;
 }
 
 html, body {
   height: 100%;
-  background: #14161a;
+  background: #f4f5f7;
   overscroll-behavior-y: contain;
 }
 
@@ -23,13 +23,14 @@ body {
 /* ---- Scrollbar discreta ---------------------------------- */
 ::-webkit-scrollbar { width: 8px; height: 8px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: #343940; border-radius: 999px; }
+::-webkit-scrollbar-thumb { background: #d3d6db; border-radius: 999px; }
 
 /* ---- Card "targa" con rivetti agli angoli ------------------ */
 .card-plate {
   position: relative;
-  background: #1c1f24;
-  border: 1px solid #262a31;
+  background: #ffffff;
+  border: 1px solid #e3e5e9;
+  box-shadow: 0 1px 2px rgba(15,23,42,0.04), 0 1px 3px rgba(15,23,42,0.05);
 }
 .card-plate::before,
 .card-plate::after,
@@ -40,8 +41,8 @@ body {
   width: 5px;
   height: 5px;
   border-radius: 999px;
-  background: #343940;
-  box-shadow: inset 0 1px 1px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.03);
+  background: #cfd2d8;
+  box-shadow: inset 0 1px 1px rgba(15,23,42,0.15), 0 1px 0 rgba(255,255,255,0.6);
 }
 .card-plate::before { top: 6px; left: 6px; }
 .card-plate::after { top: 6px; right: 6px; }
@@ -50,7 +51,7 @@ body {
 .skeleton {
   position: relative;
   overflow: hidden;
-  background: #1c1f24;
+  background: #edeef1;
   border-radius: 0.6rem;
 }
 .skeleton::after {
@@ -58,7 +59,7 @@ body {
   position: absolute;
   inset: 0;
   transform: translateX(-100%);
-  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.06), transparent);
+  background: linear-gradient(90deg, transparent, rgba(15,23,42,0.06), transparent);
   animation: shimmer 1.5s infinite;
 }
 @keyframes shimmer {
@@ -81,7 +82,7 @@ body {
   transition: color 160ms ease, transform 160ms ease;
 }
 .nav-active {
-  color: #ff9f1c !important;
+  color: #2f4f92 !important;
 }
 .nav-active .nav-icon-wrap {
   transform: translateY(-2px);
@@ -101,31 +102,32 @@ body {
   transition: all 180ms ease;
 }
 .mode-active-deposito {
-  background: rgba(52, 211, 153, 0.14) !important;
-  border-color: rgba(52, 211, 153, 0.5) !important;
-  color: #6ee7b7 !important;
+  background: rgba(16, 185, 129, 0.12) !important;
+  border-color: rgba(16, 185, 129, 0.5) !important;
+  color: #047857 !important;
   transform: scale(1.02);
 }
 .mode-active-prelievo {
-  background: rgba(255, 159, 28, 0.14) !important;
-  border-color: rgba(255, 159, 28, 0.5) !important;
-  color: #ffc266 !important;
+  background: rgba(47, 79, 146, 0.10) !important;
+  border-color: rgba(47, 79, 146, 0.5) !important;
+  color: #24406f !important;
   transform: scale(1.02);
 }
 
 /* ---- Tab categoria magazzino -------------------------------------- */
-.category-tab, .import-category-tab { transition: all 160ms ease; color: #6b7078; }
+.category-tab, .import-category-tab { transition: all 160ms ease; color: #70747c; }
 .category-tab-active, .import-category-tab-active {
-  background: rgba(255, 159, 28, 0.12) !important;
-  border-color: rgba(255, 159, 28, 0.5) !important;
-  color: #ffc266 !important;
+  background: rgba(47, 79, 146, 0.10) !important;
+  border-color: rgba(47, 79, 146, 0.5) !important;
+  color: #24406f !important;
 }
 
 /* ---- Reader camera ---------------------------------------------- */
 #scanner-reader {
   border-radius: 0.85rem;
   overflow: hidden;
-  border: 2px dashed #4a4f58;
+  border: 2px dashed #b8bcc3;
+  background: #14161a;
 }
 #scanner-reader video { border-radius: 0.7rem; }
 #scanner-reader,
@@ -133,7 +135,12 @@ body {
   cursor: crosshair;
   position: relative;
 }
-#product-barcode-scanner-reader { border-radius: 0.85rem; overflow: hidden; border: 2px dashed #4a4f58; }
+#product-barcode-scanner-reader {
+  border-radius: 0.85rem;
+  overflow: hidden;
+  border: 2px dashed #b8bcc3;
+  background: #14161a;
+}
 #product-barcode-scanner-reader video { border-radius: 0.7rem; }
 
 /* Anello di feedback visivo al tocco per la messa a fuoco manuale */
@@ -143,7 +150,7 @@ body {
   height: 56px;
   margin-left: -28px;
   margin-top: -28px;
-  border: 2px solid #ff9f1c;
+  border: 2px solid #6f8fcf;
   border-radius: 999px;
   pointer-events: none;
   z-index: 20;
@@ -182,14 +189,23 @@ body {
 
 /* ---- Pulsazione pulsante scan attivo ------------------------------- */
 @keyframes pulse-ring {
-  0% { box-shadow: 0 0 0 0 rgba(255, 159, 28, 0.35); }
-  100% { box-shadow: 0 0 0 14px rgba(255, 159, 28, 0); }
+  0% { box-shadow: 0 0 0 0 rgba(47, 79, 146, 0.30); }
+  100% { box-shadow: 0 0 0 14px rgba(47, 79, 146, 0); }
 }
 .scan-pulse { animation: pulse-ring 1.8s ease-out infinite; }
 
+/* ---- Undo/Redo -------------------------------------------------- */
+.history-btn {
+  transition: all 160ms ease;
+}
+.history-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
 /* ---- Focus visibile per accessibilità -------------------------------- */
 :focus-visible {
-  outline: 2px solid #ff9f1c;
+  outline: 2px solid #2f4f92;
   outline-offset: 2px;
 }
 

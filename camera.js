@@ -31,7 +31,7 @@ export async function startCamera(containerId, onDetected, ui = {}) {
 
     const chosen = availableCameras[activeCameraIndex];
     const cameraConfig = chosen ? { deviceId: { exact: chosen.id } } : { facingMode: 'environment' };
-    const scanConfig = { fps: 12, qrbox: { width: 260, height: 140 }, aspectRatio: 1.6 };
+    const scanConfig = { fps: 12, qrbox: { width: 200, height: 120 }, aspectRatio: 1.6 };
 
     try {
       await html5Qrcode.start(cameraConfig, scanConfig, (decodedText) => onDetected(decodedText), () => {});

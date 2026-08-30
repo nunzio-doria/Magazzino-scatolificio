@@ -8,20 +8,59 @@ Frontend: HTML/CSS/JS vanilla (nessuna build necessaria), Tailwind via CDN.
 ## Struttura file
 
 ```
-index.html            Shell dell'app, tutte le viste (login, scanner, magazzino, dashboard)
-style.css              Tema "placard industriale", animazioni, skeleton loading
+index.html            Shell dell'app, tutte le viste (login, scanner, magazzino, dashboard, impostazioni)
+style.css              Tema chiaro "Scatolificio Sarno", animazioni, skeleton loading
 tailwind.config.js     Palette/font del tema (script esterno, caricato dopo il CDN Tailwind)
+manifest.json           Web App Manifest per l'installazione PWA
+service-worker.js        Service worker minimo (cache della shell statica, installabilità)
+icons/                    Icone PWA in tutte le dimensioni (favicon, 192, 512, maskable, apple-touch-icon)
 supabase.js            Client Supabase + tutte le query (auth, prodotti, transazioni, import Excel)
 auth.js                 Login/logout, gestione sessione e ruolo utente
 camera.js                Gestione fotocamera condivisa (scanner deposito/prelievo + assegnazione barcode articolo)
 scanner.js                Flusso deposito/prelievo: selezione modalità, lettura barcode, conferma
-products.js                Magazzino: 3 categorie (Cuscinetti/Cinghie/Pezzi di ricambio), CRUD, import Excel, stampa etichette
+products.js                Magazzino: 3 categorie, CRUD, import Excel, stampa etichette, undo/redo
 dashboard.js               Reportistica consumi (solo Admin)
 toast.js                    Notifiche toast
-app.js                       Entry point: routing tra viste in base al ruolo
+app.js                       Entry point: routing tra viste, registrazione service worker
 ```
 
 Nessun bundler richiesto: tutti i moduli sono `<script type="module">` con import ES nativi; le librerie esterne (Supabase JS, JsBarcode, jsPDF, html5-qrcode, SheetJS/xlsx) sono caricate da CDN.
+
+## PWA: installazione con icona dedicata
+
+L'app è una Progressive Web App installabile da Chrome (desktop e Android) e da Safari (iOS, tramite "Aggiungi a Home"):
+
+- **`manifest.json`** definisce nome, colori del tema e tutte le icone (16, 32, 192, 512, più le varianti 192/512 **maskable** con margine di sicurezza per le mascherature circolari/arrotondate di Android).
+- **`icons/`** contiene tutte le dimensioni generate dal logo (scatola con cuscinetti, cinghie e ricambi su sfondo blu). Il blu di sfondo del logo (`#13223f`/`#2f4f92`) è anche il colore del tema (`theme-color`) e dell'accento principale dell'interfaccia.
+- **`service-worker.js`** mette in cache solo l'involucro statico dell'app (HTML/CSS/JS/icone), necessario perché Chrome consideri l'app installabile. Le chiamate a Supabase e alle CDN esterne passano sempre dalla rete, senza essere intercettate.
+
+Per installarla: apri il sito da Chrome su Android → menu (⋮) → "Installa app" (o la icona di installazione nella barra indirizzi su desktop). L'icona apparirà come qualunque altra app, con il logo dedicato.
+
+> Nota tecnica: alcuni store di icone dei browser mantengono in cache la vecchia icona per un po' — se dopo l'installazione vedi ancora l'icona generica, disinstalla e reinstalla la PWA, oppure svuota la cache del sito.
+
+> Nota sugli aggiornamenti: il service worker mette in cache la shell dell'app con il nome `magazzino-shell-v1`. Ai prossimi aggiornamenti sostanziali del frontend, incrementa quel nome (es. `v2`) in cima a `service-worker.js`, altrimenti gli utenti che hanno già installato l'app potrebbero continuare a vedere file vecchi dalla cache per un po'.
+
+## Tema chiaro e colore del brand
+
+Il tema è stato convertito da scuro ad **chiaro**, e il colore di accento (bottoni, tab attive, focus, badge) è passato dall'arancione al **blu dello sfondo del logo** (`#2f4f92`, con sfumature più chiare/scure per hover e badge). Le uniche eccezioni volute sono i colori semantici invariati: verde per "deposito"/successo, rosso per errori/eliminazioni/sotto-scorta.
+
+> Nota: per semplicità, il badge di avviso "sotto scorta minima" e la modalità "Prelievo" dello scanner ora usano lo stesso blu del brand invece di un arancione distintivo. Se preferisci che gli avvisi di sotto-scorta restino in una tonalità diversa (es. giallo/arancione) per distinguerli a colpo d'occhio dal blu dei pulsanti, fammelo sapere e aggiungo un colore "warning" separato.
+
+## Undo / Redo sul Magazzino
+
+Nella vista Magazzino, accanto al pulsante "+ Nuovo", ci sono due pulsanti **↶ Annulla** e **↷ Ripeti** (visibili solo per l'Admin). Coprono le tre operazioni sugli articoli:
+
+- **Creazione** di un nuovo articolo → annullare lo elimina di nuovo.
+- **Modifica** di un articolo esistente → annullare ripristina tutti i campi al valore precedente.
+- **Eliminazione** di un articolo → annullare lo ricrea con lo stesso ID e tutti i dati originali.
+
+La cronologia è tenuta in memoria (si azzera ricaricando la pagina) e tiene fino a 20 operazioni; una nuova modifica dopo un "Annulla" cancella le operazioni "Ripeti" pendenti, come nei normali editor. L'import massivo da Excel **non** è coperto da undo/redo (agisce su molte righe contemporaneamente): in caso di import errato, va corretto manualmente o ricaricando un file corretto.
+
+## Fotocamera: riquadro di scansione più compatto
+
+Il riquadro di scansione (sia nello scanner deposito/prelievo sia nell'acquisizione barcode dal form articolo) è stato ridotto e reso meno allungato in larghezza, per un'inquadratura più mirata sul codice a barre.
+
+
 
 ## Il Magazzino: 3 categorie
 

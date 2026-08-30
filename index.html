@@ -3,8 +3,20 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
-<title>Magazzino Ricambi</title>
-<meta name="theme-color" content="#14161a">
+<title>Magazzino - Scatolificio Sarno</title>
+<meta name="description" content="Gestione magazzino ricambi industriali - Scatolificio Sarno">
+<meta name="theme-color" content="#2f4f92">
+
+<!-- PWA: manifest e icone -->
+<link rel="manifest" href="./manifest.json">
+<link rel="icon" type="image/x-icon" href="./icons/favicon.ico">
+<link rel="icon" type="image/png" sizes="32x32" href="./icons/favicon-32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="./icons/favicon-16.png">
+<link rel="icon" type="image/png" sizes="192x192" href="./icons/icon-192.png">
+<link rel="apple-touch-icon" sizes="180x180" href="./icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Magazzino">
 
 <!-- Font -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -31,12 +43,10 @@
 <div id="auth-view" class="min-h-screen flex flex-col items-center justify-center px-6">
   <div class="w-full max-w-sm">
     <div class="flex flex-col items-center mb-8">
-      <div class="w-16 h-16 rounded-2xl bg-graphite-800 border border-graphite-700 flex items-center justify-center mb-4 shadow-lift">
-        <svg class="w-8 h-8 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M3.375 3h17.25M3.375 3v17.25M3.375 3l7.5 7.5m9.75-7.5v17.25M20.625 3l-7.5 7.5m0 0L20.625 20.25m-7.5-9.75L3.375 20.25"/>
-        </svg>
+      <div class="w-16 h-16 rounded-2xl overflow-hidden shadow-lift mb-4">
+        <img src="./icons/icon-192.png" alt="Scatolificio Sarno" class="w-full h-full object-cover">
       </div>
-      <h1 class="font-display font-bold text-3xl uppercase tracking-wide text-graphite-100">Magazzino</h1>
+      <h1 class="font-display font-bold text-2xl uppercase tracking-wide text-graphite-100 text-center">Magazzino - Scatolificio Sarno</h1>
       <p class="text-graphite-500 text-sm mt-1">Gestione ricambi industriali</p>
     </div>
 
@@ -54,10 +64,10 @@
           placeholder="••••••••">
       </div>
 
-      <p id="login-error" class="hidden text-sm text-rose-400 bg-rose-500/10 border border-rose-500/30 rounded-lg px-3 py-2"></p>
+      <p id="login-error" class="hidden text-sm text-rose-700 bg-rose-500/10 border border-rose-500/30 rounded-lg px-3 py-2"></p>
 
       <button id="login-submit" type="submit"
-        class="w-full rounded-lg bg-amber-400 hover:bg-amber-300 text-graphite-950 font-display font-bold uppercase tracking-wide py-3 transition-all active:scale-95">
+        class="w-full rounded-lg bg-amber-400 hover:bg-amber-300 text-white font-display font-bold uppercase tracking-wide py-3 transition-all active:scale-95">
         <span class="btn-label">Accedi</span>
       </button>
     </form>
@@ -72,10 +82,8 @@
   <header class="sticky top-0 z-40 bg-graphite-900/90 backdrop-blur border-b border-graphite-800">
     <div class="flex items-center justify-between px-4 py-3 max-w-2xl mx-auto">
       <div class="flex items-center gap-2">
-        <div class="w-9 h-9 rounded-lg bg-graphite-800 border border-graphite-700 flex items-center justify-center">
-          <svg class="w-5 h-5 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M3.375 3h17.25M3.375 3v17.25M3.375 3l7.5 7.5m9.75-7.5v17.25M20.625 3l-7.5 7.5m0 0L20.625 20.25m-7.5-9.75L3.375 20.25"/>
-          </svg>
+        <div class="w-9 h-9 rounded-lg overflow-hidden shrink-0">
+          <img src="./icons/icon-192.png" alt="Scatolificio Sarno" class="w-full h-full object-cover">
         </div>
         <div>
           <p class="font-display font-bold uppercase tracking-wide text-sm leading-none">Magazzino</p>
@@ -116,7 +124,7 @@
       <p id="scan-mode-banner" class="hidden mb-3"></p>
 
       <div id="scanner-reader-wrap" class="hidden mb-3">
-        <div id="scanner-reader" class="w-full min-h-[220px] relative"></div>
+        <div id="scanner-reader" class="w-full min-h-[170px] relative"></div>
         <p id="scanner-focus-hint" class="hidden text-center text-xs text-graphite-500 mt-2">
           Tocca lo schermo sul codice per mettere a fuoco
         </p>
@@ -169,18 +177,28 @@
 
         <div class="flex gap-3 mt-4">
           <button id="scan-cancel-btn" type="button" class="rounded-lg py-3 px-4 font-display font-semibold uppercase tracking-wide text-graphite-400 hover:text-graphite-200 hover:bg-graphite-800 transition-colors">Annulla</button>
-          <button id="scan-confirm-btn" type="button" class="flex-1 rounded-lg py-3 font-display font-semibold uppercase tracking-wide bg-amber-400 text-graphite-950">Conferma</button>
+          <button id="scan-confirm-btn" type="button" class="flex-1 rounded-lg py-3 font-display font-semibold uppercase tracking-wide bg-amber-400 text-white">Conferma</button>
         </div>
       </div>
     </section>
 
     <!-- ============ VISTA MAGAZZINO (consultazione + admin CRUD + import Excel) ============ -->
     <section id="view-products" class="hidden">
-      <div class="flex items-center justify-between mb-3">
+      <div class="flex items-center justify-between mb-3 gap-2">
         <h2 class="font-display font-bold text-xl uppercase tracking-wide">Magazzino</h2>
-        <button id="product-new-btn" data-admin-only class="hidden rounded-lg bg-amber-400 hover:bg-amber-300 text-graphite-950 font-display font-semibold uppercase text-xs tracking-wide px-3 py-2 transition-colors">
-          + Nuovo
-        </button>
+        <div class="flex items-center gap-1.5">
+          <button id="product-undo-btn" data-admin-only type="button" disabled aria-label="Annulla ultima modifica" title="Annulla"
+            class="hidden history-btn w-8 h-8 rounded-lg border border-graphite-700 text-graphite-400 hover:text-amber-400 hover:border-amber-400 flex items-center justify-center">
+            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 15L3 9m0 0l6-6M3 9h12a6 6 0 010 12h-3"/></svg>
+          </button>
+          <button id="product-redo-btn" data-admin-only type="button" disabled aria-label="Ripeti modifica annullata" title="Ripeti"
+            class="hidden history-btn w-8 h-8 rounded-lg border border-graphite-700 text-graphite-400 hover:text-amber-400 hover:border-amber-400 flex items-center justify-center">
+            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 15l6-6m0 0l-6-6m6 6H9a6 6 0 000 12h3"/></svg>
+          </button>
+          <button id="product-new-btn" data-admin-only class="hidden rounded-lg bg-amber-400 hover:bg-amber-300 text-white font-display font-semibold uppercase text-xs tracking-wide px-3 py-2 transition-colors">
+            + Nuovo
+          </button>
+        </div>
       </div>
 
       <!-- Tab categorie -->
@@ -232,7 +250,7 @@
 
       <div class="grid grid-cols-3 gap-2 mb-4">
         <div class="card-plate rounded-xl p-3 text-center">
-          <p id="dash-kpi-depositi" class="font-mono text-2xl font-bold text-emerald-300">0</p>
+          <p id="dash-kpi-depositi" class="font-mono text-2xl font-bold text-emerald-700">0</p>
           <p class="text-[10px] uppercase tracking-wide text-graphite-500 mt-0.5">Depositi</p>
         </div>
         <div class="card-plate rounded-xl p-3 text-center">
@@ -271,7 +289,7 @@
           <p id="settings-user-name" class="font-medium text-graphite-100 truncate">—</p>
           <p id="settings-user-role" class="text-xs text-graphite-500 mt-0.5">—</p>
         </div>
-        <button id="logout-btn" type="button" class="shrink-0 rounded-lg border border-rose-500/40 text-rose-400 hover:bg-rose-500/10 px-3.5 py-2 text-xs font-display font-semibold uppercase tracking-wide transition-colors">
+        <button id="logout-btn" type="button" class="shrink-0 rounded-lg border border-rose-500/40 text-rose-700 hover:bg-rose-500/10 px-3.5 py-2 text-xs font-display font-semibold uppercase tracking-wide transition-colors">
           Esci
         </button>
       </div>
@@ -407,7 +425,7 @@
       </div>
 
       <div id="product-barcode-scanner-wrap" class="hidden">
-        <div id="product-barcode-scanner-reader" class="w-full min-h-[200px] relative"></div>
+        <div id="product-barcode-scanner-reader" class="w-full min-h-[160px] relative"></div>
         <button id="product-scan-barcode-stop" type="button" class="w-full mt-2 text-xs text-graphite-500 hover:text-graphite-300 py-1.5 transition-colors">Annulla scansione</button>
       </div>
 
@@ -419,12 +437,12 @@
         <button id="product-print-label-btn" type="button" class="flex-1 rounded-lg border border-graphite-700 hover:border-amber-400 py-2.5 text-sm font-display font-semibold uppercase tracking-wide text-graphite-300 transition-colors">
           Stampa etichetta PDF
         </button>
-        <button id="product-delete-btn" type="button" class="hidden rounded-lg border border-rose-500/40 text-rose-400 hover:bg-rose-500/10 px-4 py-2.5 text-sm font-display font-semibold uppercase tracking-wide transition-colors">
+        <button id="product-delete-btn" type="button" class="hidden rounded-lg border border-rose-500/40 text-rose-700 hover:bg-rose-500/10 px-4 py-2.5 text-sm font-display font-semibold uppercase tracking-wide transition-colors">
           Elimina
         </button>
       </div>
 
-      <button type="submit" class="w-full rounded-lg bg-amber-400 hover:bg-amber-300 text-graphite-950 font-display font-bold uppercase tracking-wide py-3 transition-all active:scale-95">
+      <button type="submit" class="w-full rounded-lg bg-amber-400 hover:bg-amber-300 text-white font-display font-bold uppercase tracking-wide py-3 transition-all active:scale-95">
         Salva articolo
       </button>
     </form>
