@@ -69,7 +69,7 @@ function renderList(filterText, currentValue) {
       'w-full text-left px-4 py-3 rounded-lg hover:bg-graphite-700/50 transition-colors flex items-center justify-between gap-2';
     row.innerHTML = `<span class="text-graphite-100">${escapeHtml(opt)}</span>${
       opt === currentValue
-        ? '<svg class="w-4 h-4 text-amber-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>'
+        ? '<i data-lucide="check" class="w-4 h-4 text-amber-400 shrink-0" stroke-width="2.5"></i>'
         : ''
     }`;
     row.addEventListener('click', () => closePicker(opt));
@@ -84,12 +84,14 @@ function renderList(filterText, currentValue) {
     addRow.className =
       'w-full text-left px-4 py-3 rounded-lg hover:bg-amber-400/10 transition-colors flex items-center gap-2 text-amber-400 font-medium mt-1 border-t border-graphite-700';
     addRow.innerHTML = `
-      <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
+      <i data-lucide="plus" class="w-4 h-4 shrink-0" stroke-width="2.5"></i>
       <span>Aggiungi "${escapeHtml(filterText.trim())}"</span>
     `;
     addRow.addEventListener('click', () => closePicker(filterText.trim()));
     els.list.appendChild(addRow);
   }
+
+  window.lucide?.createIcons();
 }
 
 function closePicker(value) {

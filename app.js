@@ -11,11 +11,13 @@ import { initPicker } from './picker.js';
 
 const VIEWS = ['scanner', 'products', 'dashboard', 'settings'];
 let modulesInitialized = false;
-let currentView = 'scanner';
+let currentView = null;
+let isTransitioning = false;
 
 function onAuthed(profile) {
   document.getElementById('auth-view').classList.add('hidden');
   document.getElementById('app-shell').classList.remove('hidden');
+  window.lucide?.createIcons();
 
   const roleLabel = profile.role === 'admin' ? 'Admin' : 'Operatore';
   document.getElementById('user-role-badge').textContent = roleLabel;
@@ -39,7 +41,7 @@ function onAuthed(profile) {
     initNav();
     modulesInitialized = true;
   }
-  switchView('scanner');
+  switchView('scanner', { animate: false });
 }
 
 function onSignedOut() {
@@ -55,33 +57,83 @@ function initNav() {
   document.getElementById('settings-btn').addEventListener('click', () => switchView('settings'));
 }
 
-function switchView(view) {
+function switchView(view, { animate = true } = {}) {
   if (view === 'products' || view === 'dashboard') {
     if (!isAdmin()) view = 'scanner';
   }
+  if (view === currentView) return;
+  if (isTransitioning) return; // evita di sovrapporre più transizioni se si tocca velocemente
+
+  const previousView = currentView;
+  const fromIndex = previousView ? VIEWS.indexOf(previousView) : -1;
+  const toIndex = VIEWS.indexOf(view);
+  const forward = fromIndex === -1 ? true : toIndex > fromIndex; // direzione: avanti = scivola da destra
+
   currentView = view;
 
   for (const v of VIEWS) {
-    const section = document.getElementById(`view-${v}`);
-    const navBtn = document.querySelector(`[data-nav-target="${v}"]`);
-    const active = v === view;
-    if (active) {
-      section.classList.remove('hidden');
-      // Transizione "glass": rimuove e riapplica la classe per far ripartire l'animazione
-      section.classList.remove('view-transition-active');
-      void section.offsetWidth; // forza il reflow
-      section.classList.add('view-transition-active');
-    } else {
-      section.classList.add('hidden');
-      section.classList.remove('view-transition-active');
-    }
-    navBtn?.classList.toggle('nav-active', active);
+    document.querySelector(`[data-nav-target="${v}"]`)?.classList.toggle('nav-active', v === view);
   }
 
   if (view !== 'scanner') teardownScanner();
   if (view === 'products') refreshProducts();
   if (view === 'dashboard') refreshDashboard();
   if (view === 'settings' && isAdmin()) refreshUsers();
+
+  const toSection = document.getElementById(`view-${view}`);
+  const fromSection = previousView ? document.getElementById(`view-${previousView}`) : null;
+
+  if (!animate || !fromSection) {
+    // Prima apparizione: nessuna vista precedente da cui uscire, la mostra e basta
+    fromSection?.classList.add('hidden');
+    toSection.classList.remove('hidden');
+    return;
+  }
+
+  animateViewSwitch(fromSection, toSection, forward);
+}
+
+function animateViewSwitch(fromSection, toSection, forward) {
+  isTransitioning = true;
+  const host = toSection.parentElement;
+
+  // Misura la posizione reale (in px, coordinate viewport) della vista uscente
+  // PRIMA di renderla absolute, cosí l'overlay resta perfettamente allineato
+  // alla vista entrante anche con il padding del contenitore (main).
+  const hostRect = host.getBoundingClientRect();
+  const fromRect = fromSection.getBoundingClientRect();
+
+  host.style.minHeight = `${fromSection.offsetHeight}px`;
+
+  const exitClass = forward ? 'view-exit-to-left' : 'view-exit-to-right';
+  const enterClass = forward ? 'view-enter-from-right' : 'view-enter-from-left';
+
+  fromSection.style.position = 'absolute';
+  fromSection.style.top = `${fromRect.top - hostRect.top}px`;
+  fromSection.style.left = `${fromRect.left - hostRect.left}px`;
+  fromSection.style.width = `${fromRect.width}px`;
+  fromSection.classList.add('view-leaving', exitClass);
+
+  toSection.classList.remove('hidden');
+  void toSection.offsetWidth; // forza il reflow prima di avviare l'animazione di ingresso
+  toSection.classList.add('view-entering', enterClass);
+
+  let done = false;
+  const cleanup = () => {
+    if (done) return;
+    done = true;
+    fromSection.classList.add('hidden');
+    fromSection.classList.remove('view-leaving', 'view-exit-to-left', 'view-exit-to-right');
+    fromSection.style.position = '';
+    fromSection.style.top = '';
+    fromSection.style.left = '';
+    fromSection.style.width = '';
+    toSection.classList.remove('view-entering', 'view-enter-from-right', 'view-enter-from-left');
+    host.style.minHeight = '';
+    isTransitioning = false;
+  };
+  toSection.addEventListener('animationend', cleanup, { once: true });
+  setTimeout(cleanup, 550); // rete di sicurezza se l'evento non scattasse
 }
 
 initAuth(onAuthed, onSignedOut);

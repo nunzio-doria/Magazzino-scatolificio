@@ -10,10 +10,10 @@ function ensureContainer() {
 }
 
 const ICONS = {
-  success: `<svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>`,
-  error: `<svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>`,
-  warning: `<svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z"/></svg>`,
-  info: `<svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0Zm-9-3.75h.008v.008H12V8.25Z"/></svg>`,
+  success: '<i data-lucide="circle-check" class="w-5 h-5" stroke-width="2.25"></i>',
+  error: '<i data-lucide="circle-x" class="w-5 h-5" stroke-width="2.25"></i>',
+  warning: '<i data-lucide="triangle-alert" class="w-5 h-5" stroke-width="2.25"></i>',
+  info: '<i data-lucide="info" class="w-5 h-5" stroke-width="2.25"></i>',
 };
 
 const STYLES = {
@@ -39,7 +39,7 @@ export function showToast(message, type = 'info', duration = 4200) {
     <span class="shrink-0 mt-0.5">${ICONS[type] || ICONS.info}</span>
     <p class="text-sm text-graphite-100 leading-snug flex-1">${message}</p>
     <button class="shrink-0 text-graphite-500 hover:text-graphite-200 transition-colors" aria-label="Chiudi">
-      <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+      <i data-lucide="x" class="w-4 h-4" stroke-width="2"></i>
     </button>
   `;
 
@@ -49,6 +49,7 @@ export function showToast(message, type = 'info', duration = 4200) {
   };
   el.querySelector('button').addEventListener('click', close);
   root.appendChild(el);
+  window.lucide?.createIcons();
 
   if (duration > 0) setTimeout(close, duration);
   return { close };

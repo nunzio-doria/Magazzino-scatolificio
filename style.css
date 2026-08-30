@@ -117,18 +117,69 @@ body {
   transition: all 160ms ease;
 }
 
-/* ---- Transizione "glass" tra le sezioni principali ------------------ */
-#view-scanner, #view-products, #view-dashboard, #view-settings {
-  opacity: 0;
-  filter: blur(6px);
-  transform: translateY(8px);
+/* ---- Transizione "glass" 3D tra le sezioni principali -----------------
+   Le due sezioni (quella che esce e quella che entra) si sovrappongono
+   per la durata dell'animazione: la nuova vista scivola dentro come un
+   pannello di vetro, con una leggera rotazione prospettica e uno zoom
+   ottico (scala + blur che si risolve), nella direzione data dalla
+   posizione dei tab (avanti = da destra, indietro = da sinistra).      */
+.view-host {
+  position: relative;
+  overflow-x: hidden;
+  perspective: 1400px;
 }
-.view-transition-active {
-  opacity: 1 !important;
-  filter: blur(0) !important;
-  transform: translateY(0) !important;
-  transition: opacity 320ms cubic-bezier(0.16, 1, 0.3, 1), filter 320ms cubic-bezier(0.16, 1, 0.3, 1), transform 320ms cubic-bezier(0.16, 1, 0.3, 1);
+.view-leaving {
+  /* position, top, left, width vengono impostati inline da app.js in px,
+     calcolati dal layout reale, per restare perfettamente allineati alla
+     vista che sta entrando anche con il padding del contenitore */
+  z-index: 1;
+  pointer-events: none;
+  will-change: transform, opacity, filter;
 }
+.view-entering {
+  position: relative;
+  z-index: 2;
+  will-change: transform, opacity, filter;
+}
+.view-entering::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 3;
+  background: linear-gradient(115deg, transparent 32%, rgba(255,255,255,0.30) 46%, rgba(255,255,255,0.05) 56%, transparent 72%);
+  mix-blend-mode: overlay;
+  transform: translateX(-130%);
+  animation: glass-sheen 420ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes glass-sheen {
+  to { transform: translateX(130%); }
+}
+
+@keyframes glass-exit-left {
+  0%   { opacity: 1; filter: blur(0) brightness(1);     transform: translateX(0) translateZ(0) rotateY(0deg) scale(1); }
+  100% { opacity: 0; filter: blur(10px) brightness(1.2); transform: translateX(-22%) translateZ(-90px) rotateY(12deg) scale(0.9); }
+}
+@keyframes glass-exit-right {
+  0%   { opacity: 1; filter: blur(0) brightness(1);     transform: translateX(0) translateZ(0) rotateY(0deg) scale(1); }
+  100% { opacity: 0; filter: blur(10px) brightness(1.2); transform: translateX(22%) translateZ(-90px) rotateY(-12deg) scale(0.9); }
+}
+@keyframes glass-enter-from-right {
+  0%   { opacity: 0; filter: blur(16px) brightness(1.3); transform: translateX(32%) translateZ(-70px) rotateY(-16deg) scale(1.1); }
+  55%  { filter: blur(3px) brightness(1.08); }
+  100% { opacity: 1; filter: blur(0) brightness(1);      transform: translateX(0) translateZ(0) rotateY(0deg) scale(1); }
+}
+@keyframes glass-enter-from-left {
+  0%   { opacity: 0; filter: blur(16px) brightness(1.3); transform: translateX(-32%) translateZ(-70px) rotateY(16deg) scale(1.1); }
+  55%  { filter: blur(3px) brightness(1.08); }
+  100% { opacity: 1; filter: blur(0) brightness(1);      transform: translateX(0) translateZ(0) rotateY(0deg) scale(1); }
+}
+
+.view-exit-to-left    { animation: glass-exit-left 360ms cubic-bezier(0.32, 0, 0.67, 0) forwards; }
+.view-exit-to-right   { animation: glass-exit-right 360ms cubic-bezier(0.32, 0, 0.67, 0) forwards; }
+.view-enter-from-right{ animation: glass-enter-from-right 420ms cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+.view-enter-from-left { animation: glass-enter-from-left 420ms cubic-bezier(0.16, 1, 0.3, 1) forwards; }
 
 /* ---- Tab storico (modale drill-down consumi) ------------------------ */
 .history-tab { color: #70747c; transition: all 160ms ease; }

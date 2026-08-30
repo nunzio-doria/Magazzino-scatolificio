@@ -46,7 +46,7 @@ function renderUsers() {
         p.role === 'admin' ? 'bg-amber-500/20 text-amber-400' : 'bg-sky-500/20 text-sky-700'
       }">${p.role === 'admin' ? 'Admin' : 'Operatore'}</span>
       <button type="button" class="user-save-btn shrink-0 w-9 h-9 rounded-lg border border-graphite-700 hover:border-amber-400 text-graphite-400 hover:text-amber-400 flex items-center justify-center transition-colors" aria-label="Salva nome" title="Salva">
-        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5"/></svg>
+        <i data-lucide="check" class="w-4 h-4" stroke-width="2.25"></i>
       </button>
     `;
     const input = row.querySelector('.user-name-input');
@@ -57,6 +57,7 @@ function renderUsers() {
     });
     els.list.appendChild(row);
   }
+  window.lucide?.createIcons();
 }
 
 async function saveName(id, name, btn) {
