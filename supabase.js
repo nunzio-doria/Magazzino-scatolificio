@@ -47,11 +47,24 @@ export async function getMyProfile() {
 
   const { data, error } = await supabase
     .from('profiles')
-    .select('id, full_name, role')
+    .select('id, full_name, role, email')
     .eq('id', userData.user.id)
     .single();
   if (error) throw error;
-  return { ...data, email: userData.user.email };
+  return data;
+}
+
+// --- PROFILI UTENTE (gestione nomi, vista Impostazioni Admin) -------
+export async function listProfiles() {
+  const { data, error } = await supabase.from('profiles').select('id, email, full_name, role').order('email');
+  if (error) throw error;
+  return data;
+}
+
+export async function updateProfileName(id, fullName) {
+  const { data, error } = await supabase.from('profiles').update({ full_name: fullName }).eq('id', id).select().single();
+  if (error) throw error;
+  return data;
 }
 
 // --- PRODUCTS ----------------------------------------------------
@@ -61,7 +74,7 @@ export async function listProducts({ search = '', onlyLowStock = false, categori
   if (categoria) query = query.eq('categoria', categoria);
   if (search) {
     query = query.or(
-      `codice_articolo.ilike.%${search}%,descrizione.ilike.%${search}%,codice_barre.ilike.%${search}%,locazione.ilike.%${search}%`
+      `codice_articolo.ilike.%${search}%,codice_barre.ilike.%${search}%,locazione.ilike.%${search}%,punto_utilizzo_standard.ilike.%${search}%,macchina.ilike.%${search}%`
     );
   }
   const { data, error } = await query;
@@ -145,7 +158,7 @@ export async function processTransaction({ productId, tipo, quantita, puntoUtili
 export async function listTransactions({ from, to, productId, limit = 200 } = {}) {
   let query = supabase
     .from('transactions')
-    .select('id, tipo, quantita, data_ora, punto_utilizzo_specifico, product_id, user_id, products(codice_articolo, descrizione), profiles(full_name)')
+    .select('id, tipo, quantita, data_ora, punto_utilizzo_specifico, product_id, user_id, products(codice_articolo), profiles(full_name)')
     .order('data_ora', { ascending: false })
     .limit(limit);
 
@@ -166,8 +179,8 @@ export async function getConsumptionStats({ from, to } = {}) {
   for (const r of prelievi) {
     const key = r.product_id;
     const cur = byProduct.get(key) || {
+      product_id: key,
       codice_articolo: r.products?.codice_articolo || '—',
-      descrizione: r.products?.descrizione || '—',
       totale: 0,
     };
     cur.totale += r.quantita;

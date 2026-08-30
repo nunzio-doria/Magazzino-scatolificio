@@ -3,16 +3,37 @@
 // =============================================================
 
 import { listProducts, createProduct, updateProduct, deleteProduct, bulkUpsertProducts, listDistinctMacchine } from './supabase.js';
-import { toastSuccess, toastError, toastInfo } from './toast.js';
+import { toastSuccess, toastError } from './toast.js';
 import { isAdmin } from './auth.js';
 import { startCamera, stopCamera } from './camera.js';
+import { openPicker } from './picker.js';
 
 const els = {};
 let currentList = [];
 let editingId = null;
+let editingSnapshot = null; // riga completa del prodotto in modifica/eliminazione, per l'undo
 let searchDebounce = null;
 let currentCategory = 'cuscinetti';
 let importCategory = 'cuscinetti';
+
+// --- UNDO / REDO -----------------------------------------------------
+const HISTORY_LIMIT = 20;
+let undoStack = [];
+let redoStack = [];
+
+function toWritableRow(row) {
+  return {
+    id: row.id,
+    categoria: row.categoria,
+    codice_articolo: row.codice_articolo,
+    locazione: row.locazione,
+    quantita_disponibile: row.quantita_disponibile,
+    scorta_minima: row.scorta_minima,
+    codice_barre: row.codice_barre,
+    linea: row.linea,
+    macchina: row.macchina,
+  };
+}
 
 const CATEGORY_LABELS = {
   cuscinetti: 'Cuscinetti',
@@ -20,11 +41,11 @@ const CATEGORY_LABELS = {
   pezzi_ricambio: 'Pezzi di ricambio',
 };
 
+const LINEA_OPTIONS = ['L1', 'L2', 'L1-L2'];
+
 /**
  * Configurazione import Excel per categoria: elenco colonne attese (in ordine,
  * da sinistra) e funzione di mappatura riga → campi della tabella products.
- * Le colonne si leggono per POSIZIONE, non per nome (la prima riga, se
- * riconosciuta come intestazione, viene comunque saltata automaticamente).
  */
 const CATEGORY_IMPORT_CONFIG = {
   cuscinetti: {
@@ -61,12 +82,14 @@ export function initProducts() {
   els.skeleton = document.getElementById('product-list-skeleton');
   els.emptyState = document.getElementById('product-empty-state');
   els.newBtn = document.getElementById('product-new-btn');
+  els.undoBtn = document.getElementById('product-undo-btn');
+  els.redoBtn = document.getElementById('product-redo-btn');
   els.lowStockToggle = document.getElementById('product-lowstock-toggle');
   els.categoryTabs = document.querySelectorAll('[data-category-tab]');
   els.lineaFilterWrap = document.getElementById('product-linea-filter-wrap');
   els.lineaFilter = document.getElementById('product-linea-filter');
 
-  // Import Excel (ora nella vista Impostazioni, con proprie tab categoria)
+  // Import Excel (vista Impostazioni)
   els.importCategoryTabs = document.querySelectorAll('[data-import-category-tab]');
   els.importWrap = document.getElementById('product-import-wrap');
   els.importPending = document.getElementById('product-import-pending');
@@ -82,10 +105,16 @@ export function initProducts() {
   els.deleteBtn = document.getElementById('product-delete-btn');
   els.categoriaSelect = document.getElementById('product-categoria');
   els.lineaMacchinaWrap = document.getElementById('product-linea-macchina-wrap');
-  els.macchinaDatalist = document.getElementById('product-macchina-options');
+  els.lineaBtn = document.getElementById('product-linea-btn');
+  els.lineaValue = document.getElementById('product-linea-value');
+  els.lineaHidden = document.getElementById('product-linea');
+  els.macchinaBtn = document.getElementById('product-macchina-btn');
+  els.macchinaValue = document.getElementById('product-macchina-value');
+  els.macchinaHidden = document.getElementById('product-macchina');
   els.barcodePreviewWrap = document.getElementById('product-barcode-preview-wrap');
   els.barcodeSvg = document.getElementById('product-barcode-svg');
   els.printLabelBtn = document.getElementById('product-print-label-btn');
+  els.generateBarcodeBtn = document.getElementById('product-generate-barcode-btn');
   els.scanBarcodeBtn = document.getElementById('product-scan-barcode-btn');
   els.scanBarcodeStopBtn = document.getElementById('product-scan-barcode-stop');
   els.barcodeScannerWrap = document.getElementById('product-barcode-scanner-wrap');
@@ -97,14 +126,19 @@ export function initProducts() {
   els.lowStockToggle.addEventListener('change', refresh);
   els.lineaFilter?.addEventListener('change', refresh);
   els.newBtn.addEventListener('click', () => openModal());
+  els.undoBtn.addEventListener('click', undo);
+  els.redoBtn.addEventListener('click', redo);
   els.closeModalBtn.addEventListener('click', closeModal);
   els.form.addEventListener('submit', handleSubmit);
   els.deleteBtn.addEventListener('click', handleDelete);
   els.printLabelBtn.addEventListener('click', printCurrentLabel);
+  els.generateBarcodeBtn.addEventListener('click', generateBarcodeForCurrentArticle);
   els.categoriaSelect.addEventListener('change', updateLineaMacchinaVisibility);
   els.scanBarcodeBtn.addEventListener('click', startBarcodeScan);
   els.scanBarcodeStopBtn.addEventListener('click', stopBarcodeScan);
   els.importInput.addEventListener('change', handleImportFileChange);
+  els.lineaBtn.addEventListener('click', pickLinea);
+  els.macchinaBtn.addEventListener('click', pickMacchina);
 
   els.categoryTabs.forEach((btn) => {
     btn.addEventListener('click', () => setCategory(btn.dataset.categoryTab));
@@ -113,11 +147,11 @@ export function initProducts() {
     btn.addEventListener('click', () => setImportCategory(btn.dataset.importCategoryTab));
   });
 
-  // Anteprima barcode live mentre si digita il codice a barre
   document.getElementById('product-codice-barre').addEventListener('input', updateBarcodePreview);
 
   setCategory(currentCategory);
   setImportCategory(importCategory);
+  updateHistoryButtons();
 }
 
 function setCategory(category) {
@@ -131,7 +165,6 @@ function setCategory(category) {
   refresh();
 }
 
-/** Seleziona la categoria di destinazione per l'import Excel (vista Impostazioni) */
 function setImportCategory(category) {
   importCategory = category;
   els.importCategoryTabs.forEach((btn) => btn.classList.toggle('import-category-tab-active', btn.dataset.importCategoryTab === category));
@@ -169,7 +202,6 @@ export async function refresh() {
   }
 }
 
-/** L1-L2 è valido sia per il filtro L1 sia per il filtro L2 (serve entrambe le linee) */
 function matchesLineaFilter(productLinea, wanted) {
   if (!wanted) return true;
   if (productLinea === wanted) return true;
@@ -187,22 +219,21 @@ function renderList() {
 
   for (const p of currentList) {
     const lowStock = p.quantita_disponibile < p.scorta_minima;
-    const subtitleParts = [p.locazione, p.punto_utilizzo_standard, p.linea, p.macchina].filter(Boolean);
+    const subtitleParts = [p.locazione, p.macchina, p.punto_utilizzo_standard, p.linea].filter(Boolean);
     const row = document.createElement('button');
     row.type = 'button';
     row.className =
       'w-full text-left card-plate rounded-xl px-4 py-3 flex items-center justify-between gap-3 hover:border-amber-500/40 transition-colors';
     row.innerHTML = `
       <div class="min-w-0">
-        <p class="font-mono text-xs text-graphite-500 tracking-wide">${escapeHtml(p.codice_articolo)}</p>
-        <p class="font-medium text-graphite-100 truncate">${escapeHtml(p.descrizione || p.codice_articolo)}</p>
-        <p class="text-xs text-graphite-500 mt-0.5">${escapeHtml(subtitleParts.join(' · ') || '—')}</p>
+        <p class="font-display font-bold text-graphite-100 truncate">${escapeHtml(p.codice_articolo)}</p>
+        <p class="text-xs text-graphite-500 mt-0.5 truncate">${escapeHtml(subtitleParts.join(' · ') || '—')}</p>
       </div>
       <div class="shrink-0 text-right">
         <span class="inline-block px-2.5 py-1 rounded-full text-sm font-mono font-semibold ${
-          lowStock ? 'bg-rose-500/15 text-rose-300' : 'bg-graphite-700 text-graphite-200'
+          lowStock ? 'bg-rose-500/15 text-rose-700' : 'bg-graphite-700 text-graphite-200'
         }">${p.quantita_disponibile}</span>
-        ${lowStock ? '<p class="text-[10px] uppercase tracking-wide text-rose-400 mt-1">sotto scorta</p>' : ''}
+        ${lowStock ? '<p class="text-[10px] uppercase tracking-wide text-rose-700 mt-1">sotto scorta</p>' : ''}
       </div>
     `;
     if (isAdmin()) row.addEventListener('click', () => openModal(p));
@@ -213,17 +244,22 @@ function renderList() {
 
 function openModal(product = null) {
   editingId = product?.id || null;
+  editingSnapshot = product ? { ...product } : null;
   els.modalTitle.textContent = product ? 'Modifica articolo' : 'Nuovo articolo';
   els.deleteBtn.classList.toggle('hidden', !product);
   els.form.reset();
   stopBarcodeScan();
-  populateMacchinaOptions();
 
   els.categoriaSelect.value = product?.categoria || currentCategory;
   document.getElementById('product-codice-articolo').value = product?.codice_articolo || '';
-  document.getElementById('product-descrizione').value = product?.descrizione || '';
-  document.getElementById('product-linea').value = product?.linea || '';
-  document.getElementById('product-macchina').value = product?.macchina || '';
+  els.lineaHidden.value = product?.linea || '';
+  els.lineaValue.textContent = product?.linea || 'Seleziona…';
+  els.lineaValue.classList.toggle('text-graphite-400', !product?.linea);
+  els.lineaValue.classList.toggle('text-graphite-100', !!product?.linea);
+  els.macchinaHidden.value = product?.macchina || '';
+  els.macchinaValue.textContent = product?.macchina || 'Seleziona…';
+  els.macchinaValue.classList.toggle('text-graphite-400', !product?.macchina);
+  els.macchinaValue.classList.toggle('text-graphite-100', !!product?.macchina);
   document.getElementById('product-punto-standard').value = product?.punto_utilizzo_standard || '';
   document.getElementById('product-locazione').value = product?.locazione || '';
   document.getElementById('product-quantita').value = product?.quantita_disponibile ?? 0;
@@ -232,22 +268,54 @@ function openModal(product = null) {
 
   updateLineaMacchinaVisibility();
   updateBarcodePreview();
+  updateGenerateBarcodeVisibility();
   els.modal.classList.remove('hidden');
   requestAnimationFrame(() => els.modal.classList.add('modal-visible'));
 }
 
-/** Popola la combobox "Macchina" con i soli valori già registrati (nessuna ripetizione) */
-async function populateMacchinaOptions() {
+function updateLineaMacchinaVisibility() {
+  els.lineaMacchinaWrap.classList.toggle('hidden', els.categoriaSelect.value !== 'cinghie');
+  updateGenerateBarcodeVisibility();
+}
+
+/** Il pulsante "genera barcode" ha senso solo per le cinghie, che non hanno un codice a barre fisico sulla confezione */
+function updateGenerateBarcodeVisibility() {
+  els.generateBarcodeBtn.classList.toggle('hidden', els.categoriaSelect.value !== 'cinghie');
+}
+
+async function pickLinea() {
+  const val = await openPicker({
+    title: 'Seleziona linea',
+    options: LINEA_OPTIONS,
+    allowCustom: false,
+    currentValue: els.lineaHidden.value,
+  });
+  if (val === null) return; // annullato
+  setPickerValue(els.lineaHidden, els.lineaValue, val);
+}
+
+async function pickMacchina() {
+  let options = [];
   try {
-    const values = await listDistinctMacchine();
-    els.macchinaDatalist.innerHTML = values.map((v) => `<option value="${escapeHtml(v)}"></option>`).join('');
+    options = await listDistinctMacchine();
   } catch (err) {
     console.warn('Impossibile caricare l\'elenco delle macchine registrate.', err);
   }
+  const val = await openPicker({
+    title: 'Seleziona macchina',
+    options,
+    allowCustom: true,
+    currentValue: els.macchinaHidden.value,
+  });
+  if (val === null) return; // annullato
+  setPickerValue(els.macchinaHidden, els.macchinaValue, val);
 }
 
-function updateLineaMacchinaVisibility() {
-  els.lineaMacchinaWrap.classList.toggle('hidden', els.categoriaSelect.value !== 'cinghie');
+function setPickerValue(hiddenInput, labelEl, value) {
+  hiddenInput.value = value;
+  labelEl.textContent = value || 'Seleziona…';
+  labelEl.classList.toggle('text-graphite-400', !value);
+  labelEl.classList.toggle('text-graphite-100', !!value);
 }
 
 function closeModal() {
@@ -270,7 +338,7 @@ function updateBarcodePreview() {
       height: 60,
       displayValue: true,
       background: 'transparent',
-      lineColor: '#e8e6e1',
+      lineColor: '#14161a',
       fontOptions: 'bold',
       fontSize: 14,
       margin: 6,
@@ -281,7 +349,7 @@ function updateBarcodePreview() {
   }
 }
 
-/** Apre la fotocamera per acquisire il barcode già stampato sulla confezione (non ne genera uno nuovo) */
+/** Apre la fotocamera per acquisire il barcode già stampato sulla confezione (cuscinetti) */
 async function startBarcodeScan() {
   els.barcodeScannerWrap.classList.remove('hidden');
   const started = await startCamera('product-barcode-scanner-reader', (code) => {
@@ -298,14 +366,32 @@ function stopBarcodeScan() {
   els.barcodeScannerWrap.classList.add('hidden');
 }
 
+/**
+ * Genera un codice a barre deterministico per articoli senza un barcode fisico
+ * (es. cinghie): stesso prefisso di categoria + codice articolo, quindi è stabile
+ * "per sempre" — rigenerarlo per lo stesso articolo produce sempre lo stesso valore.
+ */
+function generateBarcodeForCurrentArticle() {
+  const codice = document.getElementById('product-codice-articolo').value.trim();
+  if (!codice) {
+    toastError('Inserisci prima il codice articolo.');
+    return;
+  }
+  const categoria = els.categoriaSelect.value;
+  const prefix = { cuscinetti: 'CUS', cinghie: 'CIN', pezzi_ricambio: 'PZR' }[categoria] || 'ART';
+  const generated = `${prefix}-${codice}`.toUpperCase().replace(/\s+/g, '');
+  document.getElementById('product-codice-barre').value = generated;
+  updateBarcodePreview();
+  toastSuccess('Codice a barre generato.');
+}
+
 async function handleSubmit(e) {
   e.preventDefault();
   const payload = {
     categoria: els.categoriaSelect.value,
     codice_articolo: document.getElementById('product-codice-articolo').value.trim(),
-    descrizione: document.getElementById('product-descrizione').value.trim() || null,
-    linea: document.getElementById('product-linea').value.trim() || null,
-    macchina: document.getElementById('product-macchina').value.trim() || null,
+    linea: els.lineaHidden.value || null,
+    macchina: els.macchinaHidden.value || null,
     punto_utilizzo_standard: document.getElementById('product-punto-standard').value.trim() || null,
     locazione: document.getElementById('product-locazione').value.trim() || null,
     quantita_disponibile: parseInt(document.getElementById('product-quantita').value, 10) || 0,
@@ -318,10 +404,13 @@ async function handleSubmit(e) {
   submitBtn.classList.add('opacity-60');
   try {
     if (editingId) {
-      await updateProduct(editingId, payload);
+      const before = editingSnapshot;
+      const after = await updateProduct(editingId, payload);
+      pushHistory({ type: 'update', before, after });
       toastSuccess('Articolo aggiornato.');
     } else {
-      await createProduct(payload);
+      const after = await createProduct(payload);
+      pushHistory({ type: 'create', before: null, after });
       toastSuccess('Articolo creato.');
     }
     closeModal();
@@ -339,7 +428,9 @@ async function handleDelete() {
   if (!editingId) return;
   if (!confirm('Eliminare definitivamente questo articolo? Lo storico transazioni resterà collegato.')) return;
   try {
+    const before = editingSnapshot;
     await deleteProduct(editingId);
+    pushHistory({ type: 'delete', before, after: null });
     toastSuccess('Articolo eliminato.');
     closeModal();
     refresh();
@@ -349,13 +440,73 @@ async function handleDelete() {
   }
 }
 
-/** Genera un PDF stampabile con l'etichetta a barcode dell'articolo corrente nel form */
+// --- UNDO / REDO -----------------------------------------------------
+
+function pushHistory(action) {
+  undoStack.push(action);
+  if (undoStack.length > HISTORY_LIMIT) undoStack.shift();
+  redoStack = [];
+  updateHistoryButtons();
+}
+
+function updateHistoryButtons() {
+  if (els.undoBtn) els.undoBtn.disabled = undoStack.length === 0;
+  if (els.redoBtn) els.redoBtn.disabled = redoStack.length === 0;
+}
+
+async function undo() {
+  if (!undoStack.length) return;
+  const action = undoStack[undoStack.length - 1];
+  els.undoBtn.disabled = true;
+  try {
+    if (action.type === 'create') {
+      await deleteProduct(action.after.id);
+    } else if (action.type === 'update') {
+      await updateProduct(action.before.id, toWritableRow(action.before));
+    } else if (action.type === 'delete') {
+      await createProduct(toWritableRow(action.before));
+    }
+    undoStack.pop();
+    redoStack.push(action);
+    toastSuccess('Operazione annullata.');
+    refresh();
+  } catch (err) {
+    console.error(err);
+    toastError('Impossibile annullare l\'operazione (l\'articolo potrebbe avere transazioni collegate).');
+  } finally {
+    updateHistoryButtons();
+  }
+}
+
+async function redo() {
+  if (!redoStack.length) return;
+  const action = redoStack[redoStack.length - 1];
+  els.redoBtn.disabled = true;
+  try {
+    if (action.type === 'create') {
+      await createProduct(toWritableRow(action.after));
+    } else if (action.type === 'update') {
+      await updateProduct(action.after.id, toWritableRow(action.after));
+    } else if (action.type === 'delete') {
+      await deleteProduct(action.before.id);
+    }
+    redoStack.pop();
+    undoStack.push(action);
+    toastSuccess('Operazione ripetuta.');
+    refresh();
+  } catch (err) {
+    console.error(err);
+    toastError('Impossibile ripetere l\'operazione (l\'articolo potrebbe avere transazioni collegate).');
+  } finally {
+    updateHistoryButtons();
+  }
+}
+
+/** Genera un PDF stampabile con SOLO il barcode e il suo numero sotto (nessun testo aggiuntivo) */
 function printCurrentLabel() {
-  const codice = document.getElementById('product-codice-articolo').value.trim();
-  const descrizione = document.getElementById('product-descrizione').value.trim();
   const barcode = document.getElementById('product-codice-barre').value.trim();
   if (!barcode) {
-    toastError('Inserisci un codice a barre prima di stampare.');
+    toastError('Inserisci o genera un codice a barre prima di stampare.');
     return;
   }
 
@@ -363,27 +514,42 @@ function printCurrentLabel() {
   // eslint-disable-next-line no-undef
   JsBarcode(canvas, barcode, {
     format: 'CODE128',
-    width: 2.4,
-    height: 70,
+    width: 2.6,
+    height: 80,
     displayValue: true,
-    fontSize: 16,
-    margin: 4,
+    fontSize: 18,
+    margin: 8,
+    background: '#ffffff',
+    lineColor: '#000000',
   });
   const imgData = canvas.toDataURL('image/png');
 
   // eslint-disable-next-line no-undef
   const { jsPDF } = window.jspdf;
-  const doc = new jsPDF({ unit: 'mm', format: [90, 50] });
+  const LABEL_W = 70;
+  const LABEL_H = 35;
+  // Orientamento esplicito: senza specificarlo, jsPDF può interpretare un
+  // formato [largo, alto] come portrait e invertire le dimensioni, tagliando
+  // il barcode fuori dalla pagina — bug risolto forzando 'landscape'.
+  const doc = new jsPDF({ unit: 'mm', orientation: 'landscape', format: [LABEL_W, LABEL_H] });
 
-  doc.setFontSize(9);
-  doc.setFont('helvetica', 'bold');
-  doc.text(codice || '—', 5, 8);
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8);
-  doc.text(doc.splitTextToSize(descrizione || codice || '', 80), 5, 13);
-  doc.addImage(imgData, 'PNG', 5, 20, 80, 24);
+  // Adatta l'immagine mantenendo le proporzioni reali del barcode generato,
+  // centrata nella pagina, così non viene mai tagliata né distorta.
+  const marginMM = 4;
+  const maxW = LABEL_W - marginMM * 2;
+  const maxH = LABEL_H - marginMM * 2;
+  const aspect = canvas.width / canvas.height;
+  let drawW = maxW;
+  let drawH = drawW / aspect;
+  if (drawH > maxH) {
+    drawH = maxH;
+    drawW = drawH * aspect;
+  }
+  const x = (LABEL_W - drawW) / 2;
+  const y = (LABEL_H - drawH) / 2;
+  doc.addImage(imgData, 'PNG', x, y, drawW, drawH);
 
-  doc.save(`etichetta_${codice || 'articolo'}.pdf`);
+  doc.save(`barcode_${barcode}.pdf`);
   toastSuccess('Etichetta PDF generata.');
 }
 
@@ -391,7 +557,7 @@ function printCurrentLabel() {
 
 async function handleImportFileChange(e) {
   const file = e.target.files?.[0];
-  e.target.value = ''; // permette di ricaricare lo stesso file una seconda volta
+  e.target.value = '';
   if (!file) return;
 
   const config = CATEGORY_IMPORT_CONFIG[importCategory];
@@ -408,13 +574,13 @@ async function handleImportFileChange(e) {
 
     let dataRows = rows;
     if (rows.length && String(rows[0][0] ?? '').trim().toLowerCase().includes('codice')) {
-      dataRows = rows.slice(1); // salta la riga di intestazione
+      dataRows = rows.slice(1);
     }
 
     const mapped = [];
     for (const r of dataRows) {
       const cells = (r || []).map((c) => (c === null || c === undefined ? '' : String(c).trim()));
-      if (!cells[0]) continue; // salta righe senza codice articolo
+      if (!cells[0]) continue;
       mapped.push(config.mapRow(cells));
     }
 
@@ -440,8 +606,8 @@ async function handleImportFileChange(e) {
 function showImportResult(message, type) {
   const styles = {
     info: 'bg-graphite-700/60 text-graphite-300',
-    success: 'bg-emerald-500/15 text-emerald-300',
-    error: 'bg-rose-500/15 text-rose-300',
+    success: 'bg-emerald-500/15 text-emerald-700',
+    error: 'bg-rose-500/15 text-rose-700',
   };
   els.importResult.textContent = message;
   els.importResult.className = `text-xs mt-2 rounded-lg px-3 py-2 ${styles[type] || styles.info}`;

@@ -86,8 +86,7 @@
           <img src="./icons/icon-192.png" alt="Scatolificio Sarno" class="w-full h-full object-cover">
         </div>
         <div>
-          <p class="font-display font-bold uppercase tracking-wide text-sm leading-none">Magazzino</p>
-          <p id="user-name" class="text-xs text-graphite-500 mt-0.5">—</p>
+          <p class="font-display font-bold uppercase tracking-wide text-sm leading-none">Magazzino Scatolificio</p>
         </div>
       </div>
       <div class="flex items-center gap-2">
@@ -209,7 +208,7 @@
       </div>
 
       <div class="flex gap-2 mb-3">
-        <input id="product-search-input" type="text" placeholder="Cerca per codice, descrizione, locazione…"
+        <input id="product-search-input" type="text" placeholder="Cerca per codice, locazione, macchina, punto utilizzo…"
           class="flex-1 rounded-lg bg-graphite-800 border border-graphite-700 px-3.5 py-2.5 text-sm placeholder-graphite-600 focus:border-amber-400 outline-none transition-colors">
       </div>
 
@@ -295,6 +294,14 @@
       </div>
 
       <div data-admin-only class="hidden">
+        <h3 class="font-display font-semibold uppercase tracking-wide text-sm text-graphite-400 mb-2">Gestione utenti</h3>
+        <p class="text-xs text-graphite-500 mb-2">Il nome e cognome impostato qui compare nei report al posto dell'email.</p>
+        <div id="users-list-skeleton" class="space-y-2 mb-5">
+          <div class="skeleton h-16 w-full"></div>
+          <div class="skeleton h-16 w-full"></div>
+        </div>
+        <div id="users-list" class="hidden space-y-2 mb-5"></div>
+
         <h3 class="font-display font-semibold uppercase tracking-wide text-sm text-graphite-400 mb-2">Carica da Excel</h3>
 
         <div class="grid grid-cols-3 gap-2 mb-4">
@@ -319,6 +326,24 @@
         </div>
       </div>
     </section>
+
+    <!-- =================== MODALE STORICO ARTICOLO (drill-down consumi) =================== -->
+    <div id="article-history-modal" class="hidden fixed inset-0 z-[92] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm px-0 sm:px-4">
+      <div class="modal-panel w-full sm:max-w-md bg-graphite-900 border border-graphite-700 rounded-t-2xl sm:rounded-2xl max-h-[85vh] flex flex-col">
+        <div class="flex items-center justify-between px-5 py-4 border-b border-graphite-800 shrink-0">
+          <h3 id="article-history-title" class="font-display font-bold text-lg uppercase tracking-wide">—</h3>
+          <button id="article-history-close" aria-label="Chiudi" class="w-8 h-8 rounded-lg flex items-center justify-center text-graphite-500 hover:text-graphite-200 hover:bg-graphite-800 transition-colors">
+            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+          </button>
+        </div>
+        <div class="flex gap-2 px-4 pt-3 shrink-0">
+          <button type="button" data-history-tab="tutti" class="history-tab history-tab-active flex-1 rounded-lg py-2 text-xs font-display font-semibold uppercase tracking-wide border border-graphite-700">Tutti</button>
+          <button type="button" data-history-tab="deposito" class="history-tab flex-1 rounded-lg py-2 text-xs font-display font-semibold uppercase tracking-wide border border-graphite-700">Depositi</button>
+          <button type="button" data-history-tab="prelievo" class="history-tab flex-1 rounded-lg py-2 text-xs font-display font-semibold uppercase tracking-wide border border-graphite-700">Prelievi</button>
+        </div>
+        <div id="article-history-list" class="flex-1 overflow-y-auto px-4 py-3"></div>
+      </div>
+    </div>
 
   </main>
 
@@ -373,24 +398,22 @@
         <label class="block text-xs font-display font-semibold uppercase tracking-wide text-graphite-400 mb-1.5">Codice articolo *</label>
         <input id="product-codice-articolo" required type="text" class="w-full rounded-lg bg-graphite-800 border border-graphite-700 px-3.5 py-2.5 font-mono text-sm focus:border-amber-400 outline-none transition-colors">
       </div>
-      <div>
-        <label class="block text-xs font-display font-semibold uppercase tracking-wide text-graphite-400 mb-1.5">Descrizione</label>
-        <input id="product-descrizione" type="text" placeholder="Facoltativa" class="w-full rounded-lg bg-graphite-800 border border-graphite-700 px-3.5 py-2.5 text-sm focus:border-amber-400 outline-none transition-colors">
-      </div>
       <div id="product-linea-macchina-wrap" class="hidden grid grid-cols-2 gap-3">
         <div>
           <label class="block text-xs font-display font-semibold uppercase tracking-wide text-graphite-400 mb-1.5">Linea</label>
-          <select id="product-linea" class="w-full rounded-lg bg-graphite-800 border border-graphite-700 px-3.5 py-2.5 text-sm focus:border-amber-400 outline-none transition-colors">
-            <option value="">—</option>
-            <option value="L1">L1</option>
-            <option value="L2">L2</option>
-            <option value="L1-L2">L1-L2</option>
-          </select>
+          <button type="button" id="product-linea-btn" class="w-full flex items-center justify-between rounded-lg bg-graphite-800 border border-graphite-700 px-3.5 py-2.5 text-sm text-left hover:border-amber-400 transition-colors">
+            <span id="product-linea-value" class="text-graphite-400">Seleziona…</span>
+            <svg class="w-4 h-4 text-graphite-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 15L12 18.75 15.75 15m-7.5-6L12 5.25 15.75 9"/></svg>
+          </button>
+          <input type="hidden" id="product-linea">
         </div>
         <div>
           <label class="block text-xs font-display font-semibold uppercase tracking-wide text-graphite-400 mb-1.5">Macchina</label>
-          <input id="product-macchina" type="text" list="product-macchina-options" placeholder="es. Confezionatrice 1" class="w-full rounded-lg bg-graphite-800 border border-graphite-700 px-3.5 py-2.5 text-sm focus:border-amber-400 outline-none transition-colors">
-          <datalist id="product-macchina-options"></datalist>
+          <button type="button" id="product-macchina-btn" class="w-full flex items-center justify-between rounded-lg bg-graphite-800 border border-graphite-700 px-3.5 py-2.5 text-sm text-left hover:border-amber-400 transition-colors">
+            <span id="product-macchina-value" class="text-graphite-400">Seleziona…</span>
+            <svg class="w-4 h-4 text-graphite-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 15L12 18.75 15.75 15m-7.5-6L12 5.25 15.75 9"/></svg>
+          </button>
+          <input type="hidden" id="product-macchina">
         </div>
       </div>
       <div class="grid grid-cols-2 gap-3">
@@ -416,12 +439,15 @@
       <div>
         <label class="block text-xs font-display font-semibold uppercase tracking-wide text-graphite-400 mb-1.5">Codice a barre</label>
         <div class="flex gap-2">
-          <input id="product-codice-barre" type="text" placeholder="Se vuoto, usa il codice articolo" class="flex-1 rounded-lg bg-graphite-800 border border-graphite-700 px-3.5 py-2.5 font-mono text-sm focus:border-amber-400 outline-none transition-colors">
-          <button id="product-scan-barcode-btn" type="button" aria-label="Scansiona codice a barre" class="shrink-0 w-11 rounded-lg border border-graphite-700 hover:border-amber-400 text-graphite-300 hover:text-amber-300 flex items-center justify-center transition-colors">
+          <input id="product-codice-barre" type="text" placeholder="Scansiona o genera" class="flex-1 rounded-lg bg-graphite-800 border border-graphite-700 px-3.5 py-2.5 font-mono text-sm focus:border-amber-400 outline-none transition-colors">
+          <button id="product-scan-barcode-btn" type="button" aria-label="Scansiona codice a barre" title="Scansiona (cuscinetti)" class="shrink-0 w-11 rounded-lg border border-graphite-700 hover:border-amber-400 text-graphite-300 hover:text-amber-400 flex items-center justify-center transition-colors">
             <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 4.5v3m0-3h3m-3 0L9 9m11.25-4.5v3m0-3h-3m3 0L15 9M3.75 19.5v-3m0 3h3m-3 0L9 15m11.25 4.5v-3m0 3h-3m3 0L15 15M3.75 12h16.5"/></svg>
           </button>
+          <button id="product-generate-barcode-btn" type="button" aria-label="Genera codice a barre" title="Genera (cinghie)" class="hidden shrink-0 w-11 rounded-lg border border-graphite-700 hover:border-amber-400 text-graphite-300 hover:text-amber-400 flex items-center justify-center transition-colors">
+            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
+          </button>
         </div>
-        <p class="text-[11px] text-graphite-500 mt-1">Usa il codice già stampato sulla confezione: nessun nuovo barcode viene generato.</p>
+        <p class="text-[11px] text-graphite-500 mt-1">Cuscinetti: scansiona il codice già stampato sulla confezione. Cinghie: generane uno con l'apposito pulsante — resta fisso per l'articolo.</p>
       </div>
 
       <div id="product-barcode-scanner-wrap" class="hidden">
@@ -434,10 +460,10 @@
       </div>
 
       <div class="flex gap-2">
-        <button id="product-print-label-btn" type="button" class="flex-1 rounded-lg border border-graphite-700 hover:border-amber-400 py-2.5 text-sm font-display font-semibold uppercase tracking-wide text-graphite-300 transition-colors">
-          Stampa etichetta PDF
+        <button id="product-print-label-btn" type="button" aria-label="Stampa etichetta PDF" title="Stampa etichetta PDF" class="shrink-0 w-11 h-11 rounded-lg border border-graphite-700 hover:border-amber-400 text-graphite-300 hover:text-amber-400 flex items-center justify-center transition-colors">
+          <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M6.72 13.829c-.24.03-.48.062-.72.096m.72-.096a42.415 42.415 0 0110.56 0m-10.56 0L6.34 18m10.94-4.171c.24.03.48.062.72.096m-.72-.096L17.66 18m0 0l.229 2.523a1.125 1.125 0 01-1.12 1.227H7.231c-.662 0-1.18-.568-1.12-1.227L6.34 18m11.318 0h1.091A2.25 2.25 0 0021 15.75V9.456c0-1.081-.768-2.015-1.837-2.175a48.055 48.055 0 00-1.913-.247M6.34 18H5.25A2.25 2.25 0 013 15.75V9.456c0-1.081.768-2.015 1.837-2.175a48.041 48.041 0 011.913-.247m10.5 0a48.536 48.536 0 00-10.5 0m10.5 0V3.375c0-.621-.504-1.125-1.125-1.125h-8.25c-.621 0-1.125.504-1.125 1.125v3.659M18 10.5h.008v.008H18V10.5zm-3 0h.008v.008H15V10.5z"/></svg>
         </button>
-        <button id="product-delete-btn" type="button" class="hidden rounded-lg border border-rose-500/40 text-rose-700 hover:bg-rose-500/10 px-4 py-2.5 text-sm font-display font-semibold uppercase tracking-wide transition-colors">
+        <button id="product-delete-btn" type="button" class="hidden flex-1 rounded-lg border border-rose-500/40 text-rose-700 hover:bg-rose-500/10 px-4 py-2.5 text-sm font-display font-semibold uppercase tracking-wide transition-colors">
           Elimina
         </button>
       </div>
@@ -446,6 +472,25 @@
         Salva articolo
       </button>
     </form>
+  </div>
+</div>
+
+<!-- =================== MODALE PICKER (Linea/Macchina) =================== -->
+<div id="field-picker-modal" class="hidden fixed inset-0 z-[95] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm px-0 sm:px-4">
+  <div class="modal-panel w-full sm:max-w-sm bg-graphite-900 border border-graphite-700 rounded-t-2xl sm:rounded-2xl max-h-[80vh] flex flex-col">
+    <div class="flex items-center justify-between px-5 py-4 border-b border-graphite-800 shrink-0">
+      <h3 id="field-picker-title" class="font-display font-bold text-lg uppercase tracking-wide">Seleziona</h3>
+      <button id="field-picker-close" aria-label="Chiudi" class="w-8 h-8 rounded-lg flex items-center justify-center text-graphite-500 hover:text-graphite-200 hover:bg-graphite-800 transition-colors">
+        <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div id="field-picker-search-wrap" class="px-4 pt-3 shrink-0">
+      <input id="field-picker-search" type="text" class="w-full rounded-lg bg-graphite-800 border border-graphite-700 px-3.5 py-2.5 text-sm focus:border-amber-400 outline-none transition-colors">
+    </div>
+    <div id="field-picker-list" class="flex-1 overflow-y-auto px-2 py-2"></div>
+    <button id="field-picker-clear" type="button" class="shrink-0 text-xs text-graphite-500 hover:text-rose-700 py-3 border-t border-graphite-800 transition-colors">
+      Svuota selezione
+    </button>
   </div>
 </div>
 

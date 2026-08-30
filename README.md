@@ -9,20 +9,49 @@ Frontend: HTML/CSS/JS vanilla (nessuna build necessaria), Tailwind via CDN.
 
 ```
 index.html            Shell dell'app, tutte le viste (login, scanner, magazzino, dashboard, impostazioni)
-style.css              Tema chiaro "Scatolificio Sarno", animazioni, skeleton loading
+style.css              Tema chiaro "Scatolificio Sarno", animazioni, transizioni glass, skeleton loading
 tailwind.config.js     Palette/font del tema (script esterno, caricato dopo il CDN Tailwind)
 manifest.json           Web App Manifest per l'installazione PWA
 service-worker.js        Service worker minimo (cache della shell statica, installabilità)
 icons/                    Icone PWA in tutte le dimensioni (favicon, 192, 512, maskable, apple-touch-icon)
-supabase.js            Client Supabase + tutte le query (auth, prodotti, transazioni, import Excel)
+supabase.js            Client Supabase + tutte le query (auth, prodotti, transazioni, import Excel, profili utente)
 auth.js                 Login/logout, gestione sessione e ruolo utente
 camera.js                Gestione fotocamera condivisa (scanner deposito/prelievo + assegnazione barcode articolo)
 scanner.js                Flusso deposito/prelievo: selezione modalità, lettura barcode, conferma
-products.js                Magazzino: 3 categorie, CRUD, import Excel, stampa etichette, undo/redo
-dashboard.js               Reportistica consumi (solo Admin)
+products.js                Magazzino: 3 categorie, CRUD, import Excel, etichette PDF, undo/redo, generazione barcode
+picker.js                   Modale di selezione personalizzato (combobox Linea/Macchina)
+users.js                     Gestione nome e cognome degli utenti registrati (vista Impostazioni)
+dashboard.js               Reportistica consumi + drill-down storico per articolo (solo Admin)
 toast.js                    Notifiche toast
-app.js                       Entry point: routing tra viste, registrazione service worker
+app.js                       Entry point: routing tra viste, transizioni glass, registrazione service worker
 ```
+
+## Novità di questa sessione
+
+**Campo "Descrizione" rimosso completamente** — era causa di doppioni nell'elenco articoli (mostrava il codice due volte quando la descrizione era vuota). Rimosso da form, ricerca, database e dagli output PDF/report.
+
+**Elenco Magazzino senza doppioni** — ogni riga mostra il **codice articolo in grassetto** in alto, e sotto in piccolo locazione, macchina, punto di utilizzo e linea (solo i campi effettivamente valorizzati).
+
+**Ricerca rapida estesa** — ora cerca anche per punto di utilizzo e macchina, oltre a codice, locazione e barcode.
+
+**Linea e Macchina: combobox personalizzate** — sostituiti lo `<select>` nativo e il `<datalist>` (che su alcuni telefoni apriva la tastiera senza mostrare l'elenco) con un modale di selezione disegnato ad hoc: tocchi il campo, si apre un elenco a scorrimento con ricerca in tempo reale, nessun placeholder fuorviante. La combobox "Macchina" propone solo i valori già registrati ma permette comunque di digitarne uno nuovo (comparirà un'opzione "Aggiungi ..."); "Linea" mostra solo le tre opzioni fisse L1/L2/L1-L2.
+
+**Barcode per le Cinghie** — dato che le cinghie non hanno un codice a barre fisico stampato come i cuscinetti, è stato aggiunto un pulsante dedicato "Genera" (icona +) che crea un codice deterministico (prefisso di categoria + codice articolo, es. `CIN-B123`): è stabile per sempre, rigenerarlo per lo stesso articolo produce sempre lo stesso valore.
+
+**Etichetta PDF rifatta da zero**:
+- Contiene ora **solo il barcode e il numero sotto** (nessun testo aggiuntivo).
+- Corretto il bug che tagliava il codice a barre fuori pagina: jsPDF, senza l'orientamento esplicito, interpretava male un formato personalizzato più largo che alto. Ora l'immagine viene anche scalata mantenendo le proporzioni reali del barcode generato, centrata nell'etichetta, senza mai deformarsi o uscire dal bordo.
+- Il pulsante "Stampa etichetta PDF" (testuale) è stato sostituito da un **pulsante piccolo con sola icona** (stampante).
+
+**Login e topbar**: rimossa la visualizzazione dell'email sotto "Magazzino" nella barra in alto dopo il login; il testo è ora "Magazzino Scatolificio".
+
+**Gestione utenti (Impostazioni, solo Admin)** — nuova sezione che elenca tutti gli utenti registrati con email e ruolo, e permette di impostare Nome e Cognome per ciascuno: da questo momento lo storico transazioni e i report mostrano il nome invece dell'email (richiede che un admin compili il nome per ogni utente la prima volta).
+
+**Consumi per articolo → drill-down** — nella dashboard, toccando un articolo nella lista "Consumi per articolo" si apre un modale con lo storico completo dei suoi movimenti, filtrabile con le tab Tutti / Depositi / Prelievi.
+
+**Transizioni "glass" tra le sezioni** — passando da una vista all'altra tramite il menu in basso, il contenuto sfuma con un leggero effetto sfocato (blur + fade), e il tab attivo nella barra inferiore ha un effetto vetro smerigliato (sfondo semi-trasparente con `backdrop-filter: blur`) che appare/scompare con un'animazione morbida.
+
+**Undo/Redo, tema chiaro col blu del logo, icone PWA, riquadro scanner più compatto** — vedi le sezioni dedicate più sotto (introdotte nella sessione precedente, ancora tutte attive).
 
 Nessun bundler richiesto: tutti i moduli sono `<script type="module">` con import ES nativi; le librerie esterne (Supabase JS, JsBarcode, jsPDF, html5-qrcode, SheetJS/xlsx) sono caricate da CDN.
 
