@@ -79,10 +79,30 @@ body {
 
 /* ---- Bottom nav ----------------------------------------------- */
 .nav-item {
+  position: relative;
   transition: color 160ms ease, transform 160ms ease;
+  z-index: 0;
+}
+.nav-item::before {
+  content: '';
+  position: absolute;
+  inset: 2px 10px;
+  border-radius: 14px;
+  background: rgba(47, 79, 146, 0.10);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(47, 79, 146, 0.18);
+  opacity: 0;
+  transform: scale(0.85);
+  transition: opacity 240ms cubic-bezier(0.16, 1, 0.3, 1), transform 240ms cubic-bezier(0.16, 1, 0.3, 1);
+  z-index: -1;
 }
 .nav-active {
   color: #2f4f92 !important;
+}
+.nav-active::before {
+  opacity: 1;
+  transform: scale(1);
 }
 .nav-active .nav-icon-wrap {
   transform: translateY(-2px);
@@ -95,6 +115,27 @@ body {
   opacity: 0;
   transform: scale(0.4);
   transition: all 160ms ease;
+}
+
+/* ---- Transizione "glass" tra le sezioni principali ------------------ */
+#view-scanner, #view-products, #view-dashboard, #view-settings {
+  opacity: 0;
+  filter: blur(6px);
+  transform: translateY(8px);
+}
+.view-transition-active {
+  opacity: 1 !important;
+  filter: blur(0) !important;
+  transform: translateY(0) !important;
+  transition: opacity 320ms cubic-bezier(0.16, 1, 0.3, 1), filter 320ms cubic-bezier(0.16, 1, 0.3, 1), transform 320ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* ---- Tab storico (modale drill-down consumi) ------------------------ */
+.history-tab { color: #70747c; transition: all 160ms ease; }
+.history-tab-active {
+  background: rgba(47, 79, 146, 0.10) !important;
+  border-color: rgba(47, 79, 146, 0.5) !important;
+  color: #24406f !important;
 }
 
 /* ---- Scanner mode buttons -------------------------------------- */
@@ -162,18 +203,20 @@ body {
   100% { transform: scale(0.85); opacity: 0; }
 }
 
-/* ---- Modal ------------------------------------------------------ */
-#product-modal {
+/* ---- Modal (generico: product-modal, field-picker-modal, article-history-modal) --- */
+#product-modal, #field-picker-modal, #article-history-modal {
   transition: opacity 200ms ease;
   opacity: 0;
 }
-#product-modal.modal-visible { opacity: 1; }
-#product-modal .modal-panel {
+#product-modal.modal-visible, #field-picker-modal.modal-visible, #article-history-modal.modal-visible { opacity: 1; }
+#product-modal .modal-panel, #field-picker-modal .modal-panel, #article-history-modal .modal-panel {
   transition: transform 220ms cubic-bezier(0.16, 1, 0.3, 1), opacity 220ms ease;
   transform: translateY(16px) scale(0.98);
   opacity: 0;
 }
-#product-modal.modal-visible .modal-panel {
+#product-modal.modal-visible .modal-panel,
+#field-picker-modal.modal-visible .modal-panel,
+#article-history-modal.modal-visible .modal-panel {
   transform: translateY(0) scale(1);
   opacity: 1;
 }
