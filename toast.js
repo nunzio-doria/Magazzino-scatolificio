@@ -17,10 +17,12 @@ const ICONS = {
 };
 
 const STYLES = {
-  success: 'border-emerald-500/40 text-emerald-300',
-  error: 'border-rose-500/40 text-rose-300',
+  // Colori scuri (non i toni chiari 300 di default) per restare leggibili
+  // sul tema chiaro: un testo troppo chiaro sparirebbe sullo sfondo bianco del toast.
+  success: 'border-emerald-500/40 text-emerald-700',
+  error: 'border-rose-500/40 text-rose-700',
   warning: 'border-amber-500/50 text-amber-300',
-  info: 'border-sky-500/40 text-sky-300',
+  info: 'border-sky-500/40 text-sky-700',
 };
 
 /**
