@@ -66,9 +66,10 @@ function initNav() {
 }
 
 function switchView(view, { animate = true } = {}) {
-  if (view === 'products' || view === 'dashboard') {
-    if (!isAdmin()) view = 'scanner';
-  }
+  // Solo la Dashboard/Report resta riservata all'admin: il Magazzino è
+  // visibile anche all'operatore in sola lettura (CRUD già disabilitato
+  // in products.js tramite isAdmin() sui singoli controlli).
+  if (view === 'dashboard' && !isAdmin()) view = 'scanner';
   if (view === currentView) return;
   if (isTransitioning) return; // evita di sovrapporre più transizioni se si tocca velocemente
 

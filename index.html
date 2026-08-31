@@ -205,10 +205,20 @@
       </div>
 
       <!-- Tab categorie -->
-      <div class="grid grid-cols-3 gap-2 mb-4">
+      <div class="grid grid-cols-3 gap-2 mb-3">
         <button type="button" data-category-tab="cuscinetti" class="category-tab card-plate rounded-lg py-2.5 text-xs font-display font-semibold uppercase tracking-wide border-2 border-graphite-700">Cuscinetti</button>
         <button type="button" data-category-tab="cinghie" class="category-tab card-plate rounded-lg py-2.5 text-xs font-display font-semibold uppercase tracking-wide border-2 border-graphite-700">Cinghie</button>
         <button type="button" data-category-tab="pezzi_ricambio" class="category-tab card-plate rounded-lg py-2.5 text-xs font-display font-semibold uppercase tracking-wide border-2 border-graphite-700">Pezzi ricambio</button>
+      </div>
+
+      <!-- Toggle modalità di visualizzazione: elenco piatto o scaffalatura per locazione -->
+      <div class="inline-flex rounded-lg border border-graphite-700 bg-graphite-800 p-0.5 mb-4">
+        <button type="button" data-view-mode-tab="list" class="view-mode-tab view-mode-tab-active flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-display font-semibold uppercase tracking-wide">
+          <i data-lucide="list" class="w-3.5 h-3.5" stroke-width="2"></i>Elenco
+        </button>
+        <button type="button" data-view-mode-tab="shelf" class="view-mode-tab flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-display font-semibold uppercase tracking-wide">
+          <i data-lucide="layout-grid" class="w-3.5 h-3.5" stroke-width="2"></i>Scaffalatura
+        </button>
       </div>
 
       <div class="flex gap-2 mb-3">
@@ -241,6 +251,7 @@
         <div class="skeleton h-16 w-full"></div>
       </div>
       <div id="product-list" class="hidden space-y-2"></div>
+      <div id="product-shelf-view" class="hidden space-y-2.5"></div>
       <div id="product-empty-state" class="hidden text-center py-10 text-graphite-500 text-sm">Nessun articolo trovato in questa categoria.</div>
     </section>
 
@@ -358,22 +369,22 @@
 
   <!-- Bottom navigation (mobile-first) -->
   <nav class="fixed bottom-0 inset-x-0 z-40 bg-graphite-900/95 backdrop-blur border-t border-graphite-800">
-    <div class="max-w-2xl mx-auto grid grid-cols-3">
-      <button data-nav-target="scanner" class="nav-item nav-active flex flex-col items-center gap-1 py-3 text-graphite-500">
+    <div class="max-w-2xl mx-auto flex">
+      <button data-nav-target="scanner" class="nav-item nav-active flex-1 flex flex-col items-center gap-1 py-3 text-graphite-500">
         <span class="nav-icon-wrap transition-transform">
           <i data-lucide="scan-line" class="w-6 h-6" stroke-width="1.8"></i>
         </span>
         <span class="text-[10px] font-display font-semibold uppercase tracking-wide">Scanner</span>
         <span class="nav-dot w-1 h-1 rounded-full bg-amber-400"></span>
       </button>
-      <button data-nav-target="products" class="nav-item flex flex-col items-center gap-1 py-3 text-graphite-500">
+      <button data-nav-target="products" class="nav-item flex-1 flex flex-col items-center gap-1 py-3 text-graphite-500">
         <span class="nav-icon-wrap transition-transform">
           <i data-lucide="warehouse" class="w-6 h-6" stroke-width="1.8"></i>
         </span>
         <span class="text-[10px] font-display font-semibold uppercase tracking-wide">Magazzino</span>
         <span class="nav-dot w-1 h-1 rounded-full bg-amber-400"></span>
       </button>
-      <button data-nav-target="dashboard" data-admin-only class="hidden nav-item flex flex-col items-center gap-1 py-3 text-graphite-500">
+      <button data-nav-target="dashboard" data-admin-only class="hidden nav-item flex-1 flex flex-col items-center gap-1 py-3 text-graphite-500">
         <span class="nav-icon-wrap transition-transform">
           <i data-lucide="chart-column" class="w-6 h-6" stroke-width="1.8"></i>
         </span>

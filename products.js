@@ -17,6 +17,8 @@ let currentCategory = 'cuscinetti';
 let importCategory = 'cuscinetti';
 let lineaFilterValue = '';
 let macchinaFilterValue = '';
+let viewMode = 'list'; // 'list' | 'shelf'
+const openShelves = new Set(); // locazioni espanse, persiste tra i refresh
 
 // --- UNDO / REDO -----------------------------------------------------
 const HISTORY_LIMIT = 20;
@@ -88,6 +90,8 @@ export function initProducts() {
   els.redoBtn = document.getElementById('product-redo-btn');
   els.lowStockToggle = document.getElementById('product-lowstock-toggle');
   els.categoryTabs = document.querySelectorAll('[data-category-tab]');
+  els.viewModeTabs = document.querySelectorAll('[data-view-mode-tab]');
+  els.shelfView = document.getElementById('product-shelf-view');
   els.lineaFilterWrap = document.getElementById('product-linea-filter-wrap');
   els.lineaFilterBtn = document.getElementById('product-linea-filter-btn');
   els.lineaFilterValue = document.getElementById('product-linea-filter-value');
@@ -149,6 +153,9 @@ export function initProducts() {
   els.categoryTabs.forEach((btn) => {
     btn.addEventListener('click', () => setCategory(btn.dataset.categoryTab));
   });
+  els.viewModeTabs.forEach((btn) => {
+    btn.addEventListener('click', () => setViewMode(btn.dataset.viewModeTab));
+  });
   els.importCategoryTabs.forEach((btn) => {
     btn.addEventListener('click', () => setImportCategory(btn.dataset.importCategoryTab));
   });
@@ -173,6 +180,13 @@ function setCategory(category) {
   }
 
   refresh();
+}
+
+function setViewMode(mode) {
+  if (mode === viewMode) return;
+  viewMode = mode;
+  els.viewModeTabs.forEach((btn) => btn.classList.toggle('view-mode-tab-active', btn.dataset.viewModeTab === mode));
+  renderCurrentList(); // stessi dati già caricati, cambia solo la presentazione
 }
 
 function setImportCategory(category) {
@@ -203,7 +217,7 @@ export async function refresh() {
       if (lineaFilterValue) currentList = currentList.filter((p) => matchesLineaFilter(p.linea, lineaFilterValue));
       if (macchinaFilterValue) currentList = currentList.filter((p) => p.macchina === macchinaFilterValue);
     }
-    renderList();
+    renderCurrentList();
   } catch (err) {
     console.error(err);
     toastError('Errore nel caricamento degli articoli.');
@@ -219,12 +233,22 @@ function matchesLineaFilter(productLinea, wanted) {
   return false;
 }
 
-function renderList() {
-  els.listWrap.innerHTML = '';
+function renderCurrentList() {
+  els.listWrap.classList.add('hidden');
+  els.shelfView.classList.add('hidden');
+  els.emptyState.classList.add('hidden');
+
   if (currentList.length === 0) {
     els.emptyState.classList.remove('hidden');
     return;
   }
+
+  if (viewMode === 'shelf') renderShelves();
+  else renderList();
+}
+
+function renderList() {
+  els.listWrap.innerHTML = '';
   els.listWrap.classList.remove('hidden');
 
   for (const p of currentList) {
@@ -250,6 +274,102 @@ function renderList() {
     else row.disabled = true;
     els.listWrap.appendChild(row);
   }
+}
+
+/**
+ * Vista "scaffalatura": raggruppa gli articoli della categoria/filtri
+ * correnti per locazione, una card per scaffale. Al tap sull'header la
+ * card si espande (animazione grid-template-rows in CSS) rivelando gli
+ * articoli contenuti, con un lieve stagger in ingresso. Lo stato aperto/
+ * chiuso di ogni locazione persiste tra i refresh tramite openShelves.
+ */
+function renderShelves() {
+  els.shelfView.innerHTML = '';
+  els.shelfView.classList.remove('hidden');
+
+  const groups = new Map(); // locazione -> prodotti
+  for (const p of currentList) {
+    const key = p.locazione || 'Non assegnata';
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(p);
+  }
+
+  const sortedLocations = [...groups.keys()].sort((a, b) =>
+    a.localeCompare(b, 'it', { numeric: true, sensitivity: 'base' })
+  );
+
+  for (const locazione of sortedLocations) {
+    const items = groups.get(locazione);
+    const totQty = items.reduce((sum, p) => sum + (p.quantita_disponibile || 0), 0);
+    const lowCount = items.filter((p) => p.quantita_disponibile < p.scorta_minima).length;
+    const isOpen = openShelves.has(locazione);
+
+    const itemsHtml = items
+      .map((p, i) => {
+        const lowStock = p.quantita_disponibile < p.scorta_minima;
+        const subtitleParts = [p.macchina, p.punto_utilizzo_standard, p.linea].filter(Boolean);
+        return `
+          <button type="button" data-product-id="${p.id}" style="--i:${i}"
+            class="shelf-item w-full text-left flex items-center justify-between gap-3 px-4 py-2.5 border-t border-graphite-700 first:border-t-0">
+            <div class="min-w-0">
+              <p class="font-display font-bold text-graphite-100 truncate text-sm">${escapeHtml(p.codice_articolo)}</p>
+              ${subtitleParts.length ? `<p class="text-[11px] text-graphite-500 mt-0.5 truncate">${escapeHtml(subtitleParts.join(' · '))}</p>` : ''}
+            </div>
+            <span class="shrink-0 inline-block px-2 py-0.5 rounded-full text-xs font-mono font-semibold ${
+              lowStock ? 'bg-rose-500/15 text-rose-700' : 'bg-graphite-700 text-graphite-200'
+            }">${p.quantita_disponibile}</span>
+          </button>
+        `;
+      })
+      .join('');
+
+    const card = document.createElement('div');
+    card.className = `shelf-card card-plate rounded-xl${isOpen ? ' shelf-open' : ''}`;
+    card.innerHTML = `
+      <div class="shelf-header flex items-center justify-between gap-3 px-4 py-3.5 border-2 border-graphite-700 rounded-xl">
+        <div class="flex items-center gap-3 min-w-0">
+          <span class="shrink-0 w-9 h-9 rounded-lg bg-graphite-700/50 flex items-center justify-center">
+            <i data-lucide="box" class="w-[18px] h-[18px] text-graphite-400" stroke-width="1.8"></i>
+          </span>
+          <div class="min-w-0">
+            <p class="font-display font-bold uppercase tracking-wide truncate">${escapeHtml(locazione)}</p>
+            <p class="text-[11px] text-graphite-500 mt-0.5">${items.length} ${items.length === 1 ? 'articolo' : 'articoli'} · ${totQty} pz${
+      lowCount ? ` · <span class="text-rose-700">${lowCount} sotto scorta</span>` : ''
+    }</p>
+          </div>
+        </div>
+        <i data-lucide="chevron-down" class="shelf-chevron w-5 h-5 text-graphite-400 shrink-0" stroke-width="2"></i>
+      </div>
+      <div class="shelf-body-track">
+        <div class="shelf-body-inner">${itemsHtml}</div>
+      </div>
+    `;
+
+    card.querySelector('.shelf-header').addEventListener('click', () => {
+      const opening = !card.classList.contains('shelf-open');
+      card.classList.toggle('shelf-open', opening);
+      if (opening) openShelves.add(locazione);
+      else openShelves.delete(locazione);
+    });
+
+    // Sola lettura per l'operatore: stesso criterio usato nell'elenco piatto.
+    card.querySelectorAll('.shelf-item').forEach((btn) => {
+      if (isAdmin()) {
+        const product = items.find((p) => String(p.id) === btn.dataset.productId);
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          openModal(product);
+        });
+        btn.classList.add('hover:bg-graphite-700/30', 'transition-colors');
+      } else {
+        btn.disabled = true;
+      }
+    });
+
+    els.shelfView.appendChild(card);
+  }
+
+  window.lucide?.createIcons();
 }
 
 function openModal(product = null) {
