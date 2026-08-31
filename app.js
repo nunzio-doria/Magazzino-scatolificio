@@ -10,6 +10,9 @@ import { initUsers, refreshUsers } from './users.js';
 import { initPicker } from './picker.js';
 
 const VIEWS = ['scanner', 'products', 'dashboard', 'settings'];
+const MASK_BARS = 10;      // numero di barre del sipario
+const MASK_STEP_MS = 22;   // sfalsamento tra una barra e la successiva
+const MASK_PHASE_MS = 260; // durata dell'animazione della singola barra
 let modulesInitialized = false;
 let currentView = null;
 let isTransitioning = false;
@@ -27,8 +30,13 @@ function onAuthed(profile) {
   document.getElementById('settings-user-name').textContent = profile.full_name || profile.email;
   document.getElementById('settings-user-role').textContent = roleLabel;
 
-  // Elementi visibili solo all'admin (gestione articoli, dashboard, import Excel, utenti)
+  // Elementi visibili solo all'admin (gestione articoli, dashboard, import Excel, utenti).
+  // Le sezioni view-* sono escluse: la loro visibilità è gestita esclusivamente da
+  // switchView() — se le tocchiamo qui, per un admin la vista rimane "smascherata"
+  // al primo render, ancora prima che switchView() abbia scelto la vista corrente,
+  // causando la sovrapposizione Scanner/Report al primo avvio.
   document.querySelectorAll('[data-admin-only]').forEach((el) => {
+    if (el.id?.startsWith('view-')) return;
     el.classList.toggle('hidden', !isAdmin());
   });
 
@@ -97,43 +105,52 @@ function animateViewSwitch(fromSection, toSection, forward) {
   isTransitioning = true;
   const host = toSection.parentElement;
 
-  // Misura la posizione reale (in px, coordinate viewport) della vista uscente
-  // PRIMA di renderla absolute, cosí l'overlay resta perfettamente allineato
-  // alla vista entrante anche con il padding del contenitore (main).
-  const hostRect = host.getBoundingClientRect();
-  const fromRect = fromSection.getBoundingClientRect();
+  // Sipario di barre verticali sopra le due view. Nessun posizionamento
+  // assoluto delle sezioni: fromSection e toSection restano ognuna al
+  // proprio posto nel flusso normale, e non sono MAI entrambe visibili
+  // nello stesso frame — lo swap avviene solo a schermo coperto.
+  const curtain = document.createElement('div');
+  curtain.className = 'view-mask-curtain';
+  const bars = [];
+  for (let i = 0; i < MASK_BARS; i++) {
+    const bar = document.createElement('div');
+    bar.className = 'view-mask-bar';
+    // Avanti: sfalsamento da sinistra a destra. Indietro: specchiato,
+    // cosí il sipario "insegue" la direzione di navigazione.
+    bar.style.setProperty('--i', forward ? i : MASK_BARS - 1 - i);
+    bar.style.setProperty('--mask-step', `${MASK_STEP_MS}ms`);
+    bar.style.setProperty('--mask-phase', `${MASK_PHASE_MS}ms`);
+    curtain.appendChild(bar);
+    bars.push(bar);
+  }
+  host.style.position = host.style.position || 'relative';
+  host.appendChild(curtain);
 
-  host.style.minHeight = `${fromSection.offsetHeight}px`;
+  const coverDuration = (MASK_BARS - 1) * MASK_STEP_MS + MASK_PHASE_MS;
 
-  const exitClass = forward ? 'view-exit-to-left' : 'view-exit-to-right';
-  const enterClass = forward ? 'view-enter-from-right' : 'view-enter-from-left';
-
-  fromSection.style.position = 'absolute';
-  fromSection.style.top = `${fromRect.top - hostRect.top}px`;
-  fromSection.style.left = `${fromRect.left - hostRect.left}px`;
-  fromSection.style.width = `${fromRect.width}px`;
-  fromSection.classList.add('view-leaving', exitClass);
-
-  toSection.classList.remove('hidden');
-  void toSection.offsetWidth; // forza il reflow prima di avviare l'animazione di ingresso
-  toSection.classList.add('view-entering', enterClass);
+  requestAnimationFrame(() => {
+    bars.forEach((bar) => bar.classList.add('covering'));
+  });
 
   let done = false;
   const cleanup = () => {
     if (done) return;
     done = true;
-    fromSection.classList.add('hidden');
-    fromSection.classList.remove('view-leaving', 'view-exit-to-left', 'view-exit-to-right');
-    fromSection.style.position = '';
-    fromSection.style.top = '';
-    fromSection.style.left = '';
-    fromSection.style.width = '';
-    toSection.classList.remove('view-entering', 'view-enter-from-right', 'view-enter-from-left');
-    host.style.minHeight = '';
+    curtain.remove();
     isTransitioning = false;
   };
-  toSection.addEventListener('animationend', cleanup, { once: true });
-  setTimeout(cleanup, 550); // rete di sicurezza se l'evento non scattasse
+
+  setTimeout(() => {
+    // Schermo completamente coperto: swap istantaneo del contenuto,
+    // invisibile all'utente, poi si apre il sipario in rivelazione.
+    fromSection.classList.add('hidden');
+    toSection.classList.remove('hidden');
+    bars.forEach((bar) => {
+      bar.classList.remove('covering');
+      bar.classList.add('revealing');
+    });
+    setTimeout(cleanup, coverDuration + 30); // +30ms rete di sicurezza
+  }, coverDuration);
 }
 
 initAuth(onAuthed, onSignedOut);

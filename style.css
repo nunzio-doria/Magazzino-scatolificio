@@ -127,41 +127,67 @@ body {
   position: relative;
   overflow-x: hidden;
 }
-.view-leaving {
-  /* position, top, left, width vengono impostati inline da app.js in px,
-     calcolati dal layout reale, per restare perfettamente allineati alla
-     vista che sta entrando anche con il padding del contenitore */
-  z-index: 1;
+/* ---- Transizione tra view: staggered masking -------------------
+   Un sipario di barre verticali copre lo schermo in sequenza sfalsata
+   (--i crescente = ritardo crescente), lo swap del contenuto avviene
+   solo a schermo completamente coperto, poi le barre si ritraggono
+   rivelando la nuova vista con lo stesso sfalsamento. Le due view non
+   sono mai visibili contemporaneamente: elimina strutturalmente ogni
+   rischio di sovrapposizione, non solo esteticamente. */
+.view-mask-curtain {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: flex;
+  overflow: hidden;
   pointer-events: none;
-  will-change: transform, opacity;
 }
-.view-entering {
+.view-mask-bar {
+  flex: 1 1 0;
+  background: #f4f5f7;
+  transform: scaleY(0);
+  transform-origin: bottom;
   position: relative;
-  z-index: 2;
-  will-change: transform, opacity;
+}
+/* Filo di accento sul bordo d'attacco della barra, per un feel "a lama" */
+.view-mask-bar::after {
+  content: '';
+  position: absolute;
+  left: 0; right: 0; top: 0;
+  height: 2px;
+  background: #2f4f92;
+  opacity: 0;
+}
+.view-mask-bar.covering {
+  animation: mask-cover var(--mask-phase, 260ms) cubic-bezier(0.65, 0, 0.35, 1) forwards;
+  animation-delay: calc(var(--i, 0) * var(--mask-step, 22ms));
+}
+.view-mask-bar.covering::after { animation: mask-edge-flash var(--mask-phase, 260ms) ease-out forwards; animation-delay: calc(var(--i, 0) * var(--mask-step, 22ms)); }
+.view-mask-bar.revealing {
+  transform-origin: top;
+  animation: mask-reveal var(--mask-phase, 260ms) cubic-bezier(0.65, 0, 0.35, 1) forwards;
+  animation-delay: calc(var(--i, 0) * var(--mask-step, 22ms));
 }
 
-@keyframes slide-exit-left {
-  0%   { opacity: 1; transform: translateX(0); }
-  100% { opacity: 0; transform: translateX(-100%); }
+@keyframes mask-cover {
+  0%   { transform: scaleY(0); }
+  100% { transform: scaleY(1); }
 }
-@keyframes slide-exit-right {
-  0%   { opacity: 1; transform: translateX(0); }
-  100% { opacity: 0; transform: translateX(100%); }
+@keyframes mask-reveal {
+  0%   { transform: scaleY(1); }
+  100% { transform: scaleY(0); }
 }
-@keyframes slide-enter-from-right {
-  0%   { opacity: 0; transform: translateX(100%); }
-  100% { opacity: 1; transform: translateX(0); }
-}
-@keyframes slide-enter-from-left {
-  0%   { opacity: 0; transform: translateX(-100%); }
-  100% { opacity: 1; transform: translateX(0); }
+@keyframes mask-edge-flash {
+  0%   { opacity: 0; }
+  35%  { opacity: 0.9; }
+  100% { opacity: 0; }
 }
 
-.view-exit-to-left    { animation: slide-exit-left 300ms cubic-bezier(0.32, 0, 0.67, 0) forwards; }
-.view-exit-to-right   { animation: slide-exit-right 300ms cubic-bezier(0.32, 0, 0.67, 0) forwards; }
-.view-enter-from-right{ animation: slide-enter-from-right 300ms cubic-bezier(0.16, 1, 0.3, 1) forwards; }
-.view-enter-from-left { animation: slide-enter-from-left 300ms cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+@media (prefers-reduced-motion: reduce) {
+  .view-mask-bar.covering,
+  .view-mask-bar.revealing,
+  .view-mask-bar.covering::after { animation-duration: 1ms; animation-delay: 0ms; }
+}
 
 /* ---- Tab storico (modale drill-down consumi) ------------------------ */
 .history-tab { color: #70747c; transition: all 160ms ease; }
