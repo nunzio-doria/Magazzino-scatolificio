@@ -47,7 +47,8 @@ export function openPicker({ title, options, allowCustom = false, currentValue =
     els.modal.classList.remove('hidden');
     requestAnimationFrame(() => {
       els.modal.classList.add('modal-visible');
-      if (!els.searchWrap.classList.contains('hidden')) els.search.focus();
+      // Niente autofocus: la tastiera deve restare chiusa finché l'utente
+      // non tocca esplicitamente il campo di ricerca.
     });
   });
 }

@@ -121,7 +121,7 @@
       <p id="scan-mode-banner" class="hidden mb-3"></p>
 
       <div id="scanner-reader-wrap" class="hidden mb-3">
-        <div id="scanner-reader" class="w-full min-h-[170px] relative"></div>
+        <div id="scanner-reader" class="w-full relative"></div>
         <p id="scanner-focus-hint" class="hidden text-center text-xs text-graphite-500 mt-2">
           Tocca lo schermo sul codice per mettere a fuoco
         </p>
@@ -219,13 +219,15 @@
         </div>
       </div>
 
-      <div id="product-linea-filter-wrap" class="hidden mb-3">
-        <select id="product-linea-filter" class="w-full rounded-lg bg-graphite-800 border border-graphite-700 px-3.5 py-2.5 text-sm focus:border-amber-400 outline-none transition-colors">
-          <option value="">Tutte le linee</option>
-          <option value="L1">L1 (include L1-L2)</option>
-          <option value="L2">L2 (include L1-L2)</option>
-          <option value="L1-L2">Solo L1-L2</option>
-        </select>
+      <div id="product-linea-filter-wrap" class="hidden mb-3 grid grid-cols-2 gap-2">
+        <button type="button" id="product-linea-filter-btn" class="w-full flex items-center justify-between rounded-lg bg-graphite-800 border border-graphite-700 px-3.5 py-2.5 text-sm text-left hover:border-amber-400 transition-colors">
+          <span id="product-linea-filter-value" class="text-graphite-400 truncate">Tutte le linee</span>
+          <i data-lucide="chevrons-up-down" class="w-4 h-4 text-graphite-400 shrink-0" stroke-width="2"></i>
+        </button>
+        <button type="button" id="product-macchina-filter-btn" class="w-full flex items-center justify-between rounded-lg bg-graphite-800 border border-graphite-700 px-3.5 py-2.5 text-sm text-left hover:border-amber-400 transition-colors">
+          <span id="product-macchina-filter-value" class="text-graphite-400 truncate">Tutte le macchine</span>
+          <i data-lucide="chevrons-up-down" class="w-4 h-4 text-graphite-400 shrink-0" stroke-width="2"></i>
+        </button>
       </div>
 
       <label class="flex items-center gap-2 mb-4 text-sm text-graphite-400 select-none">
@@ -458,7 +460,7 @@
       </div>
 
       <div id="product-barcode-scanner-wrap" class="hidden">
-        <div id="product-barcode-scanner-reader" class="w-full min-h-[160px] relative"></div>
+        <div id="product-barcode-scanner-reader" class="w-full relative"></div>
         <button id="product-scan-barcode-stop" type="button" class="w-full mt-2 text-xs text-graphite-500 hover:text-graphite-300 py-1.5 transition-colors">Annulla scansione</button>
       </div>
 

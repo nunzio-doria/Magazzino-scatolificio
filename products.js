@@ -15,6 +15,8 @@ let editingSnapshot = null; // riga completa del prodotto in modifica/eliminazio
 let searchDebounce = null;
 let currentCategory = 'cuscinetti';
 let importCategory = 'cuscinetti';
+let lineaFilterValue = '';
+let macchinaFilterValue = '';
 
 // --- UNDO / REDO -----------------------------------------------------
 const HISTORY_LIMIT = 20;
@@ -87,7 +89,10 @@ export function initProducts() {
   els.lowStockToggle = document.getElementById('product-lowstock-toggle');
   els.categoryTabs = document.querySelectorAll('[data-category-tab]');
   els.lineaFilterWrap = document.getElementById('product-linea-filter-wrap');
-  els.lineaFilter = document.getElementById('product-linea-filter');
+  els.lineaFilterBtn = document.getElementById('product-linea-filter-btn');
+  els.lineaFilterValue = document.getElementById('product-linea-filter-value');
+  els.macchinaFilterBtn = document.getElementById('product-macchina-filter-btn');
+  els.macchinaFilterValue = document.getElementById('product-macchina-filter-value');
 
   // Import Excel (vista Impostazioni)
   els.importCategoryTabs = document.querySelectorAll('[data-import-category-tab]');
@@ -124,7 +129,8 @@ export function initProducts() {
     searchDebounce = setTimeout(refresh, 280);
   });
   els.lowStockToggle.addEventListener('change', refresh);
-  els.lineaFilter?.addEventListener('change', refresh);
+  els.lineaFilterBtn?.addEventListener('click', pickLineaFilter);
+  els.macchinaFilterBtn?.addEventListener('click', pickMacchinaFilter);
   els.newBtn.addEventListener('click', () => openModal());
   els.undoBtn.addEventListener('click', undo);
   els.redoBtn.addEventListener('click', redo);
@@ -160,7 +166,11 @@ function setCategory(category) {
 
   const showLineaFilter = category === 'cinghie';
   els.lineaFilterWrap.classList.toggle('hidden', !showLineaFilter);
-  if (!showLineaFilter && els.lineaFilter) els.lineaFilter.value = '';
+  if (!showLineaFilter) {
+    lineaFilterValue = '';
+    macchinaFilterValue = '';
+    updateFilterLabels();
+  }
 
   refresh();
 }
@@ -189,9 +199,9 @@ export async function refresh() {
       onlyLowStock: els.lowStockToggle.checked,
       categoria: currentCategory,
     });
-    if (currentCategory === 'cinghie' && els.lineaFilter?.value) {
-      const wanted = els.lineaFilter.value;
-      currentList = currentList.filter((p) => matchesLineaFilter(p.linea, wanted));
+    if (currentCategory === 'cinghie') {
+      if (lineaFilterValue) currentList = currentList.filter((p) => matchesLineaFilter(p.linea, lineaFilterValue));
+      if (macchinaFilterValue) currentList = currentList.filter((p) => p.macchina === macchinaFilterValue);
     }
     renderList();
   } catch (err) {
@@ -316,6 +326,51 @@ function setPickerValue(hiddenInput, labelEl, value) {
   labelEl.textContent = value || 'Seleziona…';
   labelEl.classList.toggle('text-graphite-400', !value);
   labelEl.classList.toggle('text-graphite-100', !!value);
+}
+
+async function pickLineaFilter() {
+  const val = await openPicker({
+    title: 'Filtra per linea',
+    options: LINEA_OPTIONS,
+    allowCustom: false,
+    currentValue: lineaFilterValue,
+  });
+  if (val === null) return; // annullato
+  lineaFilterValue = val;
+  updateFilterLabels();
+  refresh();
+}
+
+async function pickMacchinaFilter() {
+  let options = [];
+  try {
+    options = await listDistinctMacchine();
+  } catch (err) {
+    console.warn('Impossibile caricare l\'elenco delle macchine registrate.', err);
+  }
+  const val = await openPicker({
+    title: 'Filtra per macchina',
+    options,
+    allowCustom: false,
+    currentValue: macchinaFilterValue,
+  });
+  if (val === null) return; // annullato
+  macchinaFilterValue = val;
+  updateFilterLabels();
+  refresh();
+}
+
+function updateFilterLabels() {
+  if (els.lineaFilterValue) {
+    els.lineaFilterValue.textContent = lineaFilterValue || 'Tutte le linee';
+    els.lineaFilterValue.classList.toggle('text-graphite-400', !lineaFilterValue);
+    els.lineaFilterValue.classList.toggle('text-graphite-100', !!lineaFilterValue);
+  }
+  if (els.macchinaFilterValue) {
+    els.macchinaFilterValue.textContent = macchinaFilterValue || 'Tutte le macchine';
+    els.macchinaFilterValue.classList.toggle('text-graphite-400', !macchinaFilterValue);
+    els.macchinaFilterValue.classList.toggle('text-graphite-100', !!macchinaFilterValue);
+  }
 }
 
 function closeModal() {
