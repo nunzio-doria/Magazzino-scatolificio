@@ -118,6 +118,30 @@
         </button>
       </div>
 
+      <!-- Pannello a colpo d'occhio, visibile solo prima di scegliere Deposito/Prelievo:
+           riempie lo spazio vuoto con informazioni utili invece di lasciarlo bianco. -->
+      <div id="scanner-idle-panel" class="space-y-3 mb-4">
+        <div class="card-plate rounded-xl p-3.5 flex items-center gap-3">
+          <span class="shrink-0 w-9 h-9 rounded-lg bg-rose-500/10 flex items-center justify-center">
+            <i data-lucide="alert-triangle" class="w-[18px] h-[18px] text-rose-600" stroke-width="1.8"></i>
+          </span>
+          <div class="min-w-0">
+            <p id="scanner-lowstock-count" class="font-display font-bold text-lg leading-none">—</p>
+            <p class="text-[11px] text-graphite-500 mt-1">Articoli sotto scorta</p>
+          </div>
+        </div>
+
+        <div class="card-plate rounded-xl p-4">
+          <p class="font-display font-bold text-xs uppercase tracking-wide text-graphite-400 mb-2.5">Ultimi movimenti</p>
+          <div id="scanner-recent-list" class="space-y-2.5">
+            <div class="skeleton h-4 w-full"></div>
+            <div class="skeleton h-4 w-4/5"></div>
+            <div class="skeleton h-4 w-3/5"></div>
+          </div>
+          <p id="scanner-recent-empty" class="hidden text-sm text-graphite-500 text-center py-2">Nessun movimento registrato.</p>
+        </div>
+      </div>
+
       <p id="scan-mode-banner" class="hidden mb-3"></p>
 
       <div id="scanner-reader-wrap" class="hidden mb-3">
@@ -211,13 +235,18 @@
         <button type="button" data-category-tab="pezzi_ricambio" class="category-tab card-plate rounded-lg py-2.5 text-xs font-display font-semibold uppercase tracking-wide border-2 border-graphite-700">Pezzi ricambio</button>
       </div>
 
-      <!-- Toggle modalità di visualizzazione: elenco piatto o scaffalatura per locazione -->
+      <!-- Toggle modalità di visualizzazione: elenco piatto, scaffalatura per
+           locazione, o riordino per macchina (quest'ultimo solo per le
+           categorie che hanno senso — mostrato/nascosto via JS in base alla categoria) -->
       <div class="inline-flex rounded-lg border border-graphite-700 bg-graphite-800 p-0.5 mb-4">
         <button type="button" data-view-mode-tab="list" class="view-mode-tab view-mode-tab-active flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-display font-semibold uppercase tracking-wide">
           <i data-lucide="list" class="w-3.5 h-3.5" stroke-width="2"></i>Elenco
         </button>
         <button type="button" data-view-mode-tab="shelf" class="view-mode-tab flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-display font-semibold uppercase tracking-wide">
           <i data-lucide="layout-grid" class="w-3.5 h-3.5" stroke-width="2"></i>Scaffalatura
+        </button>
+        <button type="button" data-view-mode-tab="machine" class="view-mode-tab hidden flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-display font-semibold uppercase tracking-wide">
+          <i data-lucide="wrench" class="w-3.5 h-3.5" stroke-width="2"></i>Macchina
         </button>
       </div>
 
@@ -252,6 +281,7 @@
       </div>
       <div id="product-list" class="hidden space-y-2"></div>
       <div id="product-shelf-view" class="hidden space-y-2.5"></div>
+      <div id="product-machine-view" class="hidden space-y-2.5"></div>
       <div id="product-empty-state" class="hidden text-center py-10 text-graphite-500 text-sm">Nessun articolo trovato in questa categoria.</div>
     </section>
 
@@ -369,7 +399,7 @@
 
   <!-- Bottom navigation (mobile-first) -->
   <nav class="nav-glass fixed bottom-0 inset-x-0 z-40">
-    <div class="nav-glass-perspective max-w-2xl mx-auto flex">
+    <div class="max-w-2xl mx-auto flex">
       <button data-nav-target="scanner" class="nav-item nav-active flex-1 flex flex-col items-center gap-1 py-3 text-graphite-500">
         <span class="nav-icon-wrap transition-transform">
           <i data-lucide="scan-line" class="w-6 h-6" stroke-width="1.8"></i>

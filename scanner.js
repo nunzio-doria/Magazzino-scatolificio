@@ -2,7 +2,7 @@
 // scanner.js — Scansione barcode con fotocamera + flusso deposito/prelievo
 // =============================================================
 
-import { getProductByBarcode, processTransaction } from './supabase.js';
+import { getProductByBarcode, processTransaction, listProducts, listTransactions } from './supabase.js';
 import { toastSuccess, toastError, toastWarning } from './toast.js';
 import { startCamera, stopCamera, switchCamera as switchCameraShared } from './camera.js';
 
@@ -32,6 +32,10 @@ export function initScanner() {
   els.stopCameraBtn = document.getElementById('scanner-stop-btn');
   els.switchCameraBtn = document.getElementById('scanner-switch-btn');
   els.focusHint = document.getElementById('scanner-focus-hint');
+  els.idlePanel = document.getElementById('scanner-idle-panel');
+  els.lowStockCountEl = document.getElementById('scanner-lowstock-count');
+  els.recentListEl = document.getElementById('scanner-recent-list');
+  els.recentEmptyEl = document.getElementById('scanner-recent-empty');
 
   els.modeDeposito.addEventListener('click', () => selectMode('deposito'));
   els.modePrelievo.addEventListener('click', () => selectMode('prelievo'));
@@ -54,6 +58,7 @@ export function initScanner() {
   );
 
   resetAll();
+  loadIdlePanel();
 }
 
 function selectMode(mode) {
@@ -68,10 +73,7 @@ function selectMode(mode) {
   els.modeBanner.classList.remove('hidden');
   els.readerWrap.classList.remove('hidden');
   els.manualForm.classList.remove('hidden');
-
-  // Focus automatico: uno scanner esterno USB/Bluetooth "digita" il codice
-  // in questo campo come farebbe una tastiera — pronto all'uso senza toccare lo schermo.
-  requestAnimationFrame(() => els.manualInput.focus());
+  els.idlePanel.classList.add('hidden');
 
   startCamera('scanner-reader', handleDetectedCode, {
     focusHintEl: els.focusHint,
@@ -155,6 +157,7 @@ function resetAll() {
   els.modeBanner.classList.add('hidden');
   els.readerWrap.classList.add('hidden');
   els.manualForm.classList.add('hidden');
+  els.idlePanel.classList.remove('hidden');
   els.modeDeposito.classList.remove('mode-active-deposito');
   els.modePrelievo.classList.remove('mode-active-prelievo');
   els.switchCameraBtn?.classList.add('hidden');
@@ -190,6 +193,7 @@ async function confirmTransaction() {
     }
 
     resetResult();
+    loadIdlePanel();
   } catch (err) {
     console.error(err);
     toastError(err.message?.includes('Giacenza insufficiente') ? err.message : 'Errore durante la registrazione della transazione.');
@@ -203,4 +207,53 @@ async function confirmTransaction() {
 export function teardownScanner() {
   stopCamera();
   resetAll();
+}
+
+/**
+ * Riempie il pannello mostrato prima di scegliere Deposito/Prelievo, cosí
+ * la schermata iniziale non resta vuota: conteggio sotto-scorta e ultimi
+ * movimenti registrati, a colpo d'occhio prima ancora di scansionare.
+ */
+async function loadIdlePanel() {
+  try {
+    const [lowStock, recent] = await Promise.all([listProducts({ onlyLowStock: true }), listTransactions({ limit: 5 })]);
+    els.lowStockCountEl.textContent = lowStock.length;
+    renderRecent(recent);
+  } catch (err) {
+    console.error(err);
+  }
+}
+
+function renderRecent(rows) {
+  els.recentListEl.innerHTML = '';
+  if (!rows || rows.length === 0) {
+    els.recentEmptyEl.classList.remove('hidden');
+    return;
+  }
+  els.recentEmptyEl.classList.add('hidden');
+
+  for (const r of rows) {
+    const date = new Date(r.data_ora);
+    const row = document.createElement('div');
+    row.className = 'flex items-center justify-between gap-3 py-1.5 border-t border-graphite-800 first:border-t-0 first:pt-0';
+    row.innerHTML = `
+      <div class="min-w-0">
+        <p class="text-sm text-graphite-100 truncate font-medium">${escapeHtml(r.products?.codice_articolo || '—')}</p>
+        <p class="text-[11px] text-graphite-500 mt-0.5">${date.toLocaleString('it-IT', {
+          day: '2-digit',
+          month: '2-digit',
+          hour: '2-digit',
+          minute: '2-digit',
+        })}</p>
+      </div>
+      <span class="shrink-0 font-mono text-xs font-semibold px-2 py-0.5 rounded-full ${
+        r.tipo === 'deposito' ? 'bg-emerald-500/15 text-emerald-700' : 'bg-amber-500/15 text-amber-700'
+      }">${r.tipo === 'deposito' ? '+' : '−'}${r.quantita}</span>
+    `;
+    els.recentListEl.appendChild(row);
+  }
+}
+
+function escapeHtml(str) {
+  return String(str).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }

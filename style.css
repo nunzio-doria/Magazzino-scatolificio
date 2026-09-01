@@ -108,22 +108,12 @@ body {
   40%  { left: 115%; }
   100% { left: 115%; }
 }
-.nav-glass-perspective {
-  perspective: 700px; /* spazio 3D condiviso in cui inclinano i pulsanti */
-}
-
 /* ---- Bottom nav ----------------------------------------------- */
 .nav-item {
   position: relative;
-  transition: color 160ms ease, transform 420ms cubic-bezier(0.22, 1, 0.36, 1);
-  transform: perspective(700px) rotateX(0deg) rotateY(0deg);
-  transform-style: preserve-3d;
+  transition: color 160ms ease;
   z-index: 0;
 }
-/* Durante il tilt (mousemove) niente transition, cosí il pulsante segue il
-   cursore senza ritardo; al mouseleave la transition di .nav-item sopra
-   riprende il controllo e riporta tutto a zero in modo morbido. */
-.nav-item.nav-tilting { transition: color 160ms ease; }
 .nav-item::before {
   content: '';
   position: absolute;
@@ -145,6 +135,9 @@ body {
   opacity: 1;
   transform: scale(1);
 }
+.nav-active .nav-icon-wrap {
+  transform: translateY(-2px);
+}
 .nav-active .nav-dot {
   opacity: 1;
   transform: scale(1);
@@ -155,36 +148,13 @@ body {
   transition: all 160ms ease;
 }
 
-/* Floating continuo dell'icona in background, sfalsato per voce per un moto
-   meno meccanico e più organico (non tutte le icone salgono/scendono insieme) */
-.nav-icon-wrap {
-  display: inline-flex;
-  animation: nav-float 3.2s ease-in-out infinite;
-}
-.nav-item:nth-child(1) .nav-icon-wrap { animation-delay: 0s; }
-.nav-item:nth-child(2) .nav-icon-wrap { animation-delay: 0.35s; }
-.nav-item:nth-child(3) .nav-icon-wrap { animation-delay: 0.7s; }
-@keyframes nav-float {
-  0%, 100% { transform: translateY(0); }
-  50%      { transform: translateY(-3px); }
-}
-/* La voce attiva mantiene il lieve sollevamento (-2px) come baseline del
-   float, invece di perderlo sotto l'animazione continua */
-@keyframes nav-float-active {
-  0%, 100% { transform: translateY(-2px); }
-  50%      { transform: translateY(-5px); }
-}
-.nav-active .nav-icon-wrap {
-  animation-name: nav-float-active;
-}
-
 /* Bounce a molla quando si cambia sezione: overshoot elastico coerente con
    la fisica a molla della transizione tra le view */
 @keyframes nav-tap-spring {
-  0%   { transform: perspective(700px) scale(1); }
-  35%  { transform: perspective(700px) scale(0.88); }
-  65%  { transform: perspective(700px) scale(1.12); }
-  100% { transform: perspective(700px) scale(1); }
+  0%   { transform: scale(1); }
+  35%  { transform: scale(0.88); }
+  65%  { transform: scale(1.12); }
+  100% { transform: scale(1); }
 }
 .nav-item.nav-tapped {
   animation: nav-tap-spring 420ms cubic-bezier(0.34, 1.56, 0.64, 1);
@@ -192,8 +162,6 @@ body {
 
 @media (prefers-reduced-motion: reduce) {
   .nav-glass::before { animation: none; }
-  .nav-icon-wrap { animation: none; }
-  .nav-item, .nav-item.nav-tilting { transition-duration: 1ms; }
   .nav-item.nav-tapped { animation: none; }
 }
 
@@ -441,6 +409,92 @@ body {
 :focus-visible {
   outline: 2px solid #2f4f92;
   outline-offset: 2px;
+}
+
+/* ---- Select personalizzato (sostituisce i <select> nativi) ----------
+   Il <select> originale resta nel DOM solo per il valore/evento 'change',
+   nascosto qui sotto; sopra c'è un pulsante + una tendina che si abbassa
+   con la stessa tecnica grid-template-rows delle card scaffale. */
+.custom-select-native {
+  display: none !important;
+}
+.custom-select {
+  position: relative;
+}
+.custom-select-trigger {
+  cursor: pointer;
+  width: 100%;
+}
+.custom-select-chevron {
+  transition: transform 240ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.custom-select-open .custom-select-chevron {
+  transform: rotate(180deg);
+}
+.custom-select-panel-track {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 280ms cubic-bezier(0.65, 0, 0.35, 1);
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(100% + 6px);
+  z-index: 30;
+}
+.custom-select-open .custom-select-panel-track {
+  grid-template-rows: 1fr;
+}
+.custom-select-panel-inner {
+  min-height: 0;
+  overflow: hidden;
+  box-shadow: 0 12px 28px -8px rgba(15, 23, 42, 0.35);
+}
+.custom-select-option {
+  cursor: pointer;
+  transition: background-color 140ms ease, color 140ms ease;
+}
+.custom-select-option:hover,
+.custom-select-option:active {
+  background: rgba(47, 79, 146, 0.10);
+}
+.custom-select-option-active {
+  color: #2f4f92;
+  font-weight: 700;
+}
+
+/* ---- Modale di conferma (sostituisce confirm() nativo) --------------
+   Overlay con fade dello sfondo + card che entra con un piccolo overshoot
+   elastico, in tema con la fisica a molla usata nel resto dell'app. */
+.confirm-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 95;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(15, 23, 42, 0);
+  transition: background-color 220ms ease;
+}
+.confirm-overlay.confirm-open {
+  background: rgba(15, 23, 42, 0.5);
+  backdrop-filter: blur(2px);
+}
+.confirm-card {
+  width: 100%;
+  max-width: 360px;
+  transform: scale(0.9) translateY(10px);
+  opacity: 0;
+  transition: transform 340ms cubic-bezier(0.34, 1.56, 0.64, 1), opacity 220ms ease;
+}
+.confirm-overlay.confirm-open .confirm-card {
+  transform: scale(1) translateY(0);
+  opacity: 1;
+}
+.confirm-overlay.confirm-closing .confirm-card {
+  transform: scale(0.92) translateY(6px);
+  opacity: 0;
+  transition: transform 180ms ease, opacity 180ms ease;
 }
 
 /* ---- Riduzione animazioni per chi la richiede -------------------------- */

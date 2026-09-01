@@ -4,6 +4,7 @@
 
 import { getConsumptionStats, listTransactions } from './supabase.js';
 import { toastError } from './toast.js';
+import { enhanceSelect } from './ui-select.js';
 
 const els = {};
 let currentFrom = null;
@@ -12,6 +13,7 @@ let articleHistoryFilter = 'tutti'; // 'tutti' | 'deposito' | 'prelievo'
 
 export function initDashboard() {
   els.periodSelect = document.getElementById('dash-period-select');
+  enhanceSelect(els.periodSelect);
   els.statsWrap = document.getElementById('dash-consumption-list');
   els.statsSkeleton = document.getElementById('dash-consumption-skeleton');
   els.historyWrap = document.getElementById('dash-history-list');
