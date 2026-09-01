@@ -16,6 +16,15 @@ html, body {
 body {
   font-family: 'Inter', sans-serif;
   -webkit-tap-highlight-color: transparent;
+  /* App-like: niente selezione del testo al tocco/click su una parola
+     qualsiasi — resta un'app da usare, non una pagina da leggere/copiare.
+     Riabilitata sotto solo dove serve davvero (campi di input). */
+  -webkit-user-select: none;
+  user-select: none;
+}
+input, textarea {
+  -webkit-user-select: text;
+  user-select: text;
 }
 
 .font-display { letter-spacing: 0.02em; }
@@ -185,11 +194,18 @@ body {
   /* position/top/left/width impostati inline da app.js in px, calcolati
      dal layout reale, per restare allineata alla vista che sta entrando
      anche con il padding del contenitore */
+  transform-origin: top center;
   z-index: 1;
   pointer-events: none;
   will-change: transform, opacity;
 }
 .view-fluid-entering {
+  /* Scala ancorata in alto, non al centro: su una vista lunga (es. il
+     Magazzino con tanti articoli) scalare dal centro sposta il bordo
+     superiore verso il basso e poi su di nuovo — visivamente "sale
+     troppo". Ancorando in alto, il bordo superiore resta fermo e cresce
+     solo verso il basso: molto meno marcato. */
+  transform-origin: top center;
   position: relative;
   z-index: 2;
   will-change: transform, opacity;
@@ -197,18 +213,18 @@ body {
 
 @keyframes fluid-exit-left {
   0%   { opacity: 1; transform: scale(1) translateX(0); }
-  100% { opacity: 0; transform: scale(0.92) translateX(-6%); }
+  100% { opacity: 0; transform: scale(0.96) translateX(-6%); }
 }
 @keyframes fluid-exit-right {
   0%   { opacity: 1; transform: scale(1) translateX(0); }
-  100% { opacity: 0; transform: scale(0.92) translateX(6%); }
+  100% { opacity: 0; transform: scale(0.96) translateX(6%); }
 }
 @keyframes fluid-enter-from-right {
-  0%   { opacity: 0; transform: scale(0.94) translateX(6%); }
+  0%   { opacity: 0; transform: scale(0.97) translateX(6%); }
   100% { opacity: 1; transform: scale(1) translateX(0); }
 }
 @keyframes fluid-enter-from-left {
-  0%   { opacity: 0; transform: scale(0.94) translateX(-6%); }
+  0%   { opacity: 0; transform: scale(0.97) translateX(-6%); }
   100% { opacity: 1; transform: scale(1) translateX(0); }
 }
 
