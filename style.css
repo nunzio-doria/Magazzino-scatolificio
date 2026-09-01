@@ -77,12 +77,53 @@ body {
   to { opacity: 0; transform: translateY(-8px) scale(0.97); }
 }
 
+/* ---- Bottom nav: effetto glass -------------------------------------
+   Sfondo satinato/traslucido con blur elevato, bordo superiore sottile
+   semi-trasparente e un riflesso di luce che scorre lentamente sulla
+   superficie in loop, come vetro smerigliato illuminato di lato. */
+.nav-glass {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.62), rgba(244, 245, 247, 0.4));
+  backdrop-filter: blur(22px) saturate(160%);
+  -webkit-backdrop-filter: blur(22px) saturate(160%);
+  border-top: 1px solid rgba(255, 255, 255, 0.55);
+  box-shadow: 0 -8px 30px -10px rgba(15, 23, 42, 0.15);
+  position: relative;
+  overflow: hidden;
+}
+.nav-glass::before {
+  /* riflesso di luce dinamico: una banda chiara che attraversa la nav in loop */
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -55%;
+  width: 45%;
+  height: 100%;
+  background: linear-gradient(115deg, transparent, rgba(255, 255, 255, 0.65) 45%, transparent 90%);
+  transform: skewX(-20deg);
+  animation: nav-sheen 7s ease-in-out infinite;
+  pointer-events: none;
+}
+@keyframes nav-sheen {
+  0%   { left: -55%; }
+  40%  { left: 115%; }
+  100% { left: 115%; }
+}
+.nav-glass-perspective {
+  perspective: 700px; /* spazio 3D condiviso in cui inclinano i pulsanti */
+}
+
 /* ---- Bottom nav ----------------------------------------------- */
 .nav-item {
   position: relative;
-  transition: color 160ms ease, transform 160ms ease;
+  transition: color 160ms ease, transform 420ms cubic-bezier(0.22, 1, 0.36, 1);
+  transform: perspective(700px) rotateX(0deg) rotateY(0deg);
+  transform-style: preserve-3d;
   z-index: 0;
 }
+/* Durante il tilt (mousemove) niente transition, cosí il pulsante segue il
+   cursore senza ritardo; al mouseleave la transition di .nav-item sopra
+   riprende il controllo e riporta tutto a zero in modo morbido. */
+.nav-item.nav-tilting { transition: color 160ms ease; }
 .nav-item::before {
   content: '';
   position: absolute;
@@ -104,9 +145,6 @@ body {
   opacity: 1;
   transform: scale(1);
 }
-.nav-active .nav-icon-wrap {
-  transform: translateY(-2px);
-}
 .nav-active .nav-dot {
   opacity: 1;
   transform: scale(1);
@@ -115,6 +153,48 @@ body {
   opacity: 0;
   transform: scale(0.4);
   transition: all 160ms ease;
+}
+
+/* Floating continuo dell'icona in background, sfalsato per voce per un moto
+   meno meccanico e più organico (non tutte le icone salgono/scendono insieme) */
+.nav-icon-wrap {
+  display: inline-flex;
+  animation: nav-float 3.2s ease-in-out infinite;
+}
+.nav-item:nth-child(1) .nav-icon-wrap { animation-delay: 0s; }
+.nav-item:nth-child(2) .nav-icon-wrap { animation-delay: 0.35s; }
+.nav-item:nth-child(3) .nav-icon-wrap { animation-delay: 0.7s; }
+@keyframes nav-float {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-3px); }
+}
+/* La voce attiva mantiene il lieve sollevamento (-2px) come baseline del
+   float, invece di perderlo sotto l'animazione continua */
+@keyframes nav-float-active {
+  0%, 100% { transform: translateY(-2px); }
+  50%      { transform: translateY(-5px); }
+}
+.nav-active .nav-icon-wrap {
+  animation-name: nav-float-active;
+}
+
+/* Bounce a molla quando si cambia sezione: overshoot elastico coerente con
+   la fisica a molla della transizione tra le view */
+@keyframes nav-tap-spring {
+  0%   { transform: perspective(700px) scale(1); }
+  35%  { transform: perspective(700px) scale(0.88); }
+  65%  { transform: perspective(700px) scale(1.12); }
+  100% { transform: perspective(700px) scale(1); }
+}
+.nav-item.nav-tapped {
+  animation: nav-tap-spring 420ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nav-glass::before { animation: none; }
+  .nav-icon-wrap { animation: none; }
+  .nav-item, .nav-item.nav-tilting { transition-duration: 1ms; }
+  .nav-item.nav-tapped { animation: none; }
 }
 
 /* ---- Transizione laterale tra le sezioni principali --------------------
@@ -127,66 +207,52 @@ body {
   position: relative;
   overflow-x: hidden;
 }
-/* ---- Transizione tra view: staggered masking -------------------
-   Un sipario di barre verticali copre lo schermo in sequenza sfalsata
-   (--i crescente = ritardo crescente), lo swap del contenuto avviene
-   solo a schermo completamente coperto, poi le barre si ritraggono
-   rivelando la nuova vista con lo stesso sfalsamento. Le due view non
-   sono mai visibili contemporaneamente: elimina strutturalmente ogni
-   rischio di sovrapposizione, non solo esteticamente. */
-.view-mask-curtain {
-  position: absolute;
-  inset: 0;
-  z-index: 5;
-  display: flex;
-  overflow: hidden;
+/* ---- Transizione tra view: Fluid Slide & Scale (spring physics) ----
+   La vista uscente rimpicciolisce leggermente e scivola via lateralmente
+   sfumando, mentre quella entrante arriva con un lieve overshoot elastico
+   ("fisica a molla", cubic-bezier con rimbalzo oltre il 100%) invece di
+   fermarsi di scatto — imita il movimento organico di un cartoncino
+   leggero che si sfoglia, non un semplice taglio netto. */
+.view-fluid-leaving {
+  /* position/top/left/width impostati inline da app.js in px, calcolati
+     dal layout reale, per restare allineata alla vista che sta entrando
+     anche con il padding del contenitore */
+  z-index: 1;
   pointer-events: none;
+  will-change: transform, opacity;
 }
-.view-mask-bar {
-  flex: 1 1 0;
-  background: #f4f5f7;
-  transform: scaleY(0);
-  transform-origin: bottom;
+.view-fluid-entering {
   position: relative;
-}
-/* Filo di accento sul bordo d'attacco della barra, per un feel "a lama" */
-.view-mask-bar::after {
-  content: '';
-  position: absolute;
-  left: 0; right: 0; top: 0;
-  height: 2px;
-  background: #2f4f92;
-  opacity: 0;
-}
-.view-mask-bar.covering {
-  animation: mask-cover var(--mask-phase, 260ms) cubic-bezier(0.65, 0, 0.35, 1) forwards;
-  animation-delay: calc(var(--i, 0) * var(--mask-step, 22ms));
-}
-.view-mask-bar.covering::after { animation: mask-edge-flash var(--mask-phase, 260ms) ease-out forwards; animation-delay: calc(var(--i, 0) * var(--mask-step, 22ms)); }
-.view-mask-bar.revealing {
-  transform-origin: top;
-  animation: mask-reveal var(--mask-phase, 260ms) cubic-bezier(0.65, 0, 0.35, 1) forwards;
-  animation-delay: calc(var(--i, 0) * var(--mask-step, 22ms));
+  z-index: 2;
+  will-change: transform, opacity;
 }
 
-@keyframes mask-cover {
-  0%   { transform: scaleY(0); }
-  100% { transform: scaleY(1); }
+@keyframes fluid-exit-left {
+  0%   { opacity: 1; transform: scale(1) translateX(0); }
+  100% { opacity: 0; transform: scale(0.92) translateX(-6%); }
 }
-@keyframes mask-reveal {
-  0%   { transform: scaleY(1); }
-  100% { transform: scaleY(0); }
+@keyframes fluid-exit-right {
+  0%   { opacity: 1; transform: scale(1) translateX(0); }
+  100% { opacity: 0; transform: scale(0.92) translateX(6%); }
 }
-@keyframes mask-edge-flash {
-  0%   { opacity: 0; }
-  35%  { opacity: 0.9; }
-  100% { opacity: 0; }
+@keyframes fluid-enter-from-right {
+  0%   { opacity: 0; transform: scale(0.94) translateX(6%); }
+  100% { opacity: 1; transform: scale(1) translateX(0); }
 }
+@keyframes fluid-enter-from-left {
+  0%   { opacity: 0; transform: scale(0.94) translateX(-6%); }
+  100% { opacity: 1; transform: scale(1) translateX(0); }
+}
+
+.view-fluid-exit-left   { animation: fluid-exit-left 260ms cubic-bezier(0.4, 0, 0.7, 0.2) forwards; }
+.view-fluid-exit-right  { animation: fluid-exit-right 260ms cubic-bezier(0.4, 0, 0.7, 0.2) forwards; }
+/* Overshoot: la molla supera leggermente il 100% prima di assestarsi */
+.view-fluid-enter-right { animation: fluid-enter-from-right 520ms cubic-bezier(0.34, 1.56, 0.64, 1) forwards; }
+.view-fluid-enter-left  { animation: fluid-enter-from-left 520ms cubic-bezier(0.34, 1.56, 0.64, 1) forwards; }
 
 @media (prefers-reduced-motion: reduce) {
-  .view-mask-bar.covering,
-  .view-mask-bar.revealing,
-  .view-mask-bar.covering::after { animation-duration: 1ms; animation-delay: 0ms; }
+  .view-fluid-exit-left, .view-fluid-exit-right,
+  .view-fluid-enter-right, .view-fluid-enter-left { animation-duration: 1ms; }
 }
 
 /* ---- Tab storico (modale drill-down consumi) ------------------------ */
