@@ -10,9 +10,6 @@ import { initUsers, refreshUsers } from './users.js';
 import { initPicker } from './picker.js';
 
 const VIEWS = ['scanner', 'products', 'dashboard', 'settings'];
-const MASK_BARS = 10;      // numero di barre del sipario
-const MASK_STEP_MS = 22;   // sfalsamento tra una barra e la successiva
-const MASK_PHASE_MS = 260; // durata dell'animazione della singola barra
 let modulesInitialized = false;
 let currentView = null;
 let isTransitioning = false;
@@ -60,9 +57,41 @@ function onSignedOut() {
 
 function initNav() {
   document.querySelectorAll('[data-nav-target]').forEach((btn) => {
-    btn.addEventListener('click', () => switchView(btn.dataset.navTarget));
+    btn.addEventListener('click', () => {
+      switchView(btn.dataset.navTarget);
+      triggerNavTap(btn);
+    });
+    initNavTilt(btn);
   });
   document.getElementById('settings-btn').addEventListener('click', () => switchView('settings'));
+}
+
+/** Bounce a molla sul pulsante appena cambiata sezione (anche su tap ravvicinati) */
+function triggerNavTap(btn) {
+  btn.classList.remove('nav-tapped');
+  void btn.offsetWidth; // forza il replay dell'animazione
+  btn.classList.add('nav-tapped');
+}
+
+const NAV_TILT_MAX_DEG = 12;
+
+/** Tilt 3D al passaggio del mouse: ruota il pulsante in base alla posizione
+ *  del cursore al suo interno, e torna morbidamente a zero al mouseleave
+ *  (la transition di ritorno è definita in CSS su .nav-item). */
+function initNavTilt(btn) {
+  btn.addEventListener('mouseenter', () => btn.classList.add('nav-tilting'));
+  btn.addEventListener('mousemove', (e) => {
+    const rect = btn.getBoundingClientRect();
+    const px = (e.clientX - rect.left) / rect.width; // 0..1 sull'asse orizzontale
+    const py = (e.clientY - rect.top) / rect.height; // 0..1 sull'asse verticale
+    const rotateY = (px - 0.5) * NAV_TILT_MAX_DEG * 2;
+    const rotateX = (0.5 - py) * NAV_TILT_MAX_DEG * 2;
+    btn.style.transform = `perspective(700px) rotateX(${rotateX}deg) rotateY(${rotateY}deg) scale(1.04)`;
+  });
+  btn.addEventListener('mouseleave', () => {
+    btn.classList.remove('nav-tilting');
+    btn.style.transform = '';
+  });
 }
 
 function switchView(view, { animate = true } = {}) {
@@ -106,52 +135,44 @@ function animateViewSwitch(fromSection, toSection, forward) {
   isTransitioning = true;
   const host = toSection.parentElement;
 
-  // Sipario di barre verticali sopra le due view. Nessun posizionamento
-  // assoluto delle sezioni: fromSection e toSection restano ognuna al
-  // proprio posto nel flusso normale, e non sono MAI entrambe visibili
-  // nello stesso frame — lo swap avviene solo a schermo coperto.
-  const curtain = document.createElement('div');
-  curtain.className = 'view-mask-curtain';
-  const bars = [];
-  for (let i = 0; i < MASK_BARS; i++) {
-    const bar = document.createElement('div');
-    bar.className = 'view-mask-bar';
-    // Avanti: sfalsamento da sinistra a destra. Indietro: specchiato,
-    // cosí il sipario "insegue" la direzione di navigazione.
-    bar.style.setProperty('--i', forward ? i : MASK_BARS - 1 - i);
-    bar.style.setProperty('--mask-step', `${MASK_STEP_MS}ms`);
-    bar.style.setProperty('--mask-phase', `${MASK_PHASE_MS}ms`);
-    curtain.appendChild(bar);
-    bars.push(bar);
-  }
-  host.style.position = host.style.position || 'relative';
-  host.appendChild(curtain);
+  // Misura la posizione reale (in px, coordinate viewport) della vista uscente
+  // PRIMA di renderla absolute, cosí resta perfettamente allineata alla vista
+  // entrante anche con il padding del contenitore (main).
+  const hostRect = host.getBoundingClientRect();
+  const fromRect = fromSection.getBoundingClientRect();
+  host.style.minHeight = `${fromSection.offsetHeight}px`;
 
-  const coverDuration = (MASK_BARS - 1) * MASK_STEP_MS + MASK_PHASE_MS;
+  const exitClass = forward ? 'view-fluid-exit-left' : 'view-fluid-exit-right';
+  const enterClass = forward ? 'view-fluid-enter-right' : 'view-fluid-enter-left';
 
-  requestAnimationFrame(() => {
-    bars.forEach((bar) => bar.classList.add('covering'));
-  });
+  fromSection.style.position = 'absolute';
+  fromSection.style.top = `${fromRect.top - hostRect.top}px`;
+  fromSection.style.left = `${fromRect.left - hostRect.left}px`;
+  fromSection.style.width = `${fromRect.width}px`;
+  fromSection.classList.add('view-fluid-leaving', exitClass);
+
+  toSection.classList.remove('hidden');
+  void toSection.offsetWidth; // forza il reflow prima di avviare l'animazione di ingresso
+  toSection.classList.add('view-fluid-entering', enterClass);
 
   let done = false;
   const cleanup = () => {
     if (done) return;
     done = true;
-    curtain.remove();
+    fromSection.classList.add('hidden');
+    fromSection.classList.remove('view-fluid-leaving', 'view-fluid-exit-left', 'view-fluid-exit-right');
+    fromSection.style.position = '';
+    fromSection.style.top = '';
+    fromSection.style.left = '';
+    fromSection.style.width = '';
+    toSection.classList.remove('view-fluid-entering', 'view-fluid-enter-right', 'view-fluid-enter-left');
+    host.style.minHeight = '';
     isTransitioning = false;
   };
-
-  setTimeout(() => {
-    // Schermo completamente coperto: swap istantaneo del contenuto,
-    // invisibile all'utente, poi si apre il sipario in rivelazione.
-    fromSection.classList.add('hidden');
-    toSection.classList.remove('hidden');
-    bars.forEach((bar) => {
-      bar.classList.remove('covering');
-      bar.classList.add('revealing');
-    });
-    setTimeout(cleanup, coverDuration + 30); // +30ms rete di sicurezza
-  }, coverDuration);
+  // L'ingresso (520ms) dura più dell'uscita (260ms): è l'ultima animazione a
+  // terminare, quindi è il suo animationend a far scattare il cleanup.
+  toSection.addEventListener('animationend', cleanup, { once: true });
+  setTimeout(cleanup, 650); // rete di sicurezza se l'evento non scattasse
 }
 
 initAuth(onAuthed, onSignedOut);
