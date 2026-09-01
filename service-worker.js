@@ -2,6 +2,13 @@
 // service-worker.js — Shell statica in cache per installabilità PWA.
 // I dati (Supabase, CDN esterni) passano sempre dalla rete: qui si
 // mette in cache solo l'involucro dell'app (HTML/CSS/JS/icone locali).
+//
+// Strategia: NETWORK-FIRST, non più cache-first. La cache serve solo
+// come fallback per l'offline, mai come fonte primaria — così se in
+// cache finisce mai una versione rotta o vecchia di un file, non resta
+// "incollata" lì per sempre: appena la rete è disponibile la richiesta
+// successiva la sovrascrive da sola, senza bisogno di cancellare
+// manualmente i dati del sito da Chrome.
 // =============================================================
 
 const CACHE_NAME = 'magazzino-shell-v8';
@@ -59,40 +66,28 @@ self.addEventListener('fetch', (event) => {
   }
 
   event.respondWith(
-    caches.match(request).then((cached) => {
-      if (cached) {
-        // Cache-first: risposta immediata, poi aggiorna la cache in background
-        // (stale-while-revalidate) senza far dipendere la risposta dalla rete.
-        fetch(request)
-          .then((response) => {
-            if (response && response.ok) {
-              caches.open(CACHE_NAME).then((cache) => cache.put(request, response));
-            }
-          })
-          .catch(() => {});
-        return cached;
-      }
-
-      // Non in cache: prova la rete. IMPORTANTE — non deve mai risolvere con
-      // undefined (causava "ERR_FAILED" nella PWA installata quando la rete
-      // falliva anche solo momentaneamente su una risorsa non ancora in cache).
-      return fetch(request)
-        .then((response) => {
-          if (response && response.ok) {
-            const clone = response.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
-          }
-          return response;
-        })
-        .catch(() => {
-          // Rete assente e nulla in cache: per una navigazione di pagina,
+    // Rete come prima scelta: qualsiasi risposta valida aggiorna subito la
+    // cache, cosí un file rotto o vecchio non può mai restare "bloccato"
+    // come fonte primaria — solo l'offline reale ripiega sulla cache.
+    fetch(request)
+      .then((response) => {
+        if (response && response.ok) {
+          const clone = response.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
+        }
+        return response;
+      })
+      .catch(() =>
+        caches.match(request).then((cached) => {
+          if (cached) return cached;
+          // Nulla in cache e rete assente: per una navigazione di pagina,
           // ripiega sulla shell dell'app (index.html) così l'app si apre
           // comunque invece di mostrare una schermata di errore.
           if (request.mode === 'navigate') {
             return caches.match('./index.html').then((fallback) => fallback || Response.error());
           }
           return Response.error();
-        });
-    })
+        })
+      )
   );
 });

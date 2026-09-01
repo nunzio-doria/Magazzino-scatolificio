@@ -156,9 +156,31 @@ function animateViewSwitch(fromSection, toSection, forward) {
 
 initAuth(onAuthed, onSignedOut);
 
-// Registra il service worker per rendere l'app installabile (PWA)
+// Registra il service worker per rendere l'app installabile (PWA).
+// Auto-update: appena un nuovo service worker prende il controllo, la pagina
+// si ricarica da sola una volta sola, cosí l'utente ha sempre l'ultima
+// versione senza dover mai cancellare manualmente i dati del sito.
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./service-worker.js').catch((err) => console.warn('Service worker non registrato:', err));
+  window.addEventListener('load', async () => {
+    try {
+      const registration = await navigator.serviceWorker.register('./service-worker.js');
+      // Controlla subito se c'è una versione più recente (utile se l'app
+      // resta aperta a lungo, o il browser non ha ancora rifatto il check).
+      registration.update().catch(() => {});
+      // E di nuovo ogni volta che l'utente torna sull'app dopo averla lasciata
+      // in background: è il momento più naturale per aggiornarsi in silenzio.
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') registration.update().catch(() => {});
+      });
+    } catch (err) {
+      console.warn('Service worker non registrato:', err);
+    }
+  });
+
+  let reloadingForUpdate = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (reloadingForUpdate) return;
+    reloadingForUpdate = true;
+    window.location.reload();
   });
 }
