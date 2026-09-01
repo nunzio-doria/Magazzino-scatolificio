@@ -7,6 +7,9 @@ import { toastSuccess, toastError } from './toast.js';
 import { isAdmin } from './auth.js';
 import { startCamera, stopCamera } from './camera.js';
 import { openPicker } from './picker.js';
+import { animateFluidSwap } from './app.js';
+import { confirmDialog } from './ui-modal.js';
+import { enhanceSelect } from './ui-select.js';
 
 const els = {};
 let currentList = [];
@@ -17,8 +20,14 @@ let currentCategory = 'cuscinetti';
 let importCategory = 'cuscinetti';
 let lineaFilterValue = '';
 let macchinaFilterValue = '';
-let viewMode = 'list'; // 'list' | 'shelf'
+let viewMode = 'list'; // 'list' | 'shelf' | 'machine'
+const VIEW_MODE_ORDER = ['list', 'shelf', 'machine']; // determina la direzione della transizione
 const openShelves = new Set(); // locazioni espanse, persiste tra i refresh
+const openMachines = new Set(); // macchine espanse, persiste tra i refresh
+// Il riordino per macchina ha senso solo dove l'articolo è davvero legato a
+// una macchina specifica: cinghie e pezzi di ricambio. I cuscinetti sono
+// stock generico, senza questa associazione.
+const MACHINE_VIEW_CATEGORIES = ['cinghie', 'pezzi_ricambio'];
 
 // --- UNDO / REDO -----------------------------------------------------
 const HISTORY_LIMIT = 20;
@@ -92,6 +101,8 @@ export function initProducts() {
   els.categoryTabs = document.querySelectorAll('[data-category-tab]');
   els.viewModeTabs = document.querySelectorAll('[data-view-mode-tab]');
   els.shelfView = document.getElementById('product-shelf-view');
+  els.machineView = document.getElementById('product-machine-view');
+  els.machineViewTab = document.querySelector('[data-view-mode-tab="machine"]');
   els.lineaFilterWrap = document.getElementById('product-linea-filter-wrap');
   els.lineaFilterBtn = document.getElementById('product-linea-filter-btn');
   els.lineaFilterValue = document.getElementById('product-linea-filter-value');
@@ -113,6 +124,7 @@ export function initProducts() {
   els.closeModalBtn = document.getElementById('product-modal-close');
   els.deleteBtn = document.getElementById('product-delete-btn');
   els.categoriaSelect = document.getElementById('product-categoria');
+  els.categoriaSelectUI = enhanceSelect(els.categoriaSelect);
   els.lineaMacchinaWrap = document.getElementById('product-linea-macchina-wrap');
   els.lineaBtn = document.getElementById('product-linea-btn');
   els.lineaValue = document.getElementById('product-linea-value');
@@ -179,14 +191,50 @@ function setCategory(category) {
     updateFilterLabels();
   }
 
+  // Riordino per macchina: visibile solo per le categorie dove l'associazione
+  // a una macchina ha senso (cinghie, pezzi di ricambio) — non per i cuscinetti.
+  const showMachineView = MACHINE_VIEW_CATEGORIES.includes(category);
+  els.machineViewTab?.classList.toggle('hidden', !showMachineView);
+  if (!showMachineView && viewMode === 'machine') {
+    // La categoria appena scelta non supporta questa modalità: torna
+    // silenziosamente a Elenco, senza animazione (cambio di contesto, non
+    // un'azione dell'utente sul toggle).
+    viewMode = 'list';
+    els.viewModeTabs.forEach((btn) => btn.classList.toggle('view-mode-tab-active', btn.dataset.viewModeTab === 'list'));
+  }
+
   refresh();
 }
 
 function setViewMode(mode) {
   if (mode === viewMode) return;
+  const previousMode = viewMode;
   viewMode = mode;
   els.viewModeTabs.forEach((btn) => btn.classList.toggle('view-mode-tab-active', btn.dataset.viewModeTab === mode));
-  renderCurrentList(); // stessi dati già caricati, cambia solo la presentazione
+
+  if (currentList.length === 0) return; // l'empty state resta cosí com'è, nulla da animare
+
+  // Direzione della transizione coerente con l'ordine dei tab: Elenco →
+  // Scaffalatura → Macchina scivola "avanti", il percorso inverso "indietro".
+  const forward = VIEW_MODE_ORDER.indexOf(mode) > VIEW_MODE_ORDER.indexOf(previousMode);
+  const fromEl = viewModeElement(previousMode);
+
+  renderModeContent(mode);
+  const toEl = viewModeElement(mode);
+
+  animateFluidSwap(fromEl, toEl, forward);
+}
+
+function viewModeElement(mode) {
+  if (mode === 'shelf') return els.shelfView;
+  if (mode === 'machine') return els.machineView;
+  return els.listWrap;
+}
+
+function renderModeContent(mode) {
+  if (mode === 'shelf') renderShelves();
+  else if (mode === 'machine') renderByMachine();
+  else renderList();
 }
 
 function setImportCategory(category) {
@@ -236,6 +284,7 @@ function matchesLineaFilter(productLinea, wanted) {
 function renderCurrentList() {
   els.listWrap.classList.add('hidden');
   els.shelfView.classList.add('hidden');
+  els.machineView.classList.add('hidden');
   els.emptyState.classList.add('hidden');
 
   if (currentList.length === 0) {
@@ -243,8 +292,7 @@ function renderCurrentList() {
     return;
   }
 
-  if (viewMode === 'shelf') renderShelves();
-  else renderList();
+  renderModeContent(viewMode);
 }
 
 function renderList() {
@@ -278,36 +326,70 @@ function renderList() {
 
 /**
  * Vista "scaffalatura": raggruppa gli articoli della categoria/filtri
- * correnti per locazione, una card per scaffale. Al tap sull'header la
- * card si espande (animazione grid-template-rows in CSS) rivelando gli
- * articoli contenuti, con un lieve stagger in ingresso. Lo stato aperto/
- * chiuso di ogni locazione persiste tra i refresh tramite openShelves.
+ * correnti per locazione, una card per scaffale.
  */
 function renderShelves() {
-  els.shelfView.innerHTML = '';
-  els.shelfView.classList.remove('hidden');
+  renderGroupedCards({
+    wrapEl: els.shelfView,
+    openSet: openShelves,
+    groupKeyFn: (p) => p.locazione,
+    subtitleFields: (p) => [p.macchina, p.punto_utilizzo_standard, p.linea],
+    unassignedLabel: 'Non assegnata',
+    iconName: 'box',
+  });
+}
 
-  const groups = new Map(); // locazione -> prodotti
+/**
+ * Vista "riordino per macchina": stessa logica della scaffalatura ma
+ * raggruppata per macchina invece che per locazione — mostra a colpo
+ * d'occhio cosa serve riassortire per ciascuna macchina di produzione.
+ * Disponibile solo per le categorie in MACHINE_VIEW_CATEGORIES.
+ */
+function renderByMachine() {
+  renderGroupedCards({
+    wrapEl: els.machineView,
+    openSet: openMachines,
+    groupKeyFn: (p) => p.macchina,
+    subtitleFields: (p) => [p.locazione, p.punto_utilizzo_standard, p.linea],
+    unassignedLabel: 'Nessuna macchina assegnata',
+    iconName: 'wrench',
+  });
+}
+
+/**
+ * Motore condiviso da Scaffalatura e Riordino per macchina: raggruppa
+ * currentList per una chiave qualsiasi (locazione o macchina) e disegna
+ * una card per gruppo, espandibile al tap sull'header (animazione
+ * grid-template-rows in CSS) con un lieve stagger in ingresso sugli
+ * articoli. Lo stato aperto/chiuso di ogni gruppo persiste tra i refresh
+ * tramite l'openSet passato dal chiamante (Set separati per scaffalatura
+ * e macchina, cosí non si mescolano tra loro).
+ */
+function renderGroupedCards({ wrapEl, openSet, groupKeyFn, subtitleFields, unassignedLabel, iconName }) {
+  wrapEl.innerHTML = '';
+  wrapEl.classList.remove('hidden');
+
+  const groups = new Map(); // chiave di raggruppamento -> prodotti
   for (const p of currentList) {
-    const key = p.locazione || 'Non assegnata';
+    const key = groupKeyFn(p) || unassignedLabel;
     if (!groups.has(key)) groups.set(key, []);
     groups.get(key).push(p);
   }
 
-  const sortedLocations = [...groups.keys()].sort((a, b) =>
+  const sortedKeys = [...groups.keys()].sort((a, b) =>
     a.localeCompare(b, 'it', { numeric: true, sensitivity: 'base' })
   );
 
-  for (const locazione of sortedLocations) {
-    const items = groups.get(locazione);
+  for (const key of sortedKeys) {
+    const items = groups.get(key);
     const totQty = items.reduce((sum, p) => sum + (p.quantita_disponibile || 0), 0);
     const lowCount = items.filter((p) => p.quantita_disponibile < p.scorta_minima).length;
-    const isOpen = openShelves.has(locazione);
+    const isOpen = openSet.has(key);
 
     const itemsHtml = items
       .map((p, i) => {
         const lowStock = p.quantita_disponibile < p.scorta_minima;
-        const subtitleParts = [p.macchina, p.punto_utilizzo_standard, p.linea].filter(Boolean);
+        const subtitleParts = subtitleFields(p).filter(Boolean);
         return `
           <button type="button" data-product-id="${p.id}" style="--i:${i}"
             class="shelf-item w-full text-left flex items-center justify-between gap-3 px-4 py-2.5 border-t border-graphite-700 first:border-t-0">
@@ -329,10 +411,10 @@ function renderShelves() {
       <div class="shelf-header flex items-center justify-between gap-3 px-4 py-3.5 border-2 border-graphite-700 rounded-xl">
         <div class="flex items-center gap-3 min-w-0">
           <span class="shrink-0 w-9 h-9 rounded-lg bg-graphite-700/50 flex items-center justify-center">
-            <i data-lucide="box" class="w-[18px] h-[18px] text-graphite-400" stroke-width="1.8"></i>
+            <i data-lucide="${iconName}" class="w-[18px] h-[18px] text-graphite-400" stroke-width="1.8"></i>
           </span>
           <div class="min-w-0">
-            <p class="font-display font-bold uppercase tracking-wide truncate">${escapeHtml(locazione)}</p>
+            <p class="font-display font-bold uppercase tracking-wide truncate">${escapeHtml(key)}</p>
             <p class="text-[11px] text-graphite-500 mt-0.5">${items.length} ${items.length === 1 ? 'articolo' : 'articoli'} · ${totQty} pz${
       lowCount ? ` · <span class="text-rose-700">${lowCount} sotto scorta</span>` : ''
     }</p>
@@ -348,8 +430,8 @@ function renderShelves() {
     card.querySelector('.shelf-header').addEventListener('click', () => {
       const opening = !card.classList.contains('shelf-open');
       card.classList.toggle('shelf-open', opening);
-      if (opening) openShelves.add(locazione);
-      else openShelves.delete(locazione);
+      if (opening) openSet.add(key);
+      else openSet.delete(key);
     });
 
     // Sola lettura per l'operatore: stesso criterio usato nell'elenco piatto.
@@ -366,7 +448,7 @@ function renderShelves() {
       }
     });
 
-    els.shelfView.appendChild(card);
+    wrapEl.appendChild(card);
   }
 
   window.lucide?.createIcons();
@@ -381,6 +463,7 @@ function openModal(product = null) {
   stopBarcodeScan();
 
   els.categoriaSelect.value = product?.categoria || currentCategory;
+  els.categoriaSelectUI?.sync();
   document.getElementById('product-codice-articolo').value = product?.codice_articolo || '';
   els.lineaHidden.value = product?.linea || '';
   els.lineaValue.textContent = product?.linea || 'Seleziona…';
@@ -601,7 +684,13 @@ async function handleSubmit(e) {
 
 async function handleDelete() {
   if (!editingId) return;
-  if (!confirm('Eliminare definitivamente questo articolo? Lo storico transazioni resterà collegato.')) return;
+  const ok = await confirmDialog({
+    title: 'Eliminare l\'articolo?',
+    message: 'Lo storico transazioni resterà collegato. L\'operazione non è reversibile.',
+    confirmLabel: 'Elimina',
+    danger: true,
+  });
+  if (!ok) return;
   try {
     const before = editingSnapshot;
     await deleteProduct(editingId);
