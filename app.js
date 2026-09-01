@@ -61,7 +61,6 @@ function initNav() {
       switchView(btn.dataset.navTarget);
       triggerNavTap(btn);
     });
-    initNavTilt(btn);
   });
   document.getElementById('settings-btn').addEventListener('click', () => switchView('settings'));
 }
@@ -73,28 +72,7 @@ function triggerNavTap(btn) {
   btn.classList.add('nav-tapped');
 }
 
-const NAV_TILT_MAX_DEG = 12;
-
-/** Tilt 3D al passaggio del mouse: ruota il pulsante in base alla posizione
- *  del cursore al suo interno, e torna morbidamente a zero al mouseleave
- *  (la transition di ritorno è definita in CSS su .nav-item). */
-function initNavTilt(btn) {
-  btn.addEventListener('mouseenter', () => btn.classList.add('nav-tilting'));
-  btn.addEventListener('mousemove', (e) => {
-    const rect = btn.getBoundingClientRect();
-    const px = (e.clientX - rect.left) / rect.width; // 0..1 sull'asse orizzontale
-    const py = (e.clientY - rect.top) / rect.height; // 0..1 sull'asse verticale
-    const rotateY = (px - 0.5) * NAV_TILT_MAX_DEG * 2;
-    const rotateX = (0.5 - py) * NAV_TILT_MAX_DEG * 2;
-    btn.style.transform = `perspective(700px) rotateX(${rotateX}deg) rotateY(${rotateY}deg) scale(1.04)`;
-  });
-  btn.addEventListener('mouseleave', () => {
-    btn.classList.remove('nav-tilting');
-    btn.style.transform = '';
-  });
-}
-
-function switchView(view, { animate = true } = {}) {
+export function switchView(view, { animate = true } = {}) {
   // Solo la Dashboard/Report resta riservata all'admin: il Magazzino è
   // visibile anche all'operatore in sola lettura (CRUD già disabilitato
   // in products.js tramite isAdmin() sui singoli controlli).
@@ -108,6 +86,11 @@ function switchView(view, { animate = true } = {}) {
   const forward = fromIndex === -1 ? true : toIndex > fromIndex; // direzione: avanti = scivola da destra
 
   currentView = view;
+
+  // Entrando nello Scanner, toglie il focus da qualsiasi campo di testo
+  // rimasto attivo (es. la ricerca nel Magazzino) cosí la tastiera
+  // virtuale si chiude subito invece di restare aperta sopra la fotocamera.
+  if (view === 'scanner') document.activeElement?.blur();
 
   for (const v of VIEWS) {
     document.querySelector(`[data-nav-target="${v}"]`)?.classList.toggle('nav-active', v === view);
@@ -128,16 +111,24 @@ function switchView(view, { animate = true } = {}) {
     return;
   }
 
-  animateViewSwitch(fromSection, toSection, forward);
+  animateFluidSwap(fromSection, toSection, forward);
 }
 
-function animateViewSwitch(fromSection, toSection, forward) {
+/**
+ * Fluid Slide & Scale riusabile: la sezione uscente rimpicciolisce e
+ * scivola via, quella entrante arriva con overshoot elastico. Usata sia
+ * per il cambio Scanner/Magazzino/Report, sia (importata altrove) per il
+ * toggle Elenco/Scaffalatura nel Magazzino, cosí il "linguaggio" di
+ * movimento resta identico in tutta l'app.
+ */
+export function animateFluidSwap(fromSection, toSection, forward) {
+  if (isTransitioning) return; // non sovrapporre un'animazione già in corso
   isTransitioning = true;
   const host = toSection.parentElement;
 
   // Misura la posizione reale (in px, coordinate viewport) della vista uscente
   // PRIMA di renderla absolute, cosí resta perfettamente allineata alla vista
-  // entrante anche con il padding del contenitore (main).
+  // entrante anche con il padding del contenitore.
   const hostRect = host.getBoundingClientRect();
   const fromRect = fromSection.getBoundingClientRect();
   host.style.minHeight = `${fromSection.offsetHeight}px`;
