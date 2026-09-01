@@ -169,10 +169,10 @@ function animateViewSwitch(fromSection, toSection, forward) {
     host.style.minHeight = '';
     isTransitioning = false;
   };
-  // L'ingresso (520ms) dura più dell'uscita (260ms): è l'ultima animazione a
-  // terminare, quindi è il suo animationend a far scattare il cleanup.
+  // L'ingresso (160ms di ritardo + 480ms) termina dopo l'uscita (240ms): è
+  // il suo animationend a far scattare il cleanup.
   toSection.addEventListener('animationend', cleanup, { once: true });
-  setTimeout(cleanup, 650); // rete di sicurezza se l'evento non scattasse
+  setTimeout(cleanup, 720); // rete di sicurezza se l'evento non scattasse
 }
 
 initAuth(onAuthed, onSignedOut);

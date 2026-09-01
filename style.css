@@ -244,11 +244,15 @@ body {
   100% { opacity: 1; transform: scale(1) translateX(0); }
 }
 
-.view-fluid-exit-left   { animation: fluid-exit-left 260ms cubic-bezier(0.4, 0, 0.7, 0.2) forwards; }
-.view-fluid-exit-right  { animation: fluid-exit-right 260ms cubic-bezier(0.4, 0, 0.7, 0.2) forwards; }
-/* Overshoot: la molla supera leggermente il 100% prima di assestarsi */
-.view-fluid-enter-right { animation: fluid-enter-from-right 520ms cubic-bezier(0.34, 1.56, 0.64, 1) forwards; }
-.view-fluid-enter-left  { animation: fluid-enter-from-left 520ms cubic-bezier(0.34, 1.56, 0.64, 1) forwards; }
+.view-fluid-exit-left   { animation: fluid-exit-left 240ms cubic-bezier(0.4, 0, 0.7, 0.2) forwards; }
+.view-fluid-exit-right  { animation: fluid-exit-right 240ms cubic-bezier(0.4, 0, 0.7, 0.2) forwards; }
+/* L'ingresso parte con un piccolo ritardo rispetto all'uscita (invece di
+   sovrapporsi quasi del tutto): si vedono due fasi distinte — prima la
+   vista vecchia se ne va, poi la nuova arriva — pur restando fluide.
+   "both" mantiene lo stato iniziale (invisibile/rimpicciolita) durante il
+   ritardo, cosí non si intravede la vista entrante prima del previsto. */
+.view-fluid-enter-right { animation: fluid-enter-from-right 480ms cubic-bezier(0.34, 1.56, 0.64, 1) 160ms both; }
+.view-fluid-enter-left  { animation: fluid-enter-from-left 480ms cubic-bezier(0.34, 1.56, 0.64, 1) 160ms both; }
 
 @media (prefers-reduced-motion: reduce) {
   .view-fluid-exit-left, .view-fluid-exit-right,
