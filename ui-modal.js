@@ -5,6 +5,8 @@
 // dell'app), risolve una Promise<boolean> come farebbe confirm().
 // =============================================================
 
+import feedback from './feedback.js';
+
 /**
  * @param {{ title?: string, message: string, confirmLabel?: string, cancelLabel?: string, danger?: boolean }} opts
  * @returns {Promise<boolean>}
@@ -42,6 +44,11 @@ export function confirmDialog({
     requestAnimationFrame(() => requestAnimationFrame(() => overlay.classList.add('confirm-open')));
 
     function settle(result) {
+      if (result) {
+        danger ? feedback.deleteAction() : feedback.confirmAction();
+      } else {
+        feedback.cancelAction();
+      }
       document.removeEventListener('keydown', onKeyDown);
       overlay.classList.remove('confirm-open');
       overlay.classList.add('confirm-closing');

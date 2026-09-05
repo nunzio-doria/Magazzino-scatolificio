@@ -10,6 +10,7 @@ import { openPicker } from './picker.js';
 import { animateFluidSwap } from './app.js';
 import { confirmDialog } from './ui-modal.js';
 import { enhanceSelect } from './ui-select.js';
+import feedback from './feedback.js';
 
 const els = {};
 let currentList = [];
@@ -614,6 +615,7 @@ async function startBarcodeScan() {
     document.getElementById('product-codice-barre').value = code;
     updateBarcodePreview();
     stopBarcodeScan();
+    feedback.scanFound();
     toastSuccess(`Codice a barre acquisito: ${code}`);
   });
   if (!started) els.barcodeScannerWrap.classList.add('hidden');
@@ -632,6 +634,7 @@ function stopBarcodeScan() {
 function generateBarcodeForCurrentArticle() {
   const codice = document.getElementById('product-codice-articolo').value.trim();
   if (!codice) {
+    feedback.errorAction();
     toastError('Inserisci prima il codice articolo.');
     return;
   }
@@ -640,6 +643,7 @@ function generateBarcodeForCurrentArticle() {
   const generated = `${prefix}-${codice}`.toUpperCase().replace(/\s+/g, '');
   document.getElementById('product-codice-barre').value = generated;
   updateBarcodePreview();
+  feedback.confirmAction();
   toastSuccess('Codice a barre generato.');
 }
 
@@ -665,16 +669,19 @@ async function handleSubmit(e) {
       const before = editingSnapshot;
       const after = await updateProduct(editingId, payload);
       pushHistory({ type: 'update', before, after });
+      feedback.confirmAction();
       toastSuccess('Articolo aggiornato.');
     } else {
       const after = await createProduct(payload);
       pushHistory({ type: 'create', before: null, after });
+      feedback.confirmAction();
       toastSuccess('Articolo creato.');
     }
     closeModal();
     if (payload.categoria === currentCategory) refresh();
   } catch (err) {
     console.error(err);
+    feedback.errorAction();
     toastError(err.message?.includes('duplicate') ? 'Codice articolo già esistente in questa categoria, oppure barcode già usato.' : 'Errore nel salvataggio.');
   } finally {
     submitBtn.disabled = false;
@@ -700,6 +707,7 @@ async function handleDelete() {
     refresh();
   } catch (err) {
     console.error(err);
+    feedback.errorAction();
     toastError('Impossibile eliminare: verifica che non ci siano transazioni collegate.');
   }
 }
@@ -732,10 +740,12 @@ async function undo() {
     }
     undoStack.pop();
     redoStack.push(action);
+    feedback.undo();
     toastSuccess('Operazione annullata.');
     refresh();
   } catch (err) {
     console.error(err);
+    feedback.errorAction();
     toastError('Impossibile annullare l\'operazione (l\'articolo potrebbe avere transazioni collegate).');
   } finally {
     updateHistoryButtons();
@@ -756,10 +766,12 @@ async function redo() {
     }
     redoStack.pop();
     undoStack.push(action);
+    feedback.redo();
     toastSuccess('Operazione ripetuta.');
     refresh();
   } catch (err) {
     console.error(err);
+    feedback.errorAction();
     toastError('Impossibile ripetere l\'operazione (l\'articolo potrebbe avere transazioni collegate).');
   } finally {
     updateHistoryButtons();
@@ -770,6 +782,7 @@ async function redo() {
 function printCurrentLabel() {
   const barcode = document.getElementById('product-codice-barre').value.trim();
   if (!barcode) {
+    feedback.errorAction();
     toastError('Inserisci o genera un codice a barre prima di stampare.');
     return;
   }
@@ -814,6 +827,7 @@ function printCurrentLabel() {
   doc.addImage(imgData, 'PNG', x, y, drawW, drawH);
 
   doc.save(`barcode_${barcode}.pdf`);
+  feedback.confirmAction();
   toastSuccess('Etichetta PDF generata.');
 }
 

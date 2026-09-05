@@ -342,6 +342,37 @@
         </button>
       </div>
 
+      <div class="card-plate rounded-xl p-4 mb-5">
+        <h3 class="font-display font-semibold uppercase tracking-wide text-sm text-graphite-400 mb-3">Feedback scanner</h3>
+
+        <label class="flex items-center justify-between gap-3 py-1.5 cursor-pointer select-none">
+          <span class="flex items-center gap-2.5 text-sm text-graphite-200">
+            <i data-lucide="volume-2" class="w-4 h-4 text-graphite-500 shrink-0"></i>
+            Suoni
+          </span>
+          <span class="relative inline-block w-11 h-6 shrink-0">
+            <input id="feedback-sound-toggle" type="checkbox" checked class="peer sr-only">
+            <span class="absolute inset-0 rounded-full bg-graphite-700 peer-checked:bg-amber-400 transition-colors"></span>
+            <span class="absolute left-0.5 top-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform peer-checked:translate-x-5"></span>
+          </span>
+        </label>
+
+        <div id="feedback-haptics-row">
+          <label class="flex items-center justify-between gap-3 py-1.5 cursor-pointer select-none">
+            <span class="flex items-center gap-2.5 text-sm text-graphite-200">
+              <i data-lucide="vibrate" class="w-4 h-4 text-graphite-500 shrink-0"></i>
+              Vibrazione
+            </span>
+            <span class="relative inline-block w-11 h-6 shrink-0">
+              <input id="feedback-haptics-toggle" type="checkbox" checked class="peer sr-only">
+              <span class="absolute inset-0 rounded-full bg-graphite-700 peer-checked:bg-amber-400 transition-colors"></span>
+              <span class="absolute left-0.5 top-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform peer-checked:translate-x-5"></span>
+            </span>
+          </label>
+        </div>
+        <p class="text-[11px] text-graphite-500 mt-1 leading-relaxed">La vibrazione non è disponibile su iPhone/iPad: su questi dispositivi il feedback resta solo sonoro.</p>
+      </div>
+
       <div data-admin-only class="hidden">
         <h3 class="font-display font-semibold uppercase tracking-wide text-sm text-graphite-400 mb-2">Gestione utenti</h3>
         <p class="text-xs text-graphite-500 mb-2">Il nome e cognome impostato qui compare nei report al posto dell'email.</p>

@@ -11,7 +11,7 @@
 // manualmente i dati del sito da Chrome.
 // =============================================================
 
-const CACHE_NAME = 'magazzino-shell-v8';
+const CACHE_NAME = 'magazzino-shell-v9';
 const APP_SHELL = [
   './',
   './index.html',
@@ -28,6 +28,9 @@ const APP_SHELL = [
   './supabase.js',
   './picker.js',
   './users.js',
+  './ui-modal.js',
+  './ui-select.js',
+  './feedback.js',
   './icons/icon-192.png',
   './icons/icon-512.png',
 ];
