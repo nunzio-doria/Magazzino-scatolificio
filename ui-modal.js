@@ -6,6 +6,7 @@
 // =============================================================
 
 import feedback from './feedback.js';
+import { lockBodyScroll, unlockBodyScroll } from './ui-utils.js';
 
 /**
  * @param {{ title?: string, message: string, confirmLabel?: string, cancelLabel?: string, danger?: boolean }} opts
@@ -38,6 +39,7 @@ export function confirmDialog({
     `;
     overlay.appendChild(card);
     document.body.appendChild(overlay);
+    lockBodyScroll();
 
     // Un frame vuoto prima di aprire: cosí il browser registra lo stato
     // iniziale (invisibile/rimpicciolito) e la transizione parte davvero.
@@ -52,6 +54,7 @@ export function confirmDialog({
       document.removeEventListener('keydown', onKeyDown);
       overlay.classList.remove('confirm-open');
       overlay.classList.add('confirm-closing');
+      unlockBodyScroll();
       setTimeout(() => overlay.remove(), 220);
       resolve(result);
     }

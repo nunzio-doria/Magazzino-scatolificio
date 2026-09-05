@@ -8,6 +8,41 @@ function easeOutCubic(t) {
   return 1 - Math.pow(1 - t, 3);
 }
 
+let scrollLockCount = 0;
+let savedScrollY = 0;
+
+/**
+ * Blocca lo scroll della pagina sotto una modale aperta (product-modal,
+ * field-picker-modal, article-history-modal, confirm-overlay...). Usa un
+ * contatore cosí due modali aperte in sequenza (es. picker sopra il form
+ * articolo) non sbloccano lo sfondo chiudendone solo una.
+ * position:fixed invece del solo overflow:hidden, perché su iOS Safari
+ * overflow:hidden da solo non impedisce comunque lo scroll/rimbalzo dietro
+ * l'overlay.
+ */
+export function lockBodyScroll() {
+  if (scrollLockCount === 0) {
+    savedScrollY = window.scrollY;
+    document.body.style.position = 'fixed';
+    document.body.style.top = `-${savedScrollY}px`;
+    document.body.style.left = '0';
+    document.body.style.right = '0';
+  }
+  scrollLockCount += 1;
+}
+
+/** Sblocca lo scroll quando l'ultima modale aperta si chiude */
+export function unlockBodyScroll() {
+  scrollLockCount = Math.max(0, scrollLockCount - 1);
+  if (scrollLockCount === 0) {
+    document.body.style.position = '';
+    document.body.style.top = '';
+    document.body.style.left = '';
+    document.body.style.right = '';
+    window.scrollTo(0, savedScrollY);
+  }
+}
+
 /**
  * Anima il testo di un elemento da un numero all'altro (count-up/down),
  * invece di sostituire il valore di colpo. Rispetta prefers-reduced-motion.

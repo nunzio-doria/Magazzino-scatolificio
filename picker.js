@@ -5,6 +5,8 @@
 // Ritorna la stringa scelta, '' se l'utente svuota la selezione, o null se annulla.
 // =============================================================
 
+import { lockBodyScroll, unlockBodyScroll } from './ui-utils.js';
+
 const els = {};
 let resolveFn = null;
 let allOptions = [];
@@ -45,6 +47,7 @@ export function openPicker({ title, options, allowCustom = false, currentValue =
 
     renderList('', currentValue);
     els.modal.classList.remove('hidden');
+    lockBodyScroll();
     requestAnimationFrame(() => {
       els.modal.classList.add('modal-visible');
       // Niente autofocus: la tastiera deve restare chiusa finché l'utente
@@ -97,6 +100,7 @@ function renderList(filterText, currentValue) {
 
 function closePicker(value) {
   els.modal.classList.remove('modal-visible');
+  unlockBodyScroll();
   setTimeout(() => els.modal.classList.add('hidden'), 180);
   const resolve = resolveFn;
   resolveFn = null;

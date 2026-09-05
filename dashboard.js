@@ -5,7 +5,7 @@
 import { getConsumptionStats, listTransactions } from './supabase.js';
 import { toastError, toastSuccess } from './toast.js';
 import { enhanceSelect } from './ui-select.js';
-import { animateNumber, animateRing, emptyStateHtml } from './ui-utils.js';
+import { animateNumber, animateRing, emptyStateHtml, lockBodyScroll, unlockBodyScroll } from './ui-utils.js';
 import feedback from './feedback.js';
 
 const els = {};
@@ -174,6 +174,7 @@ async function openArticleHistory(productId, codiceArticolo) {
   els.articleModalList.innerHTML = '<div class="skeleton h-12 w-full mb-2"></div><div class="skeleton h-12 w-full mb-2"></div><div class="skeleton h-12 w-full"></div>';
 
   els.articleModal.classList.remove('hidden');
+  lockBodyScroll();
   requestAnimationFrame(() => els.articleModal.classList.add('modal-visible'));
 
   try {
@@ -201,6 +202,7 @@ function renderArticleHistory() {
 
 function closeArticleHistory() {
   els.articleModal.classList.remove('modal-visible');
+  unlockBodyScroll();
   setTimeout(() => els.articleModal.classList.add('hidden'), 180);
 }
 

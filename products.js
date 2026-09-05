@@ -11,6 +11,7 @@ import { animateFluidSwap } from './app.js';
 import { confirmDialog } from './ui-modal.js';
 import { enhanceSelect } from './ui-select.js';
 import feedback from './feedback.js';
+import { lockBodyScroll, unlockBodyScroll } from './ui-utils.js';
 
 const els = {};
 let currentList = [];
@@ -547,6 +548,7 @@ function openModal(product = null) {
   updateBarcodePreview();
   updateGenerateBarcodeVisibility();
   els.modal.classList.remove('hidden');
+  lockBodyScroll();
   requestAnimationFrame(() => els.modal.classList.add('modal-visible'));
 }
 
@@ -643,6 +645,7 @@ function updateFilterLabels() {
 function closeModal() {
   stopBarcodeScan();
   els.modal.classList.remove('modal-visible');
+  unlockBodyScroll();
   setTimeout(() => els.modal.classList.add('hidden'), 180);
 }
 

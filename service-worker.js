@@ -11,7 +11,7 @@
 // manualmente i dati del sito da Chrome.
 // =============================================================
 
-const CACHE_NAME = 'magazzino-shell-v10';
+const CACHE_NAME = 'magazzino-shell-v11';
 const APP_SHELL = [
   './',
   './index.html',
