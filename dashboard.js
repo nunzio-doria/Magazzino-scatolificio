@@ -3,11 +3,16 @@
 // =============================================================
 
 import { getConsumptionStats, listTransactions } from './supabase.js';
-import { toastError } from './toast.js';
+import { toastError, toastSuccess } from './toast.js';
 import { enhanceSelect } from './ui-select.js';
+import { animateNumber, animateRing, emptyStateHtml } from './ui-utils.js';
+import feedback from './feedback.js';
 
 const els = {};
 let currentFrom = null;
+let currentPeriodLabel = '30d';
+let lastStats = [];
+let lastHistory = [];
 let articleHistoryCache = [];
 let articleHistoryFilter = 'tutti'; // 'tutti' | 'deposito' | 'prelievo'
 
@@ -21,6 +26,9 @@ export function initDashboard() {
   els.totalDeposits = document.getElementById('dash-kpi-depositi');
   els.totalWithdrawals = document.getElementById('dash-kpi-prelievi');
   els.totalMovements = document.getElementById('dash-kpi-movimenti');
+  els.ringDepositi = document.getElementById('dash-ring-depositi');
+  els.ringPrelievi = document.getElementById('dash-ring-prelievi');
+  els.exportBtn = document.getElementById('dash-export-btn');
 
   // Modale storico articolo
   els.articleModal = document.getElementById('article-history-modal');
@@ -30,6 +38,7 @@ export function initDashboard() {
   els.articleModalTabs = document.querySelectorAll('[data-history-tab]');
 
   els.periodSelect.addEventListener('change', refresh);
+  els.exportBtn?.addEventListener('click', exportReport);
   els.articleModalClose.addEventListener('click', closeArticleHistory);
   els.articleModal.addEventListener('click', (e) => {
     if (e.target === els.articleModal) closeArticleHistory();
@@ -57,6 +66,7 @@ function periodToFromDate(period) {
 
 export async function refresh() {
   currentFrom = periodToFromDate(els.periodSelect.value);
+  currentPeriodLabel = els.periodSelect.value;
 
   els.statsSkeleton.classList.remove('hidden');
   els.statsWrap.classList.add('hidden');
@@ -68,6 +78,8 @@ export async function refresh() {
       getConsumptionStats({ from: currentFrom }),
       listTransactions({ from: currentFrom, limit: 100 }),
     ]);
+    lastStats = stats;
+    lastHistory = history;
 
     renderKpis(history);
     renderStats(stats);
@@ -86,15 +98,21 @@ export async function refresh() {
 function renderKpis(history) {
   const depositi = history.filter((h) => h.tipo === 'deposito').length;
   const prelievi = history.filter((h) => h.tipo === 'prelievo').length;
-  els.totalDeposits.textContent = depositi;
-  els.totalWithdrawals.textContent = prelievi;
-  els.totalMovements.textContent = history.length;
+  const totale = history.length;
+
+  animateNumber(els.totalDeposits, depositi);
+  animateNumber(els.totalWithdrawals, prelievi);
+  animateNumber(els.totalMovements, totale);
+
+  animateRing(els.ringDepositi, totale ? (depositi / totale) * 100 : 0);
+  animateRing(els.ringPrelievi, totale ? (prelievi / totale) * 100 : 0);
 }
 
 function renderStats(stats) {
   els.statsWrap.innerHTML = '';
   if (stats.length === 0) {
-    els.statsWrap.innerHTML = '<p class="text-graphite-500 text-sm py-4 text-center">Nessun prelievo nel periodo selezionato.</p>';
+    els.statsWrap.innerHTML = emptyStateHtml('trending-down', 'Nessun prelievo', 'Non risultano prelievi nel periodo selezionato.');
+    window.lucide?.createIcons();
     return;
   }
   const max = Math.max(...stats.map((s) => s.totale));
@@ -120,7 +138,8 @@ function renderStats(stats) {
 function renderHistory(history) {
   els.historyWrap.innerHTML = '';
   if (history.length === 0) {
-    els.historyWrap.innerHTML = '<p class="text-graphite-500 text-sm py-4 text-center">Nessun movimento nel periodo selezionato.</p>';
+    els.historyWrap.innerHTML = emptyStateHtml('inbox', 'Nessun movimento', 'Non risultano depositi o prelievi nel periodo selezionato.');
+    window.lucide?.createIcons();
     return;
   }
   for (const h of history) {
@@ -187,4 +206,52 @@ function closeArticleHistory() {
 
 function escapeHtml(str) {
   return String(str).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+/** Esporta lo storico e i consumi per articolo del periodo corrente in un file Excel */
+function exportReport() {
+  if (!lastHistory.length && !lastStats.length) {
+    toastError('Nessun dato da esportare per il periodo selezionato.');
+    return;
+  }
+  try {
+    // eslint-disable-next-line no-undef
+    const wb = XLSX.utils.book_new();
+
+    const historyRows = lastHistory.map((h) => ({
+      Data: new Date(h.data_ora).toLocaleString('it-IT'),
+      Tipo: h.tipo === 'deposito' ? 'Deposito' : 'Prelievo',
+      Articolo: h.products?.codice_articolo || '—',
+      Quantità: h.quantita,
+      'Punto utilizzo': h.punto_utilizzo_specifico || '',
+      Operatore: h.profiles?.full_name || '',
+    }));
+    // eslint-disable-next-line no-undef
+    const historySheet = XLSX.utils.json_to_sheet(historyRows);
+    // eslint-disable-next-line no-undef
+    XLSX.utils.book_append_sheet(wb, historySheet, 'Storico');
+
+    const statsRows = lastStats.map((s) => ({
+      Articolo: s.codice_articolo,
+      'Totale prelevato': s.totale,
+    }));
+    // eslint-disable-next-line no-undef
+    const statsSheet = XLSX.utils.json_to_sheet(statsRows);
+    // eslint-disable-next-line no-undef
+    XLSX.utils.book_append_sheet(wb, statsSheet, 'Consumi per articolo');
+
+    const periodLabels = { '7d': '7gg', '30d': '30gg', '90d': '90gg', all: 'storico' };
+    const filename = `report_magazzino_${periodLabels[currentPeriodLabel] || currentPeriodLabel}_${new Date()
+      .toISOString()
+      .slice(0, 10)}.xlsx`;
+    // eslint-disable-next-line no-undef
+    XLSX.writeFile(wb, filename);
+
+    feedback.confirmAction();
+    toastSuccess('Report esportato.');
+  } catch (err) {
+    console.error(err);
+    feedback.errorAction();
+    toastError('Errore durante l\'esportazione del report.');
+  }
 }

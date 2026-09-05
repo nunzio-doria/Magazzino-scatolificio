@@ -101,6 +101,10 @@
 
   <main class="view-host flex-1 max-w-2xl w-full mx-auto px-4 py-4">
 
+    <div id="pull-refresh-indicator" class="hidden fixed left-1/2 top-16 z-50 w-10 h-10 rounded-full bg-graphite-800 border border-graphite-700 shadow-lift flex items-center justify-center opacity-0" style="transform: translate(-50%, 0);">
+      <i data-lucide="refresh-cw" class="w-4 h-4 text-graphite-300" stroke-width="2.2"></i>
+    </div>
+
     <!-- ============ VISTA SCANNER (Deposito/Prelievo) ============ -->
     <section id="view-scanner">
 
@@ -120,6 +124,28 @@
       <!-- Pannello a colpo d'occhio, visibile solo prima di scegliere Deposito/Prelievo:
            riempie lo spazio vuoto con informazioni utili invece di lasciarlo bianco. -->
       <div id="scanner-idle-panel" class="space-y-3 mb-4">
+        <div id="scanner-offline-badge" class="hidden card-plate rounded-xl p-3.5 flex items-center gap-3 border-sky-500/30">
+          <span class="shrink-0 w-9 h-9 rounded-lg bg-sky-500/10 flex items-center justify-center">
+            <i data-lucide="cloud-off" class="w-[18px] h-[18px] text-sky-400" stroke-width="1.8"></i>
+          </span>
+          <div class="min-w-0">
+            <p class="text-sm text-graphite-100 font-medium"><span id="scanner-offline-badge-count">0</span> in attesa di sincronizzazione</p>
+            <p class="text-[11px] text-graphite-500 mt-0.5">Verranno inviate automaticamente alla riconnessione.</p>
+          </div>
+        </div>
+
+        <label class="card-plate rounded-xl p-3.5 flex items-center justify-between gap-3 cursor-pointer select-none">
+          <span class="flex items-center gap-2.5 text-sm text-graphite-200">
+            <i data-lucide="scan-line" class="w-4 h-4 text-graphite-500 shrink-0"></i>
+            Scansione continua
+          </span>
+          <span class="relative inline-block w-11 h-6 shrink-0">
+            <input id="scanner-continuous-toggle" type="checkbox" class="peer sr-only">
+            <span class="absolute inset-0 rounded-full bg-graphite-700 peer-checked:bg-amber-400 transition-colors"></span>
+            <span class="absolute left-0.5 top-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform peer-checked:translate-x-5"></span>
+          </span>
+        </label>
+
         <div class="card-plate rounded-xl p-3.5 flex items-center gap-3">
           <span class="shrink-0 w-9 h-9 rounded-lg bg-rose-500/10 flex items-center justify-center">
             <i data-lucide="alert-triangle" class="w-[18px] h-[18px] text-rose-600" stroke-width="1.8"></i>
@@ -137,7 +163,7 @@
             <div class="skeleton h-4 w-4/5"></div>
             <div class="skeleton h-4 w-3/5"></div>
           </div>
-          <p id="scanner-recent-empty" class="hidden text-sm text-graphite-500 text-center py-2">Nessun movimento registrato.</p>
+          <div id="scanner-recent-empty" class="hidden"></div>
         </div>
       </div>
 
@@ -152,6 +178,10 @@
           <button id="scanner-switch-btn" type="button" class="hidden inline-flex items-center gap-1.5 text-xs text-graphite-500 hover:text-amber-300 py-1.5 transition-colors">
             <i data-lucide="switch-camera" class="w-3.5 h-3.5" stroke-width="2"></i>
             Cambia fotocamera
+          </button>
+          <button id="scanner-torch-btn" type="button" aria-label="Torcia" class="hidden inline-flex items-center gap-1.5 text-xs text-graphite-500 hover:text-amber-300 py-1.5 transition-colors">
+            <i data-lucide="flashlight" class="w-3.5 h-3.5" stroke-width="2"></i>
+            Torcia
           </button>
           <button id="scanner-stop-btn" class="hidden text-xs text-graphite-500 hover:text-graphite-300 py-1.5 transition-colors">
             Spegni fotocamera
@@ -255,6 +285,18 @@
           <input id="product-search-input" type="text" placeholder="Cerca per codice, locazione, macchina, punto utilizzo…"
             class="w-full rounded-lg bg-graphite-800 border border-graphite-700 pl-9 pr-3.5 py-2.5 text-sm placeholder-graphite-600 focus:border-amber-400 outline-none transition-colors">
         </div>
+        <button id="product-scan-search-btn" type="button" aria-label="Cerca scansionando un codice a barre" title="Cerca da barcode"
+          class="shrink-0 rounded-lg bg-graphite-800 border border-graphite-700 hover:border-amber-400 w-11 flex items-center justify-center transition-colors">
+          <i data-lucide="barcode" class="w-4 h-4 text-graphite-400" stroke-width="1.8"></i>
+        </button>
+      </div>
+
+      <!-- Mini-lettore per la ricerca da barcode: nascosto finché non richiesto -->
+      <div id="product-search-scanner-wrap" class="hidden mb-3 card-plate rounded-xl p-3">
+        <div id="product-search-scanner-reader" class="w-full relative rounded-lg overflow-hidden"></div>
+        <button id="product-search-scanner-close" type="button" class="w-full mt-2 text-xs text-graphite-500 hover:text-graphite-300 py-1.5 transition-colors">
+          Annulla ricerca
+        </button>
       </div>
 
       <div id="product-linea-filter-wrap" class="hidden mb-3 grid grid-cols-2 gap-2">
@@ -281,32 +323,62 @@
       <div id="product-list" class="hidden space-y-2"></div>
       <div id="product-shelf-view" class="hidden space-y-2.5"></div>
       <div id="product-machine-view" class="hidden space-y-2.5"></div>
-      <div id="product-empty-state" class="hidden text-center py-10 text-graphite-500 text-sm">Nessun articolo trovato in questa categoria.</div>
+      <div id="product-empty-state" class="hidden flex flex-col items-center gap-2.5 py-10">
+        <span class="w-14 h-14 rounded-full bg-graphite-800/60 flex items-center justify-center">
+          <i data-lucide="package-search" class="w-6 h-6 text-graphite-600" stroke-width="1.6"></i>
+        </span>
+        <p class="font-display font-semibold text-sm text-graphite-300">Nessun articolo trovato</p>
+        <p class="text-xs text-graphite-500 max-w-[220px] text-center leading-relaxed">Prova a modificare la ricerca o i filtri applicati.</p>
+      </div>
     </section>
 
     <!-- ============ VISTA DASHBOARD (solo Admin) ============ -->
     <section id="view-dashboard" class="hidden" data-admin-only>
-      <div class="flex items-center justify-between mb-3">
+      <div class="flex items-center justify-between mb-3 gap-2">
         <h2 class="font-display font-bold text-xl uppercase tracking-wide">Report consumi</h2>
-        <select id="dash-period-select" class="rounded-lg bg-graphite-800 border border-graphite-700 text-sm px-2.5 py-1.5 focus:border-amber-400 outline-none">
-          <option value="7d">Ultimi 7 giorni</option>
-          <option value="30d" selected>Ultimi 30 giorni</option>
-          <option value="90d">Ultimi 90 giorni</option>
-          <option value="all">Tutto lo storico</option>
-        </select>
+        <div class="flex items-center gap-1.5">
+          <select id="dash-period-select" class="rounded-lg bg-graphite-800 border border-graphite-700 text-sm px-2.5 py-1.5 focus:border-amber-400 outline-none">
+            <option value="7d">Ultimi 7 giorni</option>
+            <option value="30d" selected>Ultimi 30 giorni</option>
+            <option value="90d">Ultimi 90 giorni</option>
+            <option value="all">Tutto lo storico</option>
+          </select>
+          <button id="dash-export-btn" type="button" aria-label="Esporta report" title="Esporta in Excel"
+            class="shrink-0 w-9 h-9 rounded-lg border border-graphite-700 text-graphite-400 hover:text-amber-400 hover:border-amber-400 flex items-center justify-center transition-colors">
+            <i data-lucide="download" class="w-4 h-4" stroke-width="2"></i>
+          </button>
+        </div>
       </div>
 
       <div class="grid grid-cols-3 gap-2 mb-4">
         <div class="card-plate rounded-xl p-3 text-center">
-          <p id="dash-kpi-depositi" class="font-mono text-2xl font-bold text-emerald-700">0</p>
+          <div class="relative w-14 h-14 mx-auto mb-1">
+            <svg viewBox="0 0 44 44" class="w-14 h-14 -rotate-90">
+              <circle cx="22" cy="22" r="18" fill="none" stroke="#edeef1" stroke-width="4"></circle>
+              <circle id="dash-ring-depositi" cx="22" cy="22" r="18" fill="none" stroke="#059669" stroke-width="4" stroke-linecap="round" stroke-dasharray="113.1" stroke-dashoffset="113.1"></circle>
+            </svg>
+            <span id="dash-kpi-depositi" class="absolute inset-0 flex items-center justify-center font-mono text-sm font-bold text-emerald-700">0</span>
+          </div>
           <p class="text-[10px] uppercase tracking-wide text-graphite-500 mt-0.5">Depositi</p>
         </div>
         <div class="card-plate rounded-xl p-3 text-center">
-          <p id="dash-kpi-prelievi" class="font-mono text-2xl font-bold text-amber-300">0</p>
+          <div class="relative w-14 h-14 mx-auto mb-1">
+            <svg viewBox="0 0 44 44" class="w-14 h-14 -rotate-90">
+              <circle cx="22" cy="22" r="18" fill="none" stroke="#edeef1" stroke-width="4"></circle>
+              <circle id="dash-ring-prelievi" cx="22" cy="22" r="18" fill="none" stroke="#d97706" stroke-width="4" stroke-linecap="round" stroke-dasharray="113.1" stroke-dashoffset="113.1"></circle>
+            </svg>
+            <span id="dash-kpi-prelievi" class="absolute inset-0 flex items-center justify-center font-mono text-sm font-bold text-amber-300">0</span>
+          </div>
           <p class="text-[10px] uppercase tracking-wide text-graphite-500 mt-0.5">Prelievi</p>
         </div>
         <div class="card-plate rounded-xl p-3 text-center">
-          <p id="dash-kpi-movimenti" class="font-mono text-2xl font-bold text-graphite-100">0</p>
+          <div class="relative w-14 h-14 mx-auto mb-1">
+            <svg viewBox="0 0 44 44" class="w-14 h-14 -rotate-90">
+              <circle cx="22" cy="22" r="18" fill="none" stroke="#edeef1" stroke-width="4"></circle>
+              <circle id="dash-ring-movimenti" cx="22" cy="22" r="18" fill="none" stroke="#6b7280" stroke-width="4" stroke-linecap="round" stroke-dasharray="113.1" stroke-dashoffset="0"></circle>
+            </svg>
+            <span id="dash-kpi-movimenti" class="absolute inset-0 flex items-center justify-center font-mono text-sm font-bold text-graphite-100">0</span>
+          </div>
           <p class="text-[10px] uppercase tracking-wide text-graphite-500 mt-0.5">Movimenti</p>
         </div>
       </div>

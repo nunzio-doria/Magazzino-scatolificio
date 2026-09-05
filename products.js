@@ -2,7 +2,7 @@
 // products.js — Magazzino: categorie, CRUD, import Excel, barcode
 // =============================================================
 
-import { listProducts, createProduct, updateProduct, deleteProduct, bulkUpsertProducts, listDistinctMacchine } from './supabase.js';
+import { listProducts, createProduct, updateProduct, deleteProduct, bulkUpsertProducts, listDistinctMacchine, getProductByBarcode, getProductById } from './supabase.js';
 import { toastSuccess, toastError } from './toast.js';
 import { isAdmin } from './auth.js';
 import { startCamera, stopCamera } from './camera.js';
@@ -92,6 +92,9 @@ function toInt(v) {
 
 export function initProducts() {
   els.searchInput = document.getElementById('product-search-input');
+  els.scanSearchBtn = document.getElementById('product-scan-search-btn');
+  els.searchScannerWrap = document.getElementById('product-search-scanner-wrap');
+  els.searchScannerCloseBtn = document.getElementById('product-search-scanner-close');
   els.listWrap = document.getElementById('product-list');
   els.skeleton = document.getElementById('product-list-skeleton');
   els.emptyState = document.getElementById('product-empty-state');
@@ -145,6 +148,8 @@ export function initProducts() {
     clearTimeout(searchDebounce);
     searchDebounce = setTimeout(refresh, 280);
   });
+  els.scanSearchBtn?.addEventListener('click', startSearchScan);
+  els.searchScannerCloseBtn?.addEventListener('click', stopSearchScan);
   els.lowStockToggle.addEventListener('change', refresh);
   els.lineaFilterBtn?.addEventListener('click', pickLineaFilter);
   els.macchinaFilterBtn?.addEventListener('click', pickMacchinaFilter);
@@ -178,6 +183,64 @@ export function initProducts() {
   setCategory(currentCategory);
   setImportCategory(importCategory);
   updateHistoryButtons();
+}
+
+let searchScanLastCode = null;
+let searchScanLastAt = 0;
+
+/** Apre un piccolo lettore inline per cercare un articolo scansionandone il barcode */
+async function startSearchScan() {
+  els.searchScannerWrap.classList.remove('hidden');
+  const started = await startCamera('product-search-scanner-reader', handleSearchScanDetected, {});
+  if (!started) els.searchScannerWrap.classList.add('hidden');
+}
+
+async function stopSearchScan() {
+  await stopCamera();
+  els.searchScannerWrap.classList.add('hidden');
+}
+
+/** Chiamata quando si esce dalla vista Magazzino: chiude eventuali fotocamere rimaste aperte */
+export function teardownProducts() {
+  stopSearchScan();
+  stopBarcodeScan();
+}
+
+async function handleSearchScanDetected(code) {
+  const now = Date.now();
+  if (code === searchScanLastCode && now - searchScanLastAt < 2000) return;
+  searchScanLastCode = code;
+  searchScanLastAt = now;
+
+  try {
+    const product = await getProductByBarcode(code);
+    if (!product) {
+      feedback.scanNotFound();
+      toastError(`Nessun articolo trovato per il codice "${code}".`);
+      return;
+    }
+    feedback.scanFound();
+    await stopSearchScan();
+    els.searchInput.value = product.codice_articolo;
+    if (product.categoria && product.categoria !== currentCategory) setCategory(product.categoria);
+    else refresh();
+    // Per l'admin la ricerca da barcode è tipicamente un salto rapido alla
+    // scheda dell'articolo: recupera il record completo (get_product_by_barcode
+    // restituisce solo i campi che servono allo scanner) per non rischiare di
+    // sovrascrivere campi come scorta minima/linea/macchina con valori vuoti.
+    if (isAdmin()) {
+      try {
+        const fullProduct = await getProductById(product.id);
+        openModal(fullProduct);
+      } catch (modalErr) {
+        console.warn('Impossibile aprire la scheda completa dell\'articolo.', modalErr);
+      }
+    }
+  } catch (err) {
+    console.error(err);
+    feedback.errorAction();
+    toastError('Errore nella ricerca articolo.');
+  }
 }
 
 function setCategory(category) {

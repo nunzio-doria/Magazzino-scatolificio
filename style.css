@@ -62,17 +62,22 @@ input, textarea {
   overflow: hidden;
   background: #edeef1;
   border-radius: 0.6rem;
+  animation: skeleton-breathe 1.8s ease-in-out infinite;
 }
 .skeleton::after {
   content: '';
   position: absolute;
   inset: 0;
   transform: translateX(-100%);
-  background: linear-gradient(90deg, transparent, rgba(15,23,42,0.06), transparent);
-  animation: shimmer 1.5s infinite;
+  background: linear-gradient(90deg, transparent, rgba(15,23,42,0.10), rgba(255,255,255,0.35), rgba(15,23,42,0.10), transparent);
+  animation: shimmer 1.3s infinite;
 }
 @keyframes shimmer {
   100% { transform: translateX(100%); }
+}
+@keyframes skeleton-breathe {
+  0%, 100% { background-color: #edeef1; }
+  50% { background-color: #e4e6ea; }
 }
 
 /* ---- Toast enter/exit --------------------------------------- */
@@ -520,4 +525,42 @@ input, textarea {
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+/* ---- Pulsante torcia attivo (scanner) -------------------------------- */
+#scanner-torch-btn.torch-active {
+  color: #d97706;
+}
+#scanner-torch-btn.torch-active i {
+  fill: #fbbf24;
+  stroke: #d97706;
+}
+
+/* ---- Micro-animazione di comparsa della card risultato scanner -------- */
+.result-pop {
+  animation: result-pop-anim 320ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+@keyframes result-pop-anim {
+  0% { transform: scale(0.92) translateY(6px); opacity: 0; }
+  100% { transform: scale(1) translateY(0); opacity: 1; }
+}
+
+/* ---- Indicatore di pull-to-refresh ------------------------------------ */
+#pull-refresh-indicator {
+  transition: opacity 120ms ease;
+}
+#pull-refresh-indicator i {
+  transition: transform 60ms linear;
+}
+#pull-refresh-indicator.pull-ready {
+  background: #2f4f92;
+}
+#pull-refresh-indicator.pull-ready i {
+  color: #ffffff;
+}
+#pull-refresh-indicator.pull-spinning i {
+  animation: pull-spin 700ms linear infinite;
+}
+@keyframes pull-spin {
+  to { transform: rotate(360deg); }
 }

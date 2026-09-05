@@ -3,11 +3,16 @@
 // =============================================================
 
 import { initAuth, authState, isAdmin } from './auth.js';
-import { initScanner, teardownScanner } from './scanner.js';
-import { initProducts, refresh as refreshProducts } from './products.js';
+import { initScanner, teardownScanner, activateMode } from './scanner.js';
+import { initProducts, refresh as refreshProducts, teardownProducts } from './products.js';
 import { initDashboard, refresh as refreshDashboard } from './dashboard.js';
 import { initUsers, refreshUsers } from './users.js';
 import { initPicker } from './picker.js';
+import feedback, { initFeedbackSettings } from './feedback.js';
+import { initPullToRefresh } from './ui-utils.js';
+import { initOfflineSync } from './offline-queue.js';
+import { processTransaction } from './supabase.js';
+import { toastSuccess } from './toast.js';
 
 const VIEWS = ['scanner', 'products', 'dashboard', 'settings'];
 let modulesInitialized = false;
@@ -44,9 +49,27 @@ function onAuthed(profile) {
     initDashboard();
     initUsers();
     initNav();
+    initFeedbackSettings();
+    initPullToRefresh({
+      'view-products': refreshProducts,
+      'view-dashboard': refreshDashboard,
+    });
+    initOfflineSync(async (payload) => {
+      const result = await processTransaction(payload);
+      toastSuccess(`Sincronizzato: ${payload.codice_articolo} (${payload.tipo === 'deposito' ? 'deposito' : 'prelievo'})`, 3000);
+      return result;
+    });
     modulesInitialized = true;
   }
   switchView('scanner', { animate: false });
+
+  // Shortcut PWA "Deposito"/"Prelievo": apre lo scanner già pronto nella
+  // modalità scelta dalla schermata Home, invece di richiedere il tap manuale.
+  const shortcutMode = new URLSearchParams(window.location.search).get('mode');
+  if (shortcutMode === 'deposito' || shortcutMode === 'prelievo') {
+    window.history.replaceState({}, '', window.location.pathname);
+    requestAnimationFrame(() => activateMode(shortcutMode));
+  }
 }
 
 function onSignedOut() {
@@ -58,11 +81,15 @@ function onSignedOut() {
 function initNav() {
   document.querySelectorAll('[data-nav-target]').forEach((btn) => {
     btn.addEventListener('click', () => {
+      feedback.navTap();
       switchView(btn.dataset.navTarget);
       triggerNavTap(btn);
     });
   });
-  document.getElementById('settings-btn').addEventListener('click', () => switchView('settings'));
+  document.getElementById('settings-btn').addEventListener('click', () => {
+    feedback.navTap();
+    switchView('settings');
+  });
 }
 
 /** Bounce a molla sul pulsante appena cambiata sezione (anche su tap ravvicinati) */
@@ -97,6 +124,7 @@ export function switchView(view, { animate = true } = {}) {
   }
 
   if (view !== 'scanner') teardownScanner();
+  if (view !== 'products') teardownProducts();
   if (view === 'products') refreshProducts();
   if (view === 'dashboard') refreshDashboard();
   if (view === 'settings' && isAdmin()) refreshUsers();

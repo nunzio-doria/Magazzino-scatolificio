@@ -21,6 +21,60 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   },
 });
 
+// --- CACHE LOCALE PRODOTTI (per consultazione offline) --------------
+// Copia "best effort" dell'ultimo stato noto degli articoli, salvata in
+// localStorage ogni volta che una lettura va a buon fine. Non sostituisce
+// mai una query online riuscita: serve solo come ultima spiaggia quando
+// la rete manca (scanner in modalità offline, coda transazioni).
+const PRODUCT_CACHE_KEY = 'magazzino-product-cache';
+
+function loadProductCache() {
+  try {
+    return JSON.parse(localStorage.getItem(PRODUCT_CACHE_KEY) || '{}');
+  } catch (err) {
+    return {};
+  }
+}
+function saveProductCache(cache) {
+  try {
+    localStorage.setItem(PRODUCT_CACHE_KEY, JSON.stringify(cache));
+  } catch (err) {
+    console.warn('Impossibile salvare la cache offline dei prodotti.', err);
+  }
+}
+/** Aggiorna la cache con un elenco di prodotti appena letto dal server */
+export function cacheProductsList(list) {
+  if (!Array.isArray(list) || !list.length) return;
+  const cache = loadProductCache();
+  for (const p of list) {
+    cache.byId = cache.byId || {};
+    cache.byId[p.id] = p;
+    if (p.codice_barre) {
+      cache.byBarcode = cache.byBarcode || {};
+      cache.byBarcode[p.codice_barre] = p.id;
+    }
+  }
+  saveProductCache(cache);
+}
+/** Cerca un prodotto nella cache locale per barcode, quando la rete non risponde */
+export function getCachedProductByBarcode(codiceBarre) {
+  const cache = loadProductCache();
+  const id = cache.byBarcode?.[codiceBarre];
+  return id != null ? cache.byId?.[id] || null : null;
+}
+/**
+ * Aggiorna otticamente la giacenza di un prodotto in cache dopo una
+ * transazione messa in coda offline, cosí lo scanner mostra un valore
+ * coerente anche prima della sincronizzazione.
+ */
+export function adjustCachedProductQuantity(id, delta) {
+  const cache = loadProductCache();
+  const p = cache.byId?.[id];
+  if (!p) return;
+  p.quantita_disponibile = (p.quantita_disponibile || 0) + delta;
+  saveProductCache(cache);
+}
+
 // --- AUTH ------------------------------------------------------
 export async function signIn(email, password) {
   const { data, error } = await supabase.auth.signInWithPassword({ email, password });
@@ -79,6 +133,7 @@ export async function listProducts({ search = '', onlyLowStock = false, categori
   }
   const { data, error } = await query;
   if (error) throw error;
+  cacheProductsList(data);
   if (onlyLowStock) return data.filter((p) => p.quantita_disponibile < p.scorta_minima);
   return data;
 }
@@ -88,7 +143,9 @@ export async function getProductByBarcode(codiceBarre) {
     p_codice_barre: codiceBarre,
   });
   if (error) throw error;
-  return data?.[0] ?? null;
+  const product = data?.[0] ?? null;
+  if (product) cacheProductsList([product]);
+  return product;
 }
 
 export async function getProductById(id) {

@@ -5,12 +5,15 @@
 // =============================================================
 
 import { toastError, toastInfo } from './toast.js';
+import feedback from './feedback.js';
 
 let html5Qrcode = null;
 let isCameraRunning = false;
 let availableCameras = []; // [{ id, label }] — cache condivisa tra tutti gli usi
 let activeCameraIndex = 0;
 let supportsManualFocus = false;
+let supportsTorch = false;
+let torchOn = false;
 let activeContainerId = null;
 let tapListenerEl = null;
 let tapListenerFn = null;
@@ -43,6 +46,7 @@ export async function startCamera(containerId, onDetected, ui = {}) {
     isCameraRunning = true;
     ui.switchBtnEl?.classList.toggle('hidden', availableCameras.length < 2);
     await enableContinuousFocus(ui.focusHintEl);
+    await detectTorchSupport(ui.torchBtnEl);
     attachTapToFocus(document.getElementById(containerId));
     return true;
   } catch (err) {
@@ -64,6 +68,8 @@ export async function stopCamera() {
   }
   isCameraRunning = false;
   activeContainerId = null;
+  supportsTorch = false;
+  torchOn = false;
 }
 
 export function cameraIsRunning() {
@@ -117,8 +123,43 @@ export async function switchCamera(onDetected, ui = {}) {
   activeCameraIndex = (activeCameraIndex + 1) % availableCameras.length;
   await stopCamera();
   await startCamera(containerId, onDetected, ui);
+  feedback.cameraSwitch();
   const label = availableCameras[activeCameraIndex]?.label || `Fotocamera ${activeCameraIndex + 1}`;
   toastInfo(`Fotocamera attiva: ${label}`, 2500);
+}
+
+/** Rileva se l'obiettivo attivo supporta il flash/torcia e mostra/nasconde il relativo pulsante */
+async function detectTorchSupport(torchBtnEl) {
+  supportsTorch = false;
+  torchOn = false;
+  torchBtnEl?.classList.remove('torch-active');
+  try {
+    const capabilities = html5Qrcode.getRunningTrackCapabilities?.();
+    supportsTorch = !!capabilities?.torch;
+  } catch (err) {
+    supportsTorch = false;
+  }
+  torchBtnEl?.classList.toggle('hidden', !supportsTorch);
+}
+
+/**
+ * Accende/spegne il flash della fotocamera attiva, se supportato.
+ * @param {HTMLElement} [torchBtnEl] elemento pulsante da marcare come "attivo"
+ * @returns {Promise<boolean>} lo stato risultante della torcia
+ */
+export async function toggleTorch(torchBtnEl) {
+  if (!supportsTorch || !html5Qrcode || !isCameraRunning) return false;
+  try {
+    torchOn = !torchOn;
+    await html5Qrcode.applyVideoConstraints({ advanced: [{ torch: torchOn }] });
+    torchBtnEl?.classList.toggle('torch-active', torchOn);
+    feedback.cameraSwitch();
+    return torchOn;
+  } catch (err) {
+    console.warn('Impossibile controllare il flash su questo dispositivo.', err);
+    torchOn = false;
+    return false;
+  }
 }
 
 /** Attiva la messa a fuoco continua automatica, se supportata dal dispositivo */
@@ -160,6 +201,7 @@ function detachTapToFocus() {
 /** Tocca lo schermo per forzare la messa a fuoco sul punto indicato (utile per barcode piccoli/vicini) */
 async function handleTapToFocus(event, containerEl) {
   if (!isCameraRunning || !html5Qrcode) return;
+  feedback.focusTap();
   showFocusRing(event.clientX, event.clientY, containerEl);
   if (!supportsManualFocus) return;
 
