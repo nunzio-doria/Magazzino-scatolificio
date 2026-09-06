@@ -127,7 +127,7 @@ function renderStats(stats) {
         <span class="font-mono font-semibold text-amber-400 shrink-0">${s.totale}</span>
       </div>
       <div class="h-2 rounded-full bg-graphite-800 overflow-hidden">
-        <div class="h-full rounded-full bg-gradient-to-r from-amber-500 to-amber-300 bar-grow" style="--target-width:${pct}%"></div>
+        <div class="h-full rounded-full bg-gradient-to-r from-amber-300 to-amber-400 bar-grow" style="--target-width:${pct}%"></div>
       </div>
     `;
     row.addEventListener('click', () => openArticleHistory(s.product_id, s.codice_articolo));

@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
 <title>Magazzino - Scatolificio Sarno</title>
 <meta name="description" content="Gestione magazzino ricambi industriali - Scatolificio Sarno">
-<meta name="theme-color" content="#2f4f92">
+<meta name="theme-color" content="#a35f0a">
 
 <!-- PWA: manifest e icone -->
 <link rel="manifest" href="./manifest.json">
@@ -233,7 +233,7 @@
 
         <div class="flex gap-3 mt-4">
           <button id="scan-cancel-btn" type="button" class="rounded-lg py-3 px-4 font-display font-semibold uppercase tracking-wide text-graphite-400 hover:text-graphite-200 hover:bg-graphite-800 transition-colors">Annulla</button>
-          <button id="scan-confirm-btn" type="button" class="flex-1 rounded-lg py-3 font-display font-semibold uppercase tracking-wide bg-amber-400 text-white">Conferma</button>
+          <button id="scan-confirm-btn" type="button" class="press-spring flex-1 rounded-lg py-3 font-display font-semibold uppercase tracking-wide bg-amber-400 text-white shadow-edge">Conferma</button>
         </div>
       </div>
     </section>
@@ -251,7 +251,7 @@
             class="hidden history-btn w-8 h-8 rounded-lg border border-graphite-700 text-graphite-400 hover:text-amber-400 hover:border-amber-400 flex items-center justify-center">
             <i data-lucide="redo-2" class="w-4 h-4" stroke-width="2"></i>
           </button>
-          <button id="product-new-btn" data-admin-only class="hidden rounded-lg bg-amber-400 hover:bg-amber-300 text-white font-display font-semibold uppercase text-xs tracking-wide px-3 py-2 transition-colors">
+          <button id="product-new-btn" data-admin-only class="press-spring hidden rounded-lg bg-amber-400 hover:bg-amber-300 text-white font-display font-semibold uppercase text-xs tracking-wide px-3 py-2 shadow-edge transition-colors">
             + Nuovo
           </button>
         </div>
@@ -354,7 +354,7 @@
         <div class="card-plate rounded-xl p-3 text-center">
           <div class="relative w-14 h-14 mx-auto mb-1">
             <svg viewBox="0 0 44 44" class="w-14 h-14 -rotate-90">
-              <circle cx="22" cy="22" r="18" fill="none" stroke="#edeef1" stroke-width="4"></circle>
+              <circle cx="22" cy="22" r="18" fill="none" stroke="#dde1e7" stroke-width="4"></circle>
               <circle id="dash-ring-depositi" cx="22" cy="22" r="18" fill="none" stroke="#059669" stroke-width="4" stroke-linecap="round" stroke-dasharray="113.1" stroke-dashoffset="113.1"></circle>
             </svg>
             <span id="dash-kpi-depositi" class="absolute inset-0 flex items-center justify-center font-mono text-sm font-bold text-emerald-700">0</span>
@@ -364,8 +364,8 @@
         <div class="card-plate rounded-xl p-3 text-center">
           <div class="relative w-14 h-14 mx-auto mb-1">
             <svg viewBox="0 0 44 44" class="w-14 h-14 -rotate-90">
-              <circle cx="22" cy="22" r="18" fill="none" stroke="#edeef1" stroke-width="4"></circle>
-              <circle id="dash-ring-prelievi" cx="22" cy="22" r="18" fill="none" stroke="#d97706" stroke-width="4" stroke-linecap="round" stroke-dasharray="113.1" stroke-dashoffset="113.1"></circle>
+              <circle cx="22" cy="22" r="18" fill="none" stroke="#dde1e7" stroke-width="4"></circle>
+              <circle id="dash-ring-prelievi" cx="22" cy="22" r="18" fill="none" stroke="#a35f0a" stroke-width="4" stroke-linecap="round" stroke-dasharray="113.1" stroke-dashoffset="113.1"></circle>
             </svg>
             <span id="dash-kpi-prelievi" class="absolute inset-0 flex items-center justify-center font-mono text-sm font-bold text-amber-300">0</span>
           </div>
@@ -374,8 +374,8 @@
         <div class="card-plate rounded-xl p-3 text-center">
           <div class="relative w-14 h-14 mx-auto mb-1">
             <svg viewBox="0 0 44 44" class="w-14 h-14 -rotate-90">
-              <circle cx="22" cy="22" r="18" fill="none" stroke="#edeef1" stroke-width="4"></circle>
-              <circle id="dash-ring-movimenti" cx="22" cy="22" r="18" fill="none" stroke="#6b7280" stroke-width="4" stroke-linecap="round" stroke-dasharray="113.1" stroke-dashoffset="0"></circle>
+              <circle cx="22" cy="22" r="18" fill="none" stroke="#dde1e7" stroke-width="4"></circle>
+              <circle id="dash-ring-movimenti" cx="22" cy="22" r="18" fill="none" stroke="#465063" stroke-width="4" stroke-linecap="round" stroke-dasharray="113.1" stroke-dashoffset="0"></circle>
             </svg>
             <span id="dash-kpi-movimenti" class="absolute inset-0 flex items-center justify-center font-mono text-sm font-bold text-graphite-100">0</span>
           </div>
@@ -621,7 +621,7 @@
         </button>
       </div>
 
-      <button type="submit" class="w-full rounded-lg bg-amber-400 hover:bg-amber-300 text-white font-display font-bold uppercase tracking-wide py-3 transition-all active:scale-95">
+      <button type="submit" class="press-spring w-full rounded-lg bg-amber-400 hover:bg-amber-300 text-white font-display font-bold uppercase tracking-wide py-3 shadow-edge transition-colors active:scale-95">
         Salva articolo
       </button>
     </form>

@@ -169,10 +169,12 @@ async function handleDetectedCode(code) {
     if (!product) {
       hideResultSkeleton();
       feedback.scanNotFound();
+      replayAnimation(els.reader, 'reader-flash-fail');
       toastError(`Nessun articolo trovato per il codice "${code}".`);
       return;
     }
     feedback.scanFound();
+    replayAnimation(els.reader, 'reader-flash-ok');
     if (fromCache) toastWarning('Offline: dati dell\'articolo dall\'ultima sincronizzazione, potrebbero non essere aggiornati.', 4000);
     currentProduct = product;
 
@@ -185,6 +187,7 @@ async function handleDetectedCode(code) {
     console.error(err);
     hideResultSkeleton();
     feedback.errorAction();
+    replayAnimation(els.reader, 'reader-flash-fail');
     toastError('Errore nella ricerca articolo.');
   }
 }
@@ -309,8 +312,10 @@ async function confirmTransaction() {
 
   if (outcome.ok) {
     // Il numero conta visibilmente verso il nuovo valore invece di
-    // cambiare di scatto, poi la card si chiude.
+    // cambiare di scatto, e lampeggia brevemente: il momento in cui il
+    // pezzo viene registrato deve essere impossibile da non notare.
     animateNumber(els.productStock, outcome.nuovaGiacenza, { from: product.quantita_disponibile, duration: 550 });
+    replayAnimation(els.productStock, 'stock-pulse');
     setTimeout(() => {
       resetResult();
       loadIdlePanel();

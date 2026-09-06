@@ -1,20 +1,38 @@
 /* =============================================================
-   style.css — Tema chiaro "Scatolificio Sarno": animazioni e
-   componenti custom non esprimibili con le sole utility Tailwind.
+   style.css — "Industrial Precision": tema chiaro tecnico per la
+   gestione ricambi meccanici. Palette fredda + accento rame/ambra,
+   texture leggera "carta da disegno tecnico", card senza fori/rivetti
+   decorativi (sostituiti da un piccolo trattino-accento in alto),
+   micro-interazioni a molla più realistiche.
    ============================================================= */
 
 :root {
   color-scheme: light;
+  --ink: #0d1117;
+  --paper: #eef0f3;
+  --line: #dde1e7;
+  --accent: #a35f0a;
+  --accent-rgb: 163, 95, 10;
+  --accent-dark: #7a4607;
+  --accent-deep: #4a2b05;
 }
 
 html, body {
   height: 100%;
-  background: #f4f5f7;
   overscroll-behavior-y: contain;
 }
 
+/* Sfondo "carta da disegno tecnico": micro-griglia a puntini invece di
+   un flat color, più una leggerissima vignettatura verso i bordi per
+   dare profondità senza distrarre dal contenuto. */
 body {
   font-family: 'Inter', sans-serif;
+  background-color: var(--paper);
+  background-image:
+    radial-gradient(circle at 1px 1px, rgba(13,17,23,0.055) 1px, transparent 0),
+    radial-gradient(ellipse at 50% -10%, rgba(163,95,10,0.05), transparent 55%);
+  background-size: 22px 22px, 100% 100%;
+  background-attachment: fixed, fixed;
   -webkit-tap-highlight-color: transparent;
   /* App-like: niente selezione del testo al tocco/click su una parola
      qualsiasi — resta un'app da usare, non una pagina da leggere/copiare.
@@ -29,38 +47,61 @@ input, textarea {
 
 .font-display { letter-spacing: 0.02em; }
 
+/* Titoli di sezione: piccolo trattino verticale accento davanti al testo,
+   invece del solito H2 nudo — un dettaglio "da etichetta tecnica" che
+   dà carattere senza toccare il layout circostante (funziona ovunque
+   sia già presente font-display su h2/h3, zero markup aggiuntivo). */
+h2.font-display, h3.font-display {
+  position: relative;
+  padding-left: 13px;
+}
+h2.font-display::before, h3.font-display::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0.15em;
+  bottom: 0.15em;
+  width: 3px;
+  border-radius: 2px;
+  background: var(--accent);
+}
+
 /* ---- Scrollbar discreta ---------------------------------- */
 ::-webkit-scrollbar { width: 8px; height: 8px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: #d3d6db; border-radius: 999px; }
+::-webkit-scrollbar-thumb { background: var(--line); border-radius: 999px; }
 
-/* ---- Card "targa" con rivetti agli angoli ------------------ */
+/* ---- Card "targa tecnica" -----------------------------------
+   Niente più fori/rivetti agli angoli: un piccolo trattino colore
+   accento in alto a sinistra, come il segno di taratura su uno
+   strumento di precisione, più un filo di luce interno (bevel sottile)
+   che dà solidità/spessore senza pesantezza. */
 .card-plate {
   position: relative;
   background: #ffffff;
-  border: 1px solid #e3e5e9;
-  box-shadow: 0 1px 2px rgba(15,23,42,0.04), 0 1px 3px rgba(15,23,42,0.05);
+  border: 1px solid var(--line);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.85),
+    0 1px 2px rgba(13,17,23,0.05),
+    0 10px 22px -14px rgba(13,17,23,0.16);
 }
-.card-plate::before,
-.card-plate::after,
-.card-plate .rivet-tl,
-.card-plate .rivet-tr {
+.card-plate::before {
   content: '';
   position: absolute;
-  width: 5px;
-  height: 5px;
-  border-radius: 999px;
-  background: #cfd2d8;
-  box-shadow: inset 0 1px 1px rgba(15,23,42,0.15), 0 1px 0 rgba(255,255,255,0.6);
+  top: -1px;
+  left: 16px;
+  width: 24px;
+  height: 3px;
+  border-radius: 0 0 3px 3px;
+  background: var(--accent);
+  opacity: 0.9;
 }
-.card-plate::before { top: 6px; left: 6px; }
-.card-plate::after { top: 6px; right: 6px; }
 
 /* ---- Skeleton loading -------------------------------------- */
 .skeleton {
   position: relative;
   overflow: hidden;
-  background: #edeef1;
+  background: #e7e9ed;
   border-radius: 0.6rem;
   animation: skeleton-breathe 1.8s ease-in-out infinite;
 }
@@ -69,23 +110,24 @@ input, textarea {
   position: absolute;
   inset: 0;
   transform: translateX(-100%);
-  background: linear-gradient(90deg, transparent, rgba(15,23,42,0.10), rgba(255,255,255,0.35), rgba(15,23,42,0.10), transparent);
+  background: linear-gradient(90deg, transparent, rgba(13,17,23,0.10), rgba(255,255,255,0.45), rgba(13,17,23,0.10), transparent);
   animation: shimmer 1.3s infinite;
 }
 @keyframes shimmer {
   100% { transform: translateX(100%); }
 }
 @keyframes skeleton-breathe {
-  0%, 100% { background-color: #edeef1; }
-  50% { background-color: #e4e6ea; }
+  0%, 100% { background-color: #e7e9ed; }
+  50% { background-color: #dcdfe4; }
 }
 
 /* ---- Toast enter/exit --------------------------------------- */
-.toast-enter { animation: toast-in 220ms cubic-bezier(0.16, 1, 0.3, 1); }
+.toast-enter { animation: toast-in 260ms cubic-bezier(0.34, 1.4, 0.4, 1); }
 .toast-exit { animation: toast-out 200ms ease-in forwards; }
 @keyframes toast-in {
-  from { opacity: 0; transform: translateY(-10px) scale(0.97); }
-  to { opacity: 1; transform: translateY(0) scale(1); }
+  from { opacity: 0; transform: translateY(-12px) scale(0.95); }
+  60%  { opacity: 1; transform: translateY(2px) scale(1.01); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
 }
 @keyframes toast-out {
   to { opacity: 0; transform: translateY(-8px) scale(0.97); }
@@ -96,11 +138,11 @@ input, textarea {
    semi-trasparente e un riflesso di luce che scorre lentamente sulla
    superficie in loop, come vetro smerigliato illuminato di lato. */
 .nav-glass {
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.62), rgba(244, 245, 247, 0.4));
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.66), rgba(238, 240, 243, 0.45));
   backdrop-filter: blur(22px) saturate(160%);
   -webkit-backdrop-filter: blur(22px) saturate(160%);
-  border-top: 1px solid rgba(255, 255, 255, 0.55);
-  box-shadow: 0 -8px 30px -10px rgba(15, 23, 42, 0.15);
+  border-top: 1px solid rgba(255, 255, 255, 0.6);
+  box-shadow: 0 -8px 30px -10px rgba(13, 17, 23, 0.16);
   position: relative;
   overflow: hidden;
 }
@@ -133,17 +175,17 @@ input, textarea {
   position: absolute;
   inset: 2px 10px;
   border-radius: 14px;
-  background: rgba(47, 79, 146, 0.10);
+  background: rgba(var(--accent-rgb), 0.12);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
-  border: 1px solid rgba(47, 79, 146, 0.18);
+  border: 1px solid rgba(var(--accent-rgb), 0.24);
   opacity: 0;
   transform: scale(0.85);
   transition: opacity 240ms cubic-bezier(0.16, 1, 0.3, 1), transform 240ms cubic-bezier(0.16, 1, 0.3, 1);
   z-index: -1;
 }
 .nav-active {
-  color: #2f4f92 !important;
+  color: var(--accent) !important;
 }
 .nav-active::before {
   opacity: 1;
@@ -162,21 +204,38 @@ input, textarea {
   transition: all 160ms ease;
 }
 
-/* Bounce a molla quando si cambia sezione: overshoot elastico coerente con
-   la fisica a molla della transizione tra le view */
+/* Bounce a molla quando si cambia sezione: overshoot elastico con un
+   piccolo assestamento finale, per un rimbalzo più credibile di una
+   semplice oscillazione singola. */
 @keyframes nav-tap-spring {
   0%   { transform: scale(1); }
-  35%  { transform: scale(0.88); }
-  65%  { transform: scale(1.12); }
+  30%  { transform: scale(0.86); }
+  55%  { transform: scale(1.14); }
+  75%  { transform: scale(0.96); }
   100% { transform: scale(1); }
 }
 .nav-item.nav-tapped {
-  animation: nav-tap-spring 420ms cubic-bezier(0.34, 1.56, 0.64, 1);
+  animation: nav-tap-spring 460ms cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 @media (prefers-reduced-motion: reduce) {
   .nav-glass::before { animation: none; }
   .nav-item.nav-tapped { animation: none; }
+}
+
+/* ---- Molla generica per bottoni/card cliccabili -----------------------
+   In coppia con active:scale-95 (Tailwind) o da sola: la press è rapida,
+   il rilascio torna a scala 1 con un overshoot elastico invece di un
+   semplice ease-out — la differenza che fa sentire un bottone "vivo". */
+.press-spring {
+  transition: transform 420ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.press-spring:active {
+  transition-duration: 90ms;
+  transform: scale(0.95);
+}
+@media (prefers-reduced-motion: reduce) {
+  .press-spring { transition-duration: 1ms; }
 }
 
 /* ---- Transizione laterale tra le sezioni principali --------------------
@@ -217,12 +276,12 @@ input, textarea {
 }
 
 @keyframes fluid-exit-left {
-  0%   { opacity: 1; transform: scale(1) translateX(0); }
-  100% { opacity: 0; transform: scale(0.96) translateX(-6%); }
+  0%   { opacity: 1; filter: blur(0); transform: scale(1) translateX(0); }
+  100% { opacity: 0; filter: blur(1.5px); transform: scale(0.96) translateX(-6%); }
 }
 @keyframes fluid-exit-right {
-  0%   { opacity: 1; transform: scale(1) translateX(0); }
-  100% { opacity: 0; transform: scale(0.96) translateX(6%); }
+  0%   { opacity: 1; filter: blur(0); transform: scale(1) translateX(0); }
+  100% { opacity: 0; filter: blur(1.5px); transform: scale(0.96) translateX(6%); }
 }
 @keyframes fluid-enter-from-right {
   0%   { opacity: 0; transform: scale(0.97) translateX(6%); }
@@ -233,15 +292,15 @@ input, textarea {
   100% { opacity: 1; transform: scale(1) translateX(0); }
 }
 
-.view-fluid-exit-left   { animation: fluid-exit-left 240ms cubic-bezier(0.4, 0, 0.7, 0.2) forwards; }
-.view-fluid-exit-right  { animation: fluid-exit-right 240ms cubic-bezier(0.4, 0, 0.7, 0.2) forwards; }
+.view-fluid-exit-left   { animation: fluid-exit-left 260ms cubic-bezier(0.4, 0, 0.7, 0.2) forwards; }
+.view-fluid-exit-right  { animation: fluid-exit-right 260ms cubic-bezier(0.4, 0, 0.7, 0.2) forwards; }
 /* L'ingresso parte con un piccolo ritardo rispetto all'uscita (invece di
    sovrapporsi quasi del tutto): si vedono due fasi distinte — prima la
    vista vecchia se ne va, poi la nuova arriva — pur restando fluide.
    "both" mantiene lo stato iniziale (invisibile/rimpicciolita) durante il
    ritardo, cosí non si intravede la vista entrante prima del previsto. */
-.view-fluid-enter-right { animation: fluid-enter-from-right 480ms cubic-bezier(0.34, 1.56, 0.64, 1) 160ms both; }
-.view-fluid-enter-left  { animation: fluid-enter-from-left 480ms cubic-bezier(0.34, 1.56, 0.64, 1) 160ms both; }
+.view-fluid-enter-right { animation: fluid-enter-from-right 520ms cubic-bezier(0.22, 1.7, 0.36, 1) 160ms both; }
+.view-fluid-enter-left  { animation: fluid-enter-from-left 520ms cubic-bezier(0.22, 1.7, 0.36, 1) 160ms both; }
 
 @media (prefers-reduced-motion: reduce) {
   .view-fluid-exit-left, .view-fluid-exit-right,
@@ -249,16 +308,20 @@ input, textarea {
 }
 
 /* ---- Tab storico (modale drill-down consumi) ------------------------ */
-.history-tab { color: #70747c; transition: all 160ms ease; }
+.history-tab { color: var(--graphite-500, #5c6672); transition: all 160ms ease; }
 .history-tab-active {
-  background: rgba(47, 79, 146, 0.10) !important;
-  border-color: rgba(47, 79, 146, 0.5) !important;
-  color: #24406f !important;
+  background: rgba(var(--accent-rgb), 0.12) !important;
+  border-color: rgba(var(--accent-rgb), 0.55) !important;
+  color: var(--accent-dark) !important;
 }
 
 /* ---- Scanner mode buttons -------------------------------------- */
 #mode-deposito, #mode-prelievo {
-  transition: all 180ms ease;
+  transition: transform 380ms cubic-bezier(0.34, 1.56, 0.64, 1), background-color 180ms ease, border-color 180ms ease, color 180ms ease;
+}
+#mode-deposito:active, #mode-prelievo:active {
+  transition-duration: 90ms;
+  transform: scale(0.96);
 }
 .mode-active-deposito {
   background: rgba(16, 185, 129, 0.12) !important;
@@ -267,24 +330,24 @@ input, textarea {
   transform: scale(1.02);
 }
 .mode-active-prelievo {
-  background: rgba(47, 79, 146, 0.10) !important;
-  border-color: rgba(47, 79, 146, 0.5) !important;
-  color: #24406f !important;
+  background: rgba(var(--accent-rgb), 0.12) !important;
+  border-color: rgba(var(--accent-rgb), 0.55) !important;
+  color: var(--accent-dark) !important;
   transform: scale(1.02);
 }
 
 /* ---- Tab categoria magazzino -------------------------------------- */
-.category-tab, .import-category-tab { transition: all 160ms ease; color: #70747c; }
+.category-tab, .import-category-tab { transition: all 160ms ease; color: #5c6672; }
 .category-tab-active, .import-category-tab-active {
-  background: rgba(47, 79, 146, 0.10) !important;
-  border-color: rgba(47, 79, 146, 0.5) !important;
-  color: #24406f !important;
+  background: rgba(var(--accent-rgb), 0.12) !important;
+  border-color: rgba(var(--accent-rgb), 0.55) !important;
+  color: var(--accent-dark) !important;
 }
 
 /* ---- Toggle Elenco / Scaffalatura ---------------------------------- */
-.view-mode-tab { transition: all 160ms ease; color: #70747c; }
+.view-mode-tab { transition: all 160ms ease; color: #5c6672; }
 .view-mode-tab-active {
-  background: #2f4f92 !important;
+  background: var(--accent) !important;
   color: #ffffff !important;
 }
 
@@ -297,8 +360,8 @@ input, textarea {
   transition: border-color 160ms ease, background-color 160ms ease;
 }
 .shelf-card.shelf-open .shelf-header {
-  border-color: rgba(47, 79, 146, 0.5);
-  background: rgba(47, 79, 146, 0.06);
+  border-color: rgba(var(--accent-rgb), 0.55);
+  background: rgba(var(--accent-rgb), 0.07);
 }
 .shelf-chevron { transition: transform 280ms cubic-bezier(0.65, 0, 0.35, 1); }
 .shelf-card.shelf-open .shelf-chevron { transform: rotate(180deg); }
@@ -331,10 +394,11 @@ input, textarea {
 
 /* ---- Reader camera ---------------------------------------------- */
 #scanner-reader {
-  border-radius: 0.85rem;
+  border-radius: 0.75rem;
   overflow: hidden;
-  border: 2px dashed #b8bcc3;
-  background: #14161a;
+  border: 2px dashed #aeb4bd;
+  background: #10141a;
+  transition: border-color 180ms ease, box-shadow 180ms ease;
 }
 #scanner-reader,
 #product-barcode-scanner-reader {
@@ -344,10 +408,11 @@ input, textarea {
   min-height: 0;
 }
 #product-barcode-scanner-reader {
-  border-radius: 0.85rem;
+  border-radius: 0.75rem;
   overflow: hidden;
-  border: 2px dashed #b8bcc3;
-  background: #14161a;
+  border: 2px dashed #aeb4bd;
+  background: #10141a;
+  transition: border-color 180ms ease, box-shadow 180ms ease;
 }
 /* La libreria html5-qrcode imposta larghezza/altezza inline sul <video>/<canvas>:
    li forziamo a riempire il riquadro (object-fit:cover) invece di dettarne la
@@ -361,8 +426,23 @@ input, textarea {
   width: 100% !important;
   height: 100% !important;
   object-fit: cover !important;
-  border-radius: 0.7rem;
+  border-radius: 0.6rem;
 }
+
+/* Feedback visivo immediato sull'esito della scansione: un lampo di
+   bordo/glow colorato sul riquadro camera, in coppia col suono/vibrazione
+   di feedback.js — cosí anche con l'audio disattivato l'esito è chiaro
+   a colpo d'occhio, non solo nel toast che segue con un frame di ritardo. */
+@keyframes reader-flash-ok {
+  0%   { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.55); border-color: #10b981; }
+  100% { box-shadow: 0 0 0 16px rgba(16, 185, 129, 0); border-color: #aeb4bd; }
+}
+@keyframes reader-flash-fail {
+  0%   { box-shadow: 0 0 0 0 rgba(225, 29, 72, 0.55); border-color: #e11d48; }
+  100% { box-shadow: 0 0 0 16px rgba(225, 29, 72, 0); border-color: #aeb4bd; }
+}
+.reader-flash-ok   { animation: reader-flash-ok 550ms ease-out; }
+.reader-flash-fail { animation: reader-flash-fail 550ms ease-out; }
 
 /* Anello di feedback visivo al tocco per la messa a fuoco manuale */
 .focus-ring {
@@ -371,7 +451,7 @@ input, textarea {
   height: 56px;
   margin-left: -28px;
   margin-top: -28px;
-  border: 2px solid #6f8fcf;
+  border: 2px solid var(--accent);
   border-radius: 999px;
   pointer-events: none;
   z-index: 20;
@@ -390,8 +470,8 @@ input, textarea {
 }
 #product-modal.modal-visible, #field-picker-modal.modal-visible, #article-history-modal.modal-visible { opacity: 1; }
 #product-modal .modal-panel, #field-picker-modal .modal-panel, #article-history-modal .modal-panel {
-  transition: transform 220ms cubic-bezier(0.16, 1, 0.3, 1), opacity 220ms ease;
-  transform: translateY(16px) scale(0.98);
+  transition: transform 260ms cubic-bezier(0.22, 1.4, 0.36, 1), opacity 220ms ease;
+  transform: translateY(18px) scale(0.97);
   opacity: 0;
 }
 #product-modal.modal-visible .modal-panel,
@@ -412,10 +492,20 @@ input, textarea {
 
 /* ---- Pulsazione pulsante scan attivo ------------------------------- */
 @keyframes pulse-ring {
-  0% { box-shadow: 0 0 0 0 rgba(47, 79, 146, 0.30); }
-  100% { box-shadow: 0 0 0 14px rgba(47, 79, 146, 0); }
+  0% { box-shadow: 0 0 0 0 rgba(var(--accent-rgb), 0.35); }
+  100% { box-shadow: 0 0 0 14px rgba(var(--accent-rgb), 0); }
 }
 .scan-pulse { animation: pulse-ring 1.8s ease-out infinite; }
+
+/* ---- Pulsazione "pezzo registrato": lampo breve sul valore di giacenza
+   aggiornato nella card risultato scanner, in coincidenza col contatore
+   animato — rende tangibile il momento in cui il pezzo viene registrato. */
+@keyframes stock-pulse {
+  0%   { color: var(--accent); text-shadow: 0 0 0 rgba(var(--accent-rgb), 0); }
+  35%  { color: var(--accent); text-shadow: 0 0 14px rgba(var(--accent-rgb), 0.45); }
+  100% { color: inherit; text-shadow: 0 0 0 rgba(var(--accent-rgb), 0); }
+}
+.stock-pulse { animation: stock-pulse 650ms ease-out; }
 
 /* ---- Undo/Redo -------------------------------------------------- */
 .history-btn {
@@ -428,7 +518,7 @@ input, textarea {
 
 /* ---- Focus visibile per accessibilità -------------------------------- */
 :focus-visible {
-  outline: 2px solid #2f4f92;
+  outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
 
@@ -468,7 +558,7 @@ input, textarea {
 .custom-select-panel-inner {
   min-height: 0;
   overflow: hidden;
-  box-shadow: 0 12px 28px -8px rgba(15, 23, 42, 0.35);
+  box-shadow: 0 12px 28px -8px rgba(13, 17, 23, 0.35);
 }
 .custom-select-option {
   cursor: pointer;
@@ -476,10 +566,10 @@ input, textarea {
 }
 .custom-select-option:hover,
 .custom-select-option:active {
-  background: rgba(47, 79, 146, 0.10);
+  background: rgba(var(--accent-rgb), 0.12);
 }
 .custom-select-option-active {
-  color: #2f4f92;
+  color: var(--accent-dark);
   font-weight: 700;
 }
 
@@ -494,11 +584,11 @@ input, textarea {
   align-items: center;
   justify-content: center;
   padding: 24px;
-  background: rgba(15, 23, 42, 0);
+  background: rgba(13, 17, 23, 0);
   transition: background-color 220ms ease;
 }
 .confirm-overlay.confirm-open {
-  background: rgba(15, 23, 42, 0.5);
+  background: rgba(13, 17, 23, 0.52);
   backdrop-filter: blur(2px);
 }
 .confirm-card {
@@ -506,7 +596,7 @@ input, textarea {
   max-width: 360px;
   transform: scale(0.9) translateY(10px);
   opacity: 0;
-  transition: transform 340ms cubic-bezier(0.34, 1.56, 0.64, 1), opacity 220ms ease;
+  transition: transform 360ms cubic-bezier(0.34, 1.56, 0.64, 1), opacity 220ms ease;
 }
 .confirm-overlay.confirm-open .confirm-card {
   transform: scale(1) translateY(0);
@@ -518,30 +608,22 @@ input, textarea {
   transition: transform 180ms ease, opacity 180ms ease;
 }
 
-/* ---- Riduzione animazioni per chi la richiede -------------------------- */
-@media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
-  }
-}
-
 /* ---- Pulsante torcia attivo (scanner) -------------------------------- */
 #scanner-torch-btn.torch-active {
-  color: #d97706;
+  color: var(--accent-dark);
 }
 #scanner-torch-btn.torch-active i {
-  fill: #fbbf24;
-  stroke: #d97706;
+  fill: var(--accent);
+  stroke: var(--accent-dark);
 }
 
 /* ---- Micro-animazione di comparsa della card risultato scanner -------- */
 .result-pop {
-  animation: result-pop-anim 320ms cubic-bezier(0.34, 1.56, 0.64, 1);
+  animation: result-pop-anim 340ms cubic-bezier(0.30, 1.6, 0.5, 1);
 }
 @keyframes result-pop-anim {
-  0% { transform: scale(0.92) translateY(6px); opacity: 0; }
+  0%   { transform: scale(0.9) translateY(8px); opacity: 0; }
+  60%  { transform: scale(1.015) translateY(-1px); opacity: 1; }
   100% { transform: scale(1) translateY(0); opacity: 1; }
 }
 
@@ -553,7 +635,7 @@ input, textarea {
   transition: transform 60ms linear;
 }
 #pull-refresh-indicator.pull-ready {
-  background: #2f4f92;
+  background: var(--accent-dark);
 }
 #pull-refresh-indicator.pull-ready i {
   color: #ffffff;
@@ -563,4 +645,13 @@ input, textarea {
 }
 @keyframes pull-spin {
   to { transform: rotate(360deg); }
+}
+
+/* ---- Riduzione animazioni per chi la richiede -------------------------- */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
