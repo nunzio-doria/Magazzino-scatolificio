@@ -6,6 +6,7 @@
 
 import { listProfiles, updateProfileName } from './supabase.js';
 import { toastSuccess, toastError } from './toast.js';
+import { staggerIndex, replayAnimation } from './ui-utils.js';
 
 const els = {};
 let profiles = [];
@@ -33,9 +34,10 @@ export async function refreshUsers() {
 
 function renderUsers() {
   els.list.innerHTML = '';
-  for (const p of profiles) {
+  profiles.forEach((p, i) => {
     const row = document.createElement('div');
-    row.className = 'card-plate rounded-xl p-3 flex items-center gap-3';
+    row.className = 'list-item-in card-plate rounded-xl p-3 flex items-center gap-3';
+    row.style.setProperty('--i', staggerIndex(i));
     row.innerHTML = `
       <div class="min-w-0 flex-1">
         <p class="text-xs text-graphite-500 truncate">${escapeHtml(p.email)}</p>
@@ -56,7 +58,7 @@ function renderUsers() {
       if (e.key === 'Enter') saveName(p.id, input.value.trim(), saveBtn);
     });
     els.list.appendChild(row);
-  }
+  });
   window.lucide?.createIcons();
 }
 
@@ -70,6 +72,7 @@ async function saveName(id, name, btn) {
   try {
     await updateProfileName(id, name);
     toastSuccess('Nome aggiornato.');
+    replayAnimation(btn, 'stock-pulse');
     const p = profiles.find((x) => x.id === id);
     if (p) p.full_name = name;
   } catch (err) {

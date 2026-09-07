@@ -372,10 +372,11 @@ function renderRecent(rows) {
   }
   els.recentEmptyEl.classList.add('hidden');
 
-  for (const r of rows) {
+  rows.forEach((r, i) => {
     const date = new Date(r.data_ora);
     const row = document.createElement('div');
-    row.className = 'flex items-center justify-between gap-3 py-1.5 border-t border-graphite-800 first:border-t-0 first:pt-0';
+    row.className = 'list-item-in flex items-center justify-between gap-3 py-1.5 border-t border-graphite-800 first:border-t-0 first:pt-0';
+    row.style.setProperty('--i', i);
     row.innerHTML = `
       <div class="min-w-0">
         <p class="text-sm text-graphite-100 truncate font-medium">${escapeHtml(r.products?.codice_articolo || '—')}</p>
@@ -391,7 +392,7 @@ function renderRecent(rows) {
       }">${r.tipo === 'deposito' ? '+' : '−'}${r.quantita}</span>
     `;
     els.recentListEl.appendChild(row);
-  }
+  });
 }
 
 function escapeHtml(str) {

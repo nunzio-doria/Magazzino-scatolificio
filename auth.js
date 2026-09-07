@@ -47,6 +47,9 @@ export function initAuth(onAuthed, onSignedOut) {
       console.error(err);
       errorBox.textContent = mapAuthError(err);
       errorBox.classList.remove('hidden');
+      form.classList.remove('shake-error');
+      void form.offsetWidth; // forza il reflow per poter rilanciare l'animazione
+      form.classList.add('shake-error');
     } finally {
       submitBtn.disabled = false;
       submitBtn.classList.remove('opacity-60', 'cursor-not-allowed');

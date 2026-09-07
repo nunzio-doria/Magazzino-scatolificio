@@ -5,7 +5,7 @@
 import { getConsumptionStats, listTransactions } from './supabase.js';
 import { toastError, toastSuccess } from './toast.js';
 import { enhanceSelect } from './ui-select.js';
-import { animateNumber, animateRing, emptyStateHtml, lockBodyScroll, unlockBodyScroll } from './ui-utils.js';
+import { animateNumber, animateRing, emptyStateHtml, lockBodyScroll, unlockBodyScroll, staggerIndex } from './ui-utils.js';
 import feedback from './feedback.js';
 
 const els = {};
@@ -116,23 +116,24 @@ function renderStats(stats) {
     return;
   }
   const max = Math.max(...stats.map((s) => s.totale));
-  for (const s of stats.slice(0, 15)) {
+  stats.slice(0, 15).forEach((s, i) => {
     const pct = Math.max(6, Math.round((s.totale / max) * 100));
     const row = document.createElement('button');
     row.type = 'button';
-    row.className = 'w-full text-left py-2 hover:bg-graphite-700/30 rounded-lg px-2 -mx-2 transition-colors';
+    row.className = 'list-item-in w-full text-left py-2 hover:bg-graphite-700/30 rounded-lg px-2 -mx-2 transition-colors';
+    row.style.setProperty('--i', staggerIndex(i));
     row.innerHTML = `
       <div class="flex justify-between text-sm mb-1">
         <span class="text-graphite-200 truncate pr-2 font-medium">${escapeHtml(s.codice_articolo)}</span>
         <span class="font-mono font-semibold text-amber-400 shrink-0">${s.totale}</span>
       </div>
       <div class="h-2 rounded-full bg-graphite-800 overflow-hidden">
-        <div class="h-full rounded-full bg-gradient-to-r from-amber-300 to-amber-400 bar-grow" style="--target-width:${pct}%"></div>
+        <div class="h-full rounded-full bg-gradient-to-r from-amber-300 to-amber-400 bar-grow" style="--target-width:${pct}%; --i:${i}"></div>
       </div>
     `;
     row.addEventListener('click', () => openArticleHistory(s.product_id, s.codice_articolo));
     els.statsWrap.appendChild(row);
-  }
+  });
 }
 
 function renderHistory(history) {
@@ -142,15 +143,16 @@ function renderHistory(history) {
     window.lucide?.createIcons();
     return;
   }
-  for (const h of history) {
-    els.historyWrap.appendChild(historyRow(h));
-  }
+  history.forEach((h, i) => {
+    els.historyWrap.appendChild(historyRow(h, i));
+  });
 }
 
-function historyRow(h) {
+function historyRow(h, i = 0) {
   const date = new Date(h.data_ora);
   const row = document.createElement('div');
-  row.className = 'flex items-center justify-between gap-3 py-2.5 border-b border-graphite-800 last:border-0';
+  row.className = 'list-item-in flex items-center justify-between gap-3 py-2.5 border-b border-graphite-800 last:border-0';
+  row.style.setProperty('--i', staggerIndex(i));
   row.innerHTML = `
     <div class="min-w-0">
       <p class="text-sm text-graphite-100 truncate font-medium">${escapeHtml(h.products?.codice_articolo || '—')}</p>
@@ -192,12 +194,13 @@ function renderArticleHistory() {
 
   els.articleModalList.innerHTML = '';
   if (!filtered.length) {
-    els.articleModalList.innerHTML = '<p class="text-center text-sm text-graphite-500 py-6">Nessun movimento trovato.</p>';
+    els.articleModalList.innerHTML = emptyStateHtml('inbox', 'Nessun movimento', 'Nessun movimento trovato per questo filtro.');
+    window.lucide?.createIcons();
     return;
   }
-  for (const h of filtered) {
-    els.articleModalList.appendChild(historyRow(h));
-  }
+  filtered.forEach((h, i) => {
+    els.articleModalList.appendChild(historyRow(h, i));
+  });
 }
 
 function closeArticleHistory() {

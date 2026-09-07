@@ -117,9 +117,19 @@ export function replayAnimation(el, className) {
  * Markup di uno stato vuoto illustrato (icona lucide + titolo + sottotitolo),
  * coerente in tutte le viste invece di una singola riga di testo grigio.
  */
+/**
+ * Indice limitato per lo sfalsamento (--i) delle liste lunghe: oltre una
+ * decina di elementi lo stagger diventerebbe percettibilmente lento a
+ * caricare, quindi si appiattisce sul valore massimo invece di crescere
+ * all'infinito con la lunghezza della lista.
+ */
+export function staggerIndex(i, max = 10) {
+  return Math.min(i, max);
+}
+
 export function emptyStateHtml(icon, title, subtitle = '') {
   return `
-    <div class="flex flex-col items-center gap-2.5 py-4">
+    <div class="empty-state-in flex flex-col items-center gap-2.5 py-4">
       <span class="w-14 h-14 rounded-full bg-graphite-800/60 flex items-center justify-center">
         <i data-lucide="${icon}" class="w-6 h-6 text-graphite-600" stroke-width="1.6"></i>
       </span>

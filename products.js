@@ -11,7 +11,7 @@ import { animateFluidSwap } from './app.js';
 import { confirmDialog } from './ui-modal.js';
 import { enhanceSelect } from './ui-select.js';
 import feedback from './feedback.js';
-import { lockBodyScroll, unlockBodyScroll } from './ui-utils.js';
+import { lockBodyScroll, unlockBodyScroll, staggerIndex, replayAnimation } from './ui-utils.js';
 
 const els = {};
 let currentList = [];
@@ -364,13 +364,14 @@ function renderList() {
   els.listWrap.innerHTML = '';
   els.listWrap.classList.remove('hidden');
 
-  for (const p of currentList) {
+  currentList.forEach((p, i) => {
     const lowStock = p.quantita_disponibile < p.scorta_minima;
     const subtitleParts = [p.locazione, p.macchina, p.punto_utilizzo_standard, p.linea].filter(Boolean);
     const row = document.createElement('button');
     row.type = 'button';
     row.className =
-      'w-full text-left card-plate rounded-xl px-4 py-3 flex items-center justify-between gap-3 hover:border-amber-500/40 transition-colors';
+      'list-item-in w-full text-left card-plate rounded-xl px-4 py-3 flex items-center justify-between gap-3 hover:border-amber-500/40 transition-colors';
+    row.style.setProperty('--i', staggerIndex(i));
     row.innerHTML = `
       <div class="min-w-0">
         <p class="font-display font-bold text-graphite-100 truncate">${escapeHtml(p.codice_articolo)}</p>
@@ -386,7 +387,7 @@ function renderList() {
     if (isAdmin()) row.addEventListener('click', () => openModal(p));
     else row.disabled = true;
     els.listWrap.appendChild(row);
-  }
+  });
 }
 
 /**
@@ -445,7 +446,7 @@ function renderGroupedCards({ wrapEl, openSet, groupKeyFn, subtitleFields, unass
     a.localeCompare(b, 'it', { numeric: true, sensitivity: 'base' })
   );
 
-  for (const key of sortedKeys) {
+  sortedKeys.forEach((key, cardIndex) => {
     const items = groups.get(key);
     const totQty = items.reduce((sum, p) => sum + (p.quantita_disponibile || 0), 0);
     const lowCount = items.filter((p) => p.quantita_disponibile < p.scorta_minima).length;
@@ -471,7 +472,8 @@ function renderGroupedCards({ wrapEl, openSet, groupKeyFn, subtitleFields, unass
       .join('');
 
     const card = document.createElement('div');
-    card.className = `shelf-card card-plate rounded-xl${isOpen ? ' shelf-open' : ''}`;
+    card.className = `list-item-in shelf-card card-plate rounded-xl${isOpen ? ' shelf-open' : ''}`;
+    card.style.setProperty('--i', staggerIndex(cardIndex));
     card.innerHTML = `
       <div class="shelf-header flex items-center justify-between gap-3 px-4 py-3.5 border-2 border-graphite-700 rounded-xl">
         <div class="flex items-center gap-3 min-w-0">
@@ -514,7 +516,7 @@ function renderGroupedCards({ wrapEl, openSet, groupKeyFn, subtitleFields, unass
     });
 
     wrapEl.appendChild(card);
-  }
+  });
 
   window.lucide?.createIcons();
 }
@@ -669,6 +671,7 @@ function updateBarcodePreview() {
       margin: 6,
     });
     els.barcodePreviewWrap.classList.remove('hidden');
+    replayAnimation(els.barcodePreviewWrap, 'result-pop');
   } catch (err) {
     els.barcodePreviewWrap.classList.add('hidden');
   }
@@ -939,10 +942,12 @@ async function handleImportFileChange(e) {
       `Importazione completata: ${result.totale} articoli (${result.inseriti} nuovi, ${result.aggiornati} aggiornati).`,
       'success'
     );
+    feedback.confirmAction();
     toastSuccess(`${CATEGORY_LABELS[importCategory]}: importazione completata.`);
     if (importCategory === currentCategory) refresh();
   } catch (err) {
     console.error(err);
+    feedback.errorAction();
     showImportResult('Errore durante la lettura o l\'importazione del file. Verifica che sia un .xlsx valido con le colonne nell\'ordine corretto.', 'error');
   }
 }
@@ -956,6 +961,7 @@ function showImportResult(message, type) {
   els.importResult.textContent = message;
   els.importResult.className = `text-xs mt-2 rounded-lg px-3 py-2 ${styles[type] || styles.info}`;
   els.importResult.classList.remove('hidden');
+  replayAnimation(els.importResult, 'empty-state-in');
 }
 
 function escapeHtml(str) {

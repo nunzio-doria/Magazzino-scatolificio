@@ -1,9 +1,9 @@
 /* =============================================================
    style.css — "Industrial Precision": tema chiaro tecnico per la
-   gestione ricambi meccanici. Palette fredda + accento rame/ambra,
-   texture leggera "carta da disegno tecnico", card senza fori/rivetti
-   decorativi (sostituiti da un piccolo trattino-accento in alto),
-   micro-interazioni a molla più realistiche.
+   gestione ricambi meccanici. Palette fredda + accento blu del brand,
+   texture leggera "carta da disegno tecnico", card con rivetti agli
+   angoli (targa metallica), micro-interazioni a molla su ogni tipo di
+   controllo: bottoni, campi, toggle, tab, liste, badge.
    ============================================================= */
 
 :root {
@@ -11,10 +11,10 @@
   --ink: #0d1117;
   --paper: #eef0f3;
   --line: #dde1e7;
-  --accent: #a35f0a;
-  --accent-rgb: 163, 95, 10;
-  --accent-dark: #7a4607;
-  --accent-deep: #4a2b05;
+  --accent: #2f4f92;
+  --accent-rgb: 47, 79, 146;
+  --accent-dark: #24406f;
+  --accent-deep: #13223f;
 }
 
 html, body {
@@ -30,7 +30,7 @@ body {
   background-color: var(--paper);
   background-image:
     radial-gradient(circle at 1px 1px, rgba(13,17,23,0.055) 1px, transparent 0),
-    radial-gradient(ellipse at 50% -10%, rgba(163,95,10,0.05), transparent 55%);
+    radial-gradient(ellipse at 50% -10%, rgba(47,79,146,0.05), transparent 55%);
   background-size: 22px 22px, 100% 100%;
   background-attachment: fixed, fixed;
   -webkit-tap-highlight-color: transparent;
@@ -45,37 +45,18 @@ input, textarea {
   user-select: text;
 }
 
-.font-display { letter-spacing: 0.02em; }
-
-/* Titoli di sezione: piccolo trattino verticale accento davanti al testo,
-   invece del solito H2 nudo — un dettaglio "da etichetta tecnica" che
-   dà carattere senza toccare il layout circostante (funziona ovunque
-   sia già presente font-display su h2/h3, zero markup aggiuntivo). */
-h2.font-display, h3.font-display {
-  position: relative;
-  padding-left: 13px;
-}
-h2.font-display::before, h3.font-display::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 0.15em;
-  bottom: 0.15em;
-  width: 3px;
-  border-radius: 2px;
-  background: var(--accent);
-}
+.font-display { letter-spacing: 0.01em; }
 
 /* ---- Scrollbar discreta ---------------------------------- */
 ::-webkit-scrollbar { width: 8px; height: 8px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--line); border-radius: 999px; }
+::-webkit-scrollbar-thumb:hover { background: var(--graphite-600, #c5cbd3); }
 
-/* ---- Card "targa tecnica" -----------------------------------
-   Niente più fori/rivetti agli angoli: un piccolo trattino colore
-   accento in alto a sinistra, come il segno di taratura su uno
-   strumento di precisione, più un filo di luce interno (bevel sottile)
-   che dà solidità/spessore senza pesantezza. */
+/* ---- Card "targa" con rivetti agli angoli ------------------
+   Due piccoli rivetti metallici in alto a sinistra e a destra, come su
+   una targhetta identificativa avvitata — nessun colore di brand qui:
+   sono elementi meccanici, non decorazioni a tema. */
 .card-plate {
   position: relative;
   background: #ffffff;
@@ -85,17 +66,18 @@ h2.font-display::before, h3.font-display::before {
     0 1px 2px rgba(13,17,23,0.05),
     0 10px 22px -14px rgba(13,17,23,0.16);
 }
-.card-plate::before {
+.card-plate::before,
+.card-plate::after {
   content: '';
   position: absolute;
-  top: -1px;
-  left: 16px;
-  width: 24px;
-  height: 3px;
-  border-radius: 0 0 3px 3px;
-  background: var(--accent);
-  opacity: 0.9;
+  width: 5px;
+  height: 5px;
+  border-radius: 999px;
+  background: #cfd2d8;
+  box-shadow: inset 0 1px 1px rgba(13,17,23,0.18), 0 1px 0 rgba(255,255,255,0.7);
 }
+.card-plate::before { top: 6px; left: 6px; }
+.card-plate::after { top: 6px; right: 6px; }
 
 /* ---- Skeleton loading -------------------------------------- */
 .skeleton {
@@ -175,10 +157,10 @@ h2.font-display::before, h3.font-display::before {
   position: absolute;
   inset: 2px 10px;
   border-radius: 14px;
-  background: rgba(var(--accent-rgb), 0.12);
+  background: rgba(var(--accent-rgb), 0.10);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
-  border: 1px solid rgba(var(--accent-rgb), 0.24);
+  border: 1px solid rgba(var(--accent-rgb), 0.18);
   opacity: 0;
   transform: scale(0.85);
   transition: opacity 240ms cubic-bezier(0.16, 1, 0.3, 1), transform 240ms cubic-bezier(0.16, 1, 0.3, 1);
@@ -223,19 +205,149 @@ h2.font-display::before, h3.font-display::before {
   .nav-item.nav-tapped { animation: none; }
 }
 
-/* ---- Molla generica per bottoni/card cliccabili -----------------------
-   In coppia con active:scale-95 (Tailwind) o da sola: la press è rapida,
-   il rilascio torna a scala 1 con un overshoot elastico invece di un
-   semplice ease-out — la differenza che fa sentire un bottone "vivo". */
+/* =============================================================
+   MICRO-INTERAZIONI GLOBALI — un tocco di vita su OGNI controllo
+   interattivo dell'app, non solo su quelli marcati esplicitamente.
+   Regole ampie e a basso rischio: solo transform/colore/ombra, mai
+   layout, quindi non toccano la logica né la struttura di nessuna
+   pagina già scritta in JS.
+   ============================================================= */
+
+/* Ogni bottone dell'app riceve una molla di base al tocco, anche quelli
+   creati dinamicamente in JS (liste, righe storico, tab...) che non
+   hanno una classe dedicata. */
+button:not(:disabled) {
+  transition: transform 320ms cubic-bezier(0.34, 1.56, 0.64, 1), background-color 160ms ease, border-color 160ms ease, color 160ms ease, box-shadow 160ms ease;
+}
+button:not(:disabled):active {
+  transition-duration: 90ms;
+  transform: scale(0.97);
+}
+button:disabled { cursor: not-allowed; }
+
+/* Versione "forte" per le call-to-action principali (conferma scanner,
+   salva articolo, nuovo articolo...): scende un po' di più e rimbalza
+   un po' di più al rilascio. */
 .press-spring {
-  transition: transform 420ms cubic-bezier(0.34, 1.56, 0.64, 1);
+  transition: transform 420ms cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 200ms ease;
 }
 .press-spring:active {
   transition-duration: 90ms;
   transform: scale(0.95);
 }
+
+/* Card/righe cliccabili (non <button>, es. shelf-header): stessa fisica */
+[data-pressable], .shelf-header {
+  transition: transform 320ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+[data-pressable]:active, .shelf-header:active {
+  transition-duration: 90ms;
+  transform: scale(0.985);
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .press-spring { transition-duration: 1ms; }
+  button, .press-spring, [data-pressable], .shelf-header { transition-duration: 1ms !important; }
+}
+
+/* Hover elevato su desktop per le card cliccabili della lista Magazzino:
+   un leggero sollevamento con ombra più profonda, coerente con la fisica
+   "a molla" del resto dell'app (@media hover esclude il tocco mobile,
+   dove non esiste hover reale e l'effetto risulterebbe "appiccicato"). */
+@media (hover: hover) {
+  #product-list > button.card-plate {
+    transition: transform 220ms cubic-bezier(0.16, 1, 0.3, 1), box-shadow 220ms ease, border-color 160ms ease;
+  }
+  #product-list > button.card-plate:hover {
+    transform: translateY(-2px);
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,0.85),
+      0 1px 2px rgba(13,17,23,0.06),
+      0 16px 30px -14px rgba(13,17,23,0.22);
+  }
+}
+
+/* Campi di input/select/textarea: bordo + alone che si accende in
+   morbidezza sul focus, invece dello scatto secco del solo outline. */
+input, select, textarea {
+  transition: border-color 180ms ease, box-shadow 180ms ease, background-color 180ms ease;
+}
+input:focus, select:focus, textarea:focus {
+  box-shadow: 0 0 0 3px rgba(var(--accent-rgb), 0.16);
+}
+
+/* Checkbox nativi (es. filtro sotto-scorta): leggero pop al click */
+input[type="checkbox"] {
+  transition: transform 160ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+input[type="checkbox"]:active {
+  transform: scale(0.85);
+}
+
+/* Toggle a levetta (feedback sonoro/aptico, scansione continua): il
+   pallino scivola con una molla vera invece del semplice ease lineare
+   di Tailwind, e un lieve bagliore sulla pista quando si accende. */
+input.peer ~ span:last-child {
+  transition: transform 320ms cubic-bezier(0.34, 1.56, 0.64, 1) !important;
+}
+input.peer:checked ~ span:first-of-type {
+  box-shadow: 0 0 0 4px rgba(var(--accent-rgb), 0.14);
+}
+
+/* Righe/elementi che compaiono in una lista appena renderizzata: fade +
+   piccolo slide dal basso, con uno sfalsamento (--i, impostato in JS)
+   cosí gli elementi appaiono "a cascata" invece che tutti insieme. */
+.list-item-in {
+  opacity: 0;
+  transform: translateY(8px);
+  animation: list-item-in 340ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation-delay: calc(var(--i, 0) * 30ms);
+}
+@keyframes list-item-in {
+  to { opacity: 1; transform: translateY(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .list-item-in { animation-duration: 1ms !important; animation-delay: 0ms !important; }
+}
+
+/* Empty state illustrati: entrano con un piccolo respiro invece di
+   comparire di scatto quando una lista risulta vuota. */
+.empty-state-in {
+  animation: empty-state-in 380ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+@keyframes empty-state-in {
+  0%   { opacity: 0; transform: translateY(6px) scale(0.97); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* Tab/pillole di selezione (categoria, deposito/prelievo, elenco/scaffalatura,
+   storico consumi): quando una diventa attiva, un piccolo "pop" elastico
+   invece di limitarsi al solo cambio colore statico. */
+.category-tab-active, .import-category-tab-active,
+.mode-active-deposito, .mode-active-prelievo,
+.history-tab-active, .view-mode-tab-active {
+  animation: tab-select-pop 320ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+@keyframes tab-select-pop {
+  0%   { transform: scale(0.92); }
+  55%  { transform: scale(1.06); }
+  100% { transform: scale(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .category-tab-active, .import-category-tab-active,
+  .mode-active-deposito, .mode-active-prelievo,
+  .history-tab-active, .view-mode-tab-active { animation: none; }
+}
+
+/* Badge/avvisi che compaiono (coda offline, sotto-scorta): pop elastico
+   ogni volta che passano da nascosti a visibili — riparte da solo perché
+   Tailwind "hidden" (display:none) resetta lo stato dell'animazione. */
+#scanner-offline-badge:not(.hidden) {
+  animation: badge-pop 400ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+@keyframes badge-pop {
+  0%   { transform: scale(0.85) translateY(-4px); opacity: 0.4; }
+  60%  { transform: scale(1.03) translateY(0); opacity: 1; }
+  100% { transform: scale(1) translateY(0); opacity: 1; }
 }
 
 /* ---- Transizione laterale tra le sezioni principali --------------------
@@ -308,10 +420,10 @@ h2.font-display::before, h3.font-display::before {
 }
 
 /* ---- Tab storico (modale drill-down consumi) ------------------------ */
-.history-tab { color: var(--graphite-500, #5c6672); transition: all 160ms ease; }
+.history-tab { color: #5c6672; transition: all 160ms ease; }
 .history-tab-active {
-  background: rgba(var(--accent-rgb), 0.12) !important;
-  border-color: rgba(var(--accent-rgb), 0.55) !important;
+  background: rgba(var(--accent-rgb), 0.10) !important;
+  border-color: rgba(var(--accent-rgb), 0.5) !important;
   color: var(--accent-dark) !important;
 }
 
@@ -330,8 +442,8 @@ h2.font-display::before, h3.font-display::before {
   transform: scale(1.02);
 }
 .mode-active-prelievo {
-  background: rgba(var(--accent-rgb), 0.12) !important;
-  border-color: rgba(var(--accent-rgb), 0.55) !important;
+  background: rgba(var(--accent-rgb), 0.10) !important;
+  border-color: rgba(var(--accent-rgb), 0.5) !important;
   color: var(--accent-dark) !important;
   transform: scale(1.02);
 }
@@ -339,8 +451,8 @@ h2.font-display::before, h3.font-display::before {
 /* ---- Tab categoria magazzino -------------------------------------- */
 .category-tab, .import-category-tab { transition: all 160ms ease; color: #5c6672; }
 .category-tab-active, .import-category-tab-active {
-  background: rgba(var(--accent-rgb), 0.12) !important;
-  border-color: rgba(var(--accent-rgb), 0.55) !important;
+  background: rgba(var(--accent-rgb), 0.10) !important;
+  border-color: rgba(var(--accent-rgb), 0.5) !important;
   color: var(--accent-dark) !important;
 }
 
@@ -357,11 +469,11 @@ h2.font-display::before, h3.font-display::before {
 .shelf-card { overflow: hidden; }
 .shelf-header {
   cursor: pointer;
-  transition: border-color 160ms ease, background-color 160ms ease;
+  transition: border-color 160ms ease, background-color 160ms ease, transform 320ms cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 .shelf-card.shelf-open .shelf-header {
-  border-color: rgba(var(--accent-rgb), 0.55);
-  background: rgba(var(--accent-rgb), 0.07);
+  border-color: rgba(var(--accent-rgb), 0.5);
+  background: rgba(var(--accent-rgb), 0.06);
 }
 .shelf-chevron { transition: transform 280ms cubic-bezier(0.65, 0, 0.35, 1); }
 .shelf-card.shelf-open .shelf-chevron { transform: rotate(180deg); }
@@ -463,6 +575,16 @@ h2.font-display::before, h3.font-display::before {
   100% { transform: scale(0.85); opacity: 0; }
 }
 
+/* Pulsante torcia: piccolo lampo sull'icona quando si accende */
+@keyframes torch-flash {
+  0%   { transform: scale(1); filter: brightness(1); }
+  40%  { transform: scale(1.25); filter: brightness(1.6); }
+  100% { transform: scale(1); filter: brightness(1); }
+}
+#scanner-torch-btn.torch-active i {
+  animation: torch-flash 380ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
 /* ---- Modal (generico: product-modal, field-picker-modal, article-history-modal) --- */
 #product-modal, #field-picker-modal, #article-history-modal {
   transition: opacity 200ms ease;
@@ -485,6 +607,7 @@ h2.font-display::before, h3.font-display::before {
 .bar-grow {
   width: 0;
   animation: bar-grow 700ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation-delay: calc(var(--i, 0) * 40ms);
 }
 @keyframes bar-grow {
   to { width: var(--target-width); }
@@ -492,7 +615,7 @@ h2.font-display::before, h3.font-display::before {
 
 /* ---- Pulsazione pulsante scan attivo ------------------------------- */
 @keyframes pulse-ring {
-  0% { box-shadow: 0 0 0 0 rgba(var(--accent-rgb), 0.35); }
+  0% { box-shadow: 0 0 0 0 rgba(var(--accent-rgb), 0.30); }
   100% { box-shadow: 0 0 0 14px rgba(var(--accent-rgb), 0); }
 }
 .scan-pulse { animation: pulse-ring 1.8s ease-out infinite; }
@@ -515,6 +638,12 @@ h2.font-display::before, h3.font-display::before {
   opacity: 0.35;
   cursor: not-allowed;
 }
+.history-btn:not(:disabled):active i {
+  transform: scale(0.8);
+}
+.history-btn i {
+  transition: transform 260ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
 
 /* ---- Focus visibile per accessibilità -------------------------------- */
 :focus-visible {
@@ -535,6 +664,11 @@ h2.font-display::before, h3.font-display::before {
 .custom-select-trigger {
   cursor: pointer;
   width: 100%;
+  transition: box-shadow 180ms ease, border-color 180ms ease;
+}
+.custom-select-open .custom-select-trigger {
+  box-shadow: 0 0 0 3px rgba(var(--accent-rgb), 0.16);
+  border-color: rgba(var(--accent-rgb), 0.5);
 }
 .custom-select-chevron {
   transition: transform 240ms cubic-bezier(0.22, 1, 0.36, 1);
@@ -562,11 +696,12 @@ h2.font-display::before, h3.font-display::before {
 }
 .custom-select-option {
   cursor: pointer;
-  transition: background-color 140ms ease, color 140ms ease;
+  transition: background-color 140ms ease, color 140ms ease, padding-left 140ms ease;
 }
 .custom-select-option:hover,
 .custom-select-option:active {
-  background: rgba(var(--accent-rgb), 0.12);
+  background: rgba(var(--accent-rgb), 0.10);
+  padding-left: 18px;
 }
 .custom-select-option-active {
   color: var(--accent-dark);
@@ -608,15 +743,6 @@ h2.font-display::before, h3.font-display::before {
   transition: transform 180ms ease, opacity 180ms ease;
 }
 
-/* ---- Pulsante torcia attivo (scanner) -------------------------------- */
-#scanner-torch-btn.torch-active {
-  color: var(--accent-dark);
-}
-#scanner-torch-btn.torch-active i {
-  fill: var(--accent);
-  stroke: var(--accent-dark);
-}
-
 /* ---- Micro-animazione di comparsa della card risultato scanner -------- */
 .result-pop {
   animation: result-pop-anim 340ms cubic-bezier(0.30, 1.6, 0.5, 1);
@@ -654,4 +780,15 @@ h2.font-display::before, h3.font-display::before {
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+/* ---- Login: scuotimento del form su credenziali errate ---------------- */
+@keyframes shake-error {
+  10%, 90% { transform: translateX(-1px); }
+  20%, 80% { transform: translateX(2px); }
+  30%, 50%, 70% { transform: translateX(-4px); }
+  40%, 60% { transform: translateX(4px); }
+}
+.shake-error {
+  animation: shake-error 480ms cubic-bezier(0.36, 0.07, 0.19, 0.97);
 }
