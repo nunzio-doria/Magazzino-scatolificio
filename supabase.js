@@ -228,6 +228,18 @@ export async function listTransactions({ from, to, productId, limit = 200 } = {}
   return data;
 }
 
+/**
+ * Elimina permanentemente tutti i movimenti (depositi/prelievi) registrati
+ * per un articolo. Non tocca la giacenza attuale (quantita_disponibile sui
+ * products): rimuove solo il log storico. Serve tipicamente per poter poi
+ * eliminare l'articolo stesso, dato che la tabella transactions ha un
+ * vincolo di integrità referenziale verso products.
+ */
+export async function deleteTransactionsForProduct(productId) {
+  const { error } = await supabase.from('transactions').delete().eq('product_id', productId);
+  if (error) throw error;
+}
+
 /** Aggregazione consumi (prelievi) per articolo, lato client su dataset filtrato */
 export async function getConsumptionStats({ from, to } = {}) {
   const rows = await listTransactions({ from, to, limit: 2000 });

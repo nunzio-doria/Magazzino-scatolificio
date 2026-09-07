@@ -134,7 +134,7 @@ function escapeHtml(str) {
  * @param {boolean} [opts.allowCustom] - se true, permette di digitare e aggiungere un valore non in elenco
  * @param {(value: string) => void} [opts.onChange] - richiamata quando l'utente sceglie/svuota un valore
  */
-export function attachFieldDropdown({ triggerBtn, valueEl, hiddenInput, getOptions, allowCustom = false, onChange }) {
+export function attachFieldDropdown({ triggerBtn, valueEl, hiddenInput, getOptions, allowCustom = false, hideSearch = false, onChange }) {
   if (!triggerBtn || triggerBtn.dataset.fieldDropdown === 'true') return;
   triggerBtn.dataset.fieldDropdown = 'true';
   triggerBtn.classList.add('custom-select-trigger');
@@ -198,7 +198,7 @@ export function attachFieldDropdown({ triggerBtn, valueEl, hiddenInput, getOptio
     const filtered = term ? allOptions.filter((o) => o.toLowerCase().includes(term)) : allOptions;
 
     listEl.innerHTML = '';
-    searchWrap.classList.toggle('hidden', !allowCustom && !loading && allOptions.length <= 6);
+    searchWrap.classList.toggle('hidden', hideSearch || (!allowCustom && !loading && allOptions.length <= 6));
 
     if (loading) {
       listEl.innerHTML = '<p class="text-center text-xs text-graphite-500 py-4">Caricamento…</p>';

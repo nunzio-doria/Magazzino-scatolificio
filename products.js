@@ -2,7 +2,17 @@
 // products.js — Magazzino: categorie, CRUD, import Excel, barcode
 // =============================================================
 
-import { listProducts, createProduct, updateProduct, deleteProduct, bulkUpsertProducts, listDistinctMacchine, getProductByBarcode, getProductById } from './supabase.js';
+import {
+  listProducts,
+  createProduct,
+  updateProduct,
+  deleteProduct,
+  bulkUpsertProducts,
+  listDistinctMacchine,
+  getProductByBarcode,
+  getProductById,
+  deleteTransactionsForProduct,
+} from './supabase.js';
 import { toastSuccess, toastError } from './toast.js';
 import { isAdmin } from './auth.js';
 import { startCamera, stopCamera } from './camera.js';
@@ -128,6 +138,7 @@ export function initProducts() {
   els.modalTitle = document.getElementById('product-modal-title');
   els.closeModalBtn = document.getElementById('product-modal-close');
   els.deleteBtn = document.getElementById('product-delete-btn');
+  els.deleteHistoryBtn = document.getElementById('product-delete-history-btn');
   els.categoriaSelect = document.getElementById('product-categoria');
   els.categoriaSelectUI = enhanceSelect(els.categoriaSelect);
   els.lineaMacchinaWrap = document.getElementById('product-linea-macchina-wrap');
@@ -160,6 +171,7 @@ export function initProducts() {
   els.closeModalBtn.addEventListener('click', closeModal);
   els.form.addEventListener('submit', handleSubmit);
   els.deleteBtn.addEventListener('click', handleDelete);
+  els.deleteHistoryBtn.addEventListener('click', handleDeleteHistory);
   els.printLabelBtn.addEventListener('click', printCurrentLabel);
   els.generateBarcodeBtn.addEventListener('click', generateBarcodeForCurrentArticle);
   els.categoriaSelect.addEventListener('change', updateLineaMacchinaVisibility);
@@ -185,7 +197,8 @@ export function initProducts() {
         return [];
       }
     },
-    allowCustom: true,
+    allowCustom: false,
+    hideSearch: true,
   });
 
   els.categoryTabs.forEach((btn) => {
@@ -545,6 +558,7 @@ function openModal(product = null) {
   editingSnapshot = product ? { ...product } : null;
   els.modalTitle.textContent = product ? 'Modifica articolo' : 'Nuovo articolo';
   els.deleteBtn.classList.toggle('hidden', !product);
+  els.deleteHistoryBtn.classList.toggle('hidden', !product);
   els.form.reset();
   stopBarcodeScan();
 
@@ -753,7 +767,7 @@ async function handleDelete() {
   if (!editingId) return;
   const ok = await confirmDialog({
     title: 'Eliminare l\'articolo?',
-    message: 'Lo storico transazioni resterà collegato. L\'operazione non è reversibile.',
+    message: 'Se esistono movimenti (depositi/prelievi) registrati per questo articolo, l\'eliminazione verrà rifiutata: usa prima "Elimina cronologia movimenti" qui sopra. L\'operazione non è reversibile.',
     confirmLabel: 'Elimina',
     danger: true,
   });
@@ -768,7 +782,28 @@ async function handleDelete() {
   } catch (err) {
     console.error(err);
     feedback.errorAction();
-    toastError('Impossibile eliminare: verifica che non ci siano transazioni collegate.');
+    toastError('Impossibile eliminare: elimina prima la cronologia movimenti con il pulsante qui sopra, poi riprova.');
+  }
+}
+
+async function handleDeleteHistory() {
+  if (!editingId) return;
+  const codice = editingSnapshot?.codice_articolo || els.form.querySelector('#product-codice-articolo')?.value || 'questo articolo';
+  const ok = await confirmDialog({
+    title: 'Eliminare la cronologia?',
+    message: `Verranno eliminati per sempre tutti i movimenti (depositi e prelievi) registrati per "${codice}". La giacenza attuale non cambia: viene rimosso solo lo storico. Serve tipicamente per poter poi eliminare l'articolo. L'operazione non è reversibile.`,
+    confirmLabel: 'Elimina cronologia',
+    danger: true,
+  });
+  if (!ok) return;
+  try {
+    await deleteTransactionsForProduct(editingId);
+    feedback.confirmAction();
+    toastSuccess('Cronologia eliminata. Ora puoi eliminare l\'articolo, se vuoi.');
+  } catch (err) {
+    console.error(err);
+    feedback.errorAction();
+    toastError('Errore durante l\'eliminazione della cronologia.');
   }
 }
 
