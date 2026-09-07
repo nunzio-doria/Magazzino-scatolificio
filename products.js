@@ -6,7 +6,7 @@ import { listProducts, createProduct, updateProduct, deleteProduct, bulkUpsertPr
 import { toastSuccess, toastError } from './toast.js';
 import { isAdmin } from './auth.js';
 import { startCamera, stopCamera } from './camera.js';
-import { openPicker } from './picker.js';
+import { openPicker, attachFieldDropdown } from './picker.js';
 import { animateFluidSwap } from './app.js';
 import { confirmDialog } from './ui-modal.js';
 import { enhanceSelect } from './ui-select.js';
@@ -166,8 +166,27 @@ export function initProducts() {
   els.scanBarcodeBtn.addEventListener('click', startBarcodeScan);
   els.scanBarcodeStopBtn.addEventListener('click', stopBarcodeScan);
   els.importInput.addEventListener('change', handleImportFileChange);
-  els.lineaBtn.addEventListener('click', pickLinea);
-  els.macchinaBtn.addEventListener('click', pickMacchina);
+  attachFieldDropdown({
+    triggerBtn: els.lineaBtn,
+    valueEl: els.lineaValue,
+    hiddenInput: els.lineaHidden,
+    getOptions: LINEA_OPTIONS,
+    allowCustom: false,
+  });
+  attachFieldDropdown({
+    triggerBtn: els.macchinaBtn,
+    valueEl: els.macchinaValue,
+    hiddenInput: els.macchinaHidden,
+    getOptions: async () => {
+      try {
+        return await listDistinctMacchine();
+      } catch (err) {
+        console.warn('Impossibile caricare l\'elenco delle macchine registrate.', err);
+        return [];
+      }
+    },
+    allowCustom: true,
+  });
 
   els.categoryTabs.forEach((btn) => {
     btn.addEventListener('click', () => setCategory(btn.dataset.categoryTab));
@@ -562,34 +581,6 @@ function updateLineaMacchinaVisibility() {
 /** Il pulsante "genera barcode" ha senso solo per le cinghie, che non hanno un codice a barre fisico sulla confezione */
 function updateGenerateBarcodeVisibility() {
   els.generateBarcodeBtn.classList.toggle('hidden', els.categoriaSelect.value !== 'cinghie');
-}
-
-async function pickLinea() {
-  const val = await openPicker({
-    title: 'Seleziona linea',
-    options: LINEA_OPTIONS,
-    allowCustom: false,
-    currentValue: els.lineaHidden.value,
-  });
-  if (val === null) return; // annullato
-  setPickerValue(els.lineaHidden, els.lineaValue, val);
-}
-
-async function pickMacchina() {
-  let options = [];
-  try {
-    options = await listDistinctMacchine();
-  } catch (err) {
-    console.warn('Impossibile caricare l\'elenco delle macchine registrate.', err);
-  }
-  const val = await openPicker({
-    title: 'Seleziona macchina',
-    options,
-    allowCustom: true,
-    currentValue: els.macchinaHidden.value,
-  });
-  if (val === null) return; // annullato
-  setPickerValue(els.macchinaHidden, els.macchinaValue, val);
 }
 
 function setPickerValue(hiddenInput, labelEl, value) {

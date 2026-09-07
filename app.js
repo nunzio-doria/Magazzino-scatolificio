@@ -125,9 +125,17 @@ export function switchView(view, { animate = true } = {}) {
 
   if (view !== 'scanner') teardownScanner();
   if (view !== 'products') teardownProducts();
-  if (view === 'products') refreshProducts();
-  if (view === 'dashboard') refreshDashboard();
-  if (view === 'settings' && isAdmin()) refreshUsers();
+
+  // Il refresh (fetch rete + ricostruzione della lista + rigenerazione delle
+  // icone) è rinviato a dopo la fine dell'animazione invece di partire nello
+  // stesso istante del tocco: se parte subito, il lavoro pesante sul thread
+  // principale compete con la CSS animation proprio nei suoi primi frame,
+  // ed è la causa più probabile di scatti percepiti durante il cambio vista.
+  const doRefresh = () => {
+    if (view === 'products') refreshProducts();
+    if (view === 'dashboard') refreshDashboard();
+    if (view === 'settings' && isAdmin()) refreshUsers();
+  };
 
   const toSection = document.getElementById(`view-${view}`);
   const fromSection = previousView ? document.getElementById(`view-${previousView}`) : null;
@@ -136,10 +144,11 @@ export function switchView(view, { animate = true } = {}) {
     // Prima apparizione: nessuna vista precedente da cui uscire, la mostra e basta
     fromSection?.classList.add('hidden');
     toSection.classList.remove('hidden');
+    doRefresh();
     return;
   }
 
-  animateFluidSwap(fromSection, toSection, forward);
+  animateFluidSwap(fromSection, toSection, forward, doRefresh);
 }
 
 /**
@@ -148,8 +157,11 @@ export function switchView(view, { animate = true } = {}) {
  * per il cambio Scanner/Magazzino/Report, sia (importata altrove) per il
  * toggle Elenco/Scaffalatura nel Magazzino, cosí il "linguaggio" di
  * movimento resta identico in tutta l'app.
+ * @param {() => void} [onSettled] - richiamata a transizione conclusa (es.
+ *   per rimandare lì il refresh dati pesante, invece di farlo partire nello
+ *   stesso istante dell'animazione e rischiare di farla scattare).
  */
-export function animateFluidSwap(fromSection, toSection, forward) {
+export function animateFluidSwap(fromSection, toSection, forward, onSettled) {
   if (isTransitioning) return; // non sovrapporre un'animazione già in corso
   isTransitioning = true;
   const host = toSection.parentElement;
@@ -174,6 +186,17 @@ export function animateFluidSwap(fromSection, toSection, forward) {
   void toSection.offsetWidth; // forza il reflow prima di avviare l'animazione di ingresso
   toSection.classList.add('view-fluid-entering', enterClass);
 
+  // L'altezza del contenitore segue quella della vista in arrivo con una
+  // transizione morbida invece di restare bloccata sull'altezza della vista
+  // vecchia fino alla fine e poi "saltare" di colpo alla nuova: è uno degli
+  // scatti più percepibili quando due viste hanno lunghezze molto diverse
+  // (es. dal Magazzino, con tanti articoli, allo Scanner, molto più corto).
+  const toHeight = toSection.offsetHeight;
+  host.style.transition = 'min-height 320ms cubic-bezier(0.22, 1, 0.36, 1)';
+  requestAnimationFrame(() => {
+    host.style.minHeight = `${toHeight}px`;
+  });
+
   let done = false;
   const cleanup = () => {
     if (done) return;
@@ -186,7 +209,11 @@ export function animateFluidSwap(fromSection, toSection, forward) {
     fromSection.style.width = '';
     toSection.classList.remove('view-fluid-entering', 'view-fluid-enter-right', 'view-fluid-enter-left');
     host.style.minHeight = '';
+    host.style.transition = '';
     isTransitioning = false;
+    // Il lavoro pesante (fetch + ricostruzione DOM + icone) parte solo ora,
+    // a thread principale libero dall'animazione appena conclusa.
+    onSettled?.();
   };
   // L'ingresso (160ms di ritardo + 480ms) termina dopo l'uscita (240ms): è
   // il suo animationend a far scattare il cleanup.
