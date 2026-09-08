@@ -229,14 +229,16 @@ export async function listTransactions({ from, to, productId, limit = 200 } = {}
 }
 
 /**
- * Elimina permanentemente tutti i movimenti (depositi/prelievi) registrati
- * per un articolo. Non tocca la giacenza attuale (quantita_disponibile sui
- * products): rimuove solo il log storico. Serve tipicamente per poter poi
- * eliminare l'articolo stesso, dato che la tabella transactions ha un
- * vincolo di integrità referenziale verso products.
+ * Elimina permanentemente TUTTI i movimenti (depositi/prelievi) di TUTTI
+ * gli articoli, senza eccezioni. Non tocca la giacenza attuale sui
+ * products: rimuove solo il log storico. Azione riservata a Impostazioni
+ * (solo admin) — irreversibile, va confermata esplicitamente dal chiamante.
  */
-export async function deleteTransactionsForProduct(productId) {
-  const { error } = await supabase.from('transactions').delete().eq('product_id', productId);
+export async function deleteAllTransactions() {
+  // "not is null" sull'id (chiave primaria, mai nulla) equivale a "tutte le
+  // righe": il client Supabase richiede comunque un filtro esplicito, non
+  // accetta un .delete() completamente senza condizioni.
+  const { error } = await supabase.from('transactions').delete().not('id', 'is', null);
   if (error) throw error;
 }
 

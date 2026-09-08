@@ -4,9 +4,11 @@
 // dell'email nello storico transazioni e nei report.
 // =============================================================
 
-import { listProfiles, updateProfileName } from './supabase.js';
+import { listProfiles, updateProfileName, deleteAllTransactions } from './supabase.js';
 import { toastSuccess, toastError } from './toast.js';
 import { staggerIndex, replayAnimation } from './ui-utils.js';
+import { confirmDialog } from './ui-modal.js';
+import feedback from './feedback.js';
 
 const els = {};
 let profiles = [];
@@ -14,6 +16,8 @@ let profiles = [];
 export function initUsers() {
   els.list = document.getElementById('users-list');
   els.skeleton = document.getElementById('users-list-skeleton');
+  els.deleteAllHistoryBtn = document.getElementById('settings-delete-all-history-btn');
+  els.deleteAllHistoryBtn?.addEventListener('click', handleDeleteAllHistory);
 }
 
 export async function refreshUsers() {
@@ -78,6 +82,38 @@ async function saveName(id, name, btn) {
   } catch (err) {
     console.error(err);
     toastError('Errore nel salvataggio del nome.');
+  } finally {
+    btn.disabled = false;
+    btn.classList.remove('opacity-50');
+  }
+}
+
+/**
+ * Cancellazione integrale della cronologia movimenti (tutti gli articoli),
+ * spostata qui in Impostazioni — sostituisce la vecchia eliminazione
+ * "per singolo articolo" che stava nella scheda prodotto.
+ */
+async function handleDeleteAllHistory() {
+  const ok = await confirmDialog({
+    title: 'Eliminare tutta la cronologia?',
+    message:
+      'Verranno cancellati per sempre TUTTI i movimenti (depositi e prelievi) di TUTTI gli articoli. La giacenza attuale non cambia: viene rimosso solo lo storico. L\'operazione non è reversibile.',
+    confirmLabel: 'Elimina tutto',
+    danger: true,
+  });
+  if (!ok) return;
+
+  const btn = els.deleteAllHistoryBtn;
+  btn.disabled = true;
+  btn.classList.add('opacity-50');
+  try {
+    await deleteAllTransactions();
+    feedback.confirmAction();
+    toastSuccess('Cronologia movimenti eliminata.');
+  } catch (err) {
+    console.error(err);
+    feedback.errorAction();
+    toastError('Errore durante l\'eliminazione della cronologia.');
   } finally {
     btn.disabled = false;
     btn.classList.remove('opacity-50');

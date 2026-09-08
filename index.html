@@ -476,6 +476,19 @@
         <div id="product-import-pending" class="hidden card-plate rounded-xl p-4 mb-4 text-sm text-graphite-500">
           Import da Excel non ancora configurato per questa categoria — inventario in sospeso. Puoi comunque aggiungere articoli manualmente dal Magazzino con "+ Nuovo".
         </div>
+
+        <h3 class="font-display font-semibold uppercase tracking-wide text-sm text-rose-700 mb-2 mt-2">Zona pericolosa</h3>
+        <div class="card-plate rounded-xl p-4 border-2 border-rose-500/25">
+          <p class="text-sm text-graphite-200 font-medium mb-1">Elimina cronologia movimenti</p>
+          <p class="text-xs text-graphite-500 leading-relaxed mb-3">
+            Cancella per sempre TUTTI i depositi e prelievi registrati, di tutti gli articoli. La giacenza attuale non cambia: viene rimosso solo lo storico. Serve tipicamente per poter poi eliminare articoli che altrimenti risultano bloccati da movimenti collegati.
+          </p>
+          <button id="settings-delete-all-history-btn" type="button"
+            class="w-full flex items-center justify-center gap-2 rounded-lg border border-rose-500/40 text-rose-700 hover:bg-rose-500/10 px-4 py-2.5 text-sm font-display font-semibold uppercase tracking-wide transition-colors">
+            <i data-lucide="history" class="w-4 h-4" stroke-width="2"></i>
+            Elimina tutta la cronologia
+          </button>
+        </div>
       </div>
     </section>
 
@@ -620,11 +633,6 @@
           Elimina
         </button>
       </div>
-
-      <button id="product-delete-history-btn" type="button" class="hidden w-full flex items-center justify-center gap-2 rounded-lg border border-graphite-700 text-graphite-400 hover:border-rose-500/40 hover:text-rose-700 px-4 py-2 text-xs font-display font-semibold uppercase tracking-wide transition-colors">
-        <i data-lucide="history" class="w-3.5 h-3.5" stroke-width="2"></i>
-        Elimina cronologia movimenti
-      </button>
 
       <button type="submit" class="press-spring w-full rounded-lg bg-amber-400 hover:bg-amber-300 text-white font-display font-bold uppercase tracking-wide py-3 shadow-edge transition-colors active:scale-95">
         Salva articolo
