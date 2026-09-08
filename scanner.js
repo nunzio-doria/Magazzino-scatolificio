@@ -10,22 +10,14 @@ import {
   getCachedProductByBarcode,
   adjustCachedProductQuantity,
 } from './supabase.js';
-import { toastSuccess, toastError, toastWarning, toastInfo } from './toast.js';
+import { toastSuccess, toastError, toastWarning } from './toast.js';
 import { startCamera, stopCamera, switchCamera as switchCameraShared, toggleTorch } from './camera.js';
 import feedback from './feedback.js';
 import { enqueueTransaction, onQueueChange, getQueueCount, isNetworkError } from './offline-queue.js';
 import { animateNumber, replayAnimation, emptyStateHtml } from './ui-utils.js';
 
-const CONTINUOUS_MODE_KEY = 'magazzino-scanner-continuous';
-
 let currentMode = null; // 'deposito' | 'prelievo'
 let currentProduct = null;
-let continuousMode = false;
-try {
-  continuousMode = localStorage.getItem(CONTINUOUS_MODE_KEY) === '1';
-} catch (err) {
-  continuousMode = false;
-}
 
 const els = {};
 
@@ -55,7 +47,6 @@ export function initScanner() {
   els.lowStockCountEl = document.getElementById('scanner-lowstock-count');
   els.recentListEl = document.getElementById('scanner-recent-list');
   els.recentEmptyEl = document.getElementById('scanner-recent-empty');
-  els.continuousToggle = document.getElementById('scanner-continuous-toggle');
   els.offlineBadge = document.getElementById('scanner-offline-badge');
   els.offlineBadgeCount = document.getElementById('scanner-offline-badge-count');
 
@@ -83,20 +74,6 @@ export function initScanner() {
     switchCameraShared(handleDetectedCode, { focusHintEl: els.focusHint, switchBtnEl: els.switchCameraBtn, torchBtnEl: els.torchBtn })
   );
   els.torchBtn?.addEventListener('click', () => toggleTorch(els.torchBtn));
-
-  if (els.continuousToggle) {
-    els.continuousToggle.checked = continuousMode;
-    els.continuousToggle.addEventListener('change', () => {
-      continuousMode = els.continuousToggle.checked;
-      try {
-        localStorage.setItem(CONTINUOUS_MODE_KEY, continuousMode ? '1' : '0');
-      } catch (err) {
-        /* ignorabile */
-      }
-      feedback.modeSelect();
-      toastInfo(continuousMode ? 'Scansione continua attiva: conferma automatica a quantità 1.' : 'Scansione continua disattivata.', 3000);
-    });
-  }
 
   onQueueChange(updateOfflineBadge);
   updateOfflineBadge(getQueueCount());
@@ -140,9 +117,7 @@ let lastCodeAt = 0;
 
 async function handleDetectedCode(code) {
   // Debounce: evita letture duplicate ravvicinate dello stesso codice.
-  // In modalità continua l'intervallo è più corto, per non rallentare
-  // la scansione ravvicinata di più pezzi identici.
-  const debounceMs = continuousMode ? 900 : 2500;
+  const debounceMs = 2500;
   const now = Date.now();
   if (code === lastCode && now - lastCodeAt < debounceMs) return;
   lastCode = code;
@@ -154,7 +129,7 @@ async function handleDetectedCode(code) {
     return;
   }
 
-  if (!continuousMode) showResultSkeleton();
+  showResultSkeleton();
   try {
     let product;
     let fromCache = false;
@@ -177,12 +152,7 @@ async function handleDetectedCode(code) {
     replayAnimation(els.reader, 'reader-flash-ok');
     if (fromCache) toastWarning('Offline: dati dell\'articolo dall\'ultima sincronizzazione, potrebbero non essere aggiornati.', 4000);
     currentProduct = product;
-
-    if (continuousMode) {
-      await autoConfirm(product);
-    } else {
-      renderResult(product);
-    }
+    renderResult(product);
   } catch (err) {
     console.error(err);
     hideResultSkeleton();
@@ -248,8 +218,7 @@ function resetAll() {
 /**
  * Esegue la transazione vera e propria: online la registra subito, offline
  * la accoda per la sincronizzazione automatica e aggiorna otticamente la
- * giacenza in cache. Condivisa tra la conferma manuale e la modalità
- * di scansione continua.
+ * giacenza in cache.
  */
 async function runTransaction({ product, quantita, puntoUtilizzo }) {
   const tipo = currentMode;
@@ -323,18 +292,6 @@ async function confirmTransaction() {
   }
 }
 
-/** Conferma automatica a quantità 1, usata dalla modalità di scansione continua */
-async function autoConfirm(product) {
-  hideResultSkeleton();
-  const outcome = await runTransaction({
-    product,
-    quantita: 1,
-    puntoUtilizzo: product.punto_utilizzo_standard || '',
-  });
-  currentProduct = null;
-  if (outcome.ok) loadIdlePanel();
-}
-
 /** Chiamata quando si esce dalla vista scanner (es. cambio tab) */
 export function teardownScanner() {
   stopCamera();
@@ -352,7 +309,8 @@ export function activateMode(mode) {
  * la schermata iniziale non resta vuota: conteggio sotto-scorta e ultimi
  * movimenti registrati, a colpo d'occhio prima ancora di scansionare.
  */
-async function loadIdlePanel() {
+export async function loadIdlePanel() {
+  if (!els.recentListEl) return; // non ancora inizializzato (caso limite)
   try {
     const [lowStock, recent] = await Promise.all([listProducts({ onlyLowStock: true }), listTransactions({ limit: 5 })]);
     animateNumber(els.lowStockCountEl, lowStock.length, { duration: 500 });

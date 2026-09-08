@@ -17,6 +17,7 @@ import { isAdmin } from './auth.js';
 import { startCamera, stopCamera } from './camera.js';
 import { openPicker, attachFieldDropdown } from './picker.js';
 import { animateFluidSwap } from './app.js';
+import { loadIdlePanel } from './scanner.js';
 import { confirmDialog } from './ui-modal.js';
 import { enhanceSelect } from './ui-select.js';
 import feedback from './feedback.js';
@@ -763,7 +764,7 @@ async function handleDelete() {
   if (!editingId) return;
   const ok = await confirmDialog({
     title: 'Eliminare l\'articolo?',
-    message: 'Se esistono movimenti (depositi/prelievi) registrati per questo articolo, l\'eliminazione verrà rifiutata: la cronologia si elimina integralmente da Impostazioni. L\'operazione non è reversibile.',
+    message: 'Verranno eliminati anche tutti i movimenti (depositi/prelievi) registrati per questo articolo. L\'operazione non è reversibile.',
     confirmLabel: 'Elimina',
     danger: true,
   });
@@ -775,10 +776,11 @@ async function handleDelete() {
     toastSuccess('Articolo eliminato.');
     closeModal();
     refresh();
+    loadIdlePanel(); // la cronologia dell'articolo è sparita anche dagli "ultimi movimenti" in Scanner
   } catch (err) {
     console.error(err);
     feedback.errorAction();
-    toastError('Impossibile eliminare: esistono movimenti registrati. Elimina la cronologia da Impostazioni, poi riprova.');
+    toastError('Errore durante l\'eliminazione dell\'articolo.');
   }
 }
 
@@ -816,7 +818,7 @@ async function undo() {
   } catch (err) {
     console.error(err);
     feedback.errorAction();
-    toastError('Impossibile annullare l\'operazione (l\'articolo potrebbe avere transazioni collegate).');
+    toastError('Impossibile annullare l\'operazione.');
   } finally {
     updateHistoryButtons();
   }
@@ -842,7 +844,7 @@ async function redo() {
   } catch (err) {
     console.error(err);
     feedback.errorAction();
-    toastError('Impossibile ripetere l\'operazione (l\'articolo potrebbe avere transazioni collegate).');
+    toastError('Impossibile ripetere l\'operazione.');
   } finally {
     updateHistoryButtons();
   }

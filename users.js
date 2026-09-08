@@ -9,6 +9,7 @@ import { toastSuccess, toastError } from './toast.js';
 import { staggerIndex, replayAnimation } from './ui-utils.js';
 import { confirmDialog } from './ui-modal.js';
 import feedback from './feedback.js';
+import { loadIdlePanel } from './scanner.js';
 
 const els = {};
 let profiles = [];
@@ -110,6 +111,7 @@ async function handleDeleteAllHistory() {
     await deleteAllTransactions();
     feedback.confirmAction();
     toastSuccess('Cronologia movimenti eliminata.');
+    loadIdlePanel(); // "ultimi movimenti" in Scanner deve svuotarsi subito, non alla prossima visita
   } catch (err) {
     console.error(err);
     feedback.errorAction();
