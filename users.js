@@ -5,8 +5,8 @@
 // =============================================================
 
 import { listProfiles, updateProfileName, deleteAllTransactions } from './supabase.js';
-import { toastSuccess, toastError } from './toast.js';
-import { staggerIndex, replayAnimation } from './ui-utils.js';
+import { toastSuccess, toastError, toastWarning } from './toast.js';
+import { staggerIndex, replayAnimation, emptyStateHtml } from './ui-utils.js';
 import { confirmDialog } from './ui-modal.js';
 import feedback from './feedback.js';
 import { loadIdlePanel } from './scanner.js';
@@ -30,7 +30,13 @@ export async function refreshUsers() {
     renderUsers();
   } catch (err) {
     console.error(err);
-    toastError('Errore nel caricamento degli utenti.');
+    if (profiles.length > 0) {
+      renderUsers();
+      toastWarning('Connessione assente: mostro gli ultimi dati caricati.');
+    } else {
+      els.list.innerHTML = emptyStateHtml('wifi-off', 'Connessione assente', 'Controlla la rete e riprova.');
+      toastError('Errore nel caricamento degli utenti.');
+    }
   } finally {
     els.skeleton.classList.add('hidden');
     els.list.classList.remove('hidden');

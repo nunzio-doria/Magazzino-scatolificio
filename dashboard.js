@@ -3,7 +3,7 @@
 // =============================================================
 
 import { getConsumptionStats, listTransactions } from './supabase.js';
-import { toastError, toastSuccess } from './toast.js';
+import { toastError, toastSuccess, toastWarning } from './toast.js';
 import { enhanceSelect } from './ui-select.js';
 import { animateNumber, animateRing, emptyStateHtml, lockBodyScroll, unlockBodyScroll, staggerIndex } from './ui-utils.js';
 import feedback from './feedback.js';
@@ -13,6 +13,7 @@ let currentFrom = null;
 let currentPeriodLabel = '30d';
 let lastStats = [];
 let lastHistory = [];
+let hasLoadedOnce = false; // true dopo il primo caricamento riuscito, per distinguere "dati vuoti" da "mai caricato"
 let articleHistoryCache = [];
 let articleHistoryFilter = 'tutti'; // 'tutti' | 'deposito' | 'prelievo'
 
@@ -80,13 +81,27 @@ export async function refresh() {
     ]);
     lastStats = stats;
     lastHistory = history;
+    hasLoadedOnce = true;
 
     renderKpis(history);
     renderStats(stats);
     renderHistory(history);
   } catch (err) {
     console.error(err);
-    toastError('Errore nel caricamento della reportistica.');
+    // Se avevamo già dati da un caricamento precedente (lastStats/lastHistory
+    // non sono più il valore iniziale), meglio ri-mostrare quelli con un
+    // avviso che lasciare le card vuote senza spiegazione o, peggio,
+    // nascoste del tutto.
+    if (hasLoadedOnce) {
+      renderKpis(lastHistory);
+      renderStats(lastStats);
+      renderHistory(lastHistory);
+      toastWarning('Connessione assente: mostro gli ultimi dati caricati.');
+    } else {
+      els.statsWrap.innerHTML = emptyStateHtml('wifi-off', 'Connessione assente', 'Controlla la rete e riprova.');
+      els.historyWrap.innerHTML = emptyStateHtml('wifi-off', 'Connessione assente', 'Controlla la rete e riprova.');
+      toastError('Errore nel caricamento della reportistica.');
+    }
   } finally {
     els.statsSkeleton.classList.add('hidden');
     els.statsWrap.classList.remove('hidden');

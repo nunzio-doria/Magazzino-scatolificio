@@ -12,7 +12,7 @@ import {
   getProductByBarcode,
   getProductById,
 } from './supabase.js';
-import { toastSuccess, toastError } from './toast.js';
+import { toastSuccess, toastError, toastWarning } from './toast.js';
 import { isAdmin } from './auth.js';
 import { startCamera, stopCamera } from './camera.js';
 import { openPicker, attachFieldDropdown } from './picker.js';
@@ -346,6 +346,26 @@ function setImportCategory(category) {
   }
 }
 
+// Markup dell'empty state: due varianti, sempre scritte esplicitamente ad
+// ogni utilizzo — mai lasciate come markup statico nell'HTML — cosí non
+// resta mai "congelato" il messaggio sbagliato da uno stato precedente
+// (es. l'avviso di connessione assente che rimane visibile anche quando
+// poi una ricerca legittimamente non trova risultati).
+const EMPTY_STATE_HTML = `
+  <span class="w-14 h-14 rounded-full bg-graphite-800/60 flex items-center justify-center">
+    <i data-lucide="package-search" class="w-6 h-6 text-graphite-600" stroke-width="1.6"></i>
+  </span>
+  <p class="font-display font-semibold text-sm text-graphite-300">Nessun articolo trovato</p>
+  <p class="text-xs text-graphite-500 max-w-[220px] text-center leading-relaxed">Prova a modificare la ricerca o i filtri applicati.</p>
+`;
+const CONNECTION_ERROR_HTML = `
+  <span class="w-14 h-14 rounded-full bg-rose-500/10 flex items-center justify-center">
+    <i data-lucide="wifi-off" class="w-6 h-6 text-rose-600" stroke-width="1.6"></i>
+  </span>
+  <p class="font-display font-semibold text-sm text-graphite-300">Connessione assente</p>
+  <p class="text-xs text-graphite-500 max-w-[220px] text-center leading-relaxed">Controlla la rete e riprova.</p>
+`;
+
 export async function refresh() {
   els.skeleton.classList.remove('hidden');
   els.listWrap.classList.add('hidden');
@@ -363,7 +383,21 @@ export async function refresh() {
     renderCurrentList();
   } catch (err) {
     console.error(err);
-    toastError('Errore nel caricamento degli articoli.');
+    // Se la richiesta fallisce (rete assente, timeout...) currentList NON
+    // viene sovrascritta: mantiene ancora l'ultimo elenco caricato con
+    // successo. Se c'è qualcosa, meglio ri-mostrarlo (con un avviso) che
+    // lasciare la schermata vuota — la vera causa del problema "cade la
+    // rete e sparisce tutto": qui la vista veniva nascosta a inizio
+    // funzione e non veniva più ripristinata in caso di errore.
+    if (currentList.length > 0) {
+      renderCurrentList();
+      toastWarning('Connessione assente: mostro gli ultimi dati caricati.');
+    } else {
+      els.emptyState.innerHTML = CONNECTION_ERROR_HTML;
+      els.emptyState.classList.remove('hidden');
+      window.lucide?.createIcons();
+      toastError('Impossibile caricare gli articoli. Controlla la connessione.');
+    }
   } finally {
     els.skeleton.classList.add('hidden');
   }
@@ -383,7 +417,9 @@ function renderCurrentList() {
   els.emptyState.classList.add('hidden');
 
   if (currentList.length === 0) {
+    els.emptyState.innerHTML = EMPTY_STATE_HTML;
     els.emptyState.classList.remove('hidden');
+    window.lucide?.createIcons();
     return;
   }
 

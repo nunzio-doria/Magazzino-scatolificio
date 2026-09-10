@@ -182,9 +182,15 @@ export function animateFluidSwap(fromSection, toSection, forward, onSettled) {
   fromSection.style.width = `${fromRect.width}px`;
   fromSection.classList.add('view-fluid-leaving', exitClass);
 
-  toSection.classList.remove('hidden');
-  void toSection.offsetWidth; // forza il reflow prima di avviare l'animazione di ingresso
+  // Le classi di ingresso si applicano PRIMA di togliere "hidden": un elemento
+  // display:none non fa partire le sue animazioni CSS, quindi restano "in
+  // pausa" al fotogramma iniziale finché non diventa visibile. Evita cosí un
+  // istante in cui la vista entrante sarebbe visibile alla sua dimensione
+  // naturale piena, non ancora ridotta/sfumata dall'animazione — uno dei
+  // contributi al rimbalzo di altezza che faceva comparire/sparire la
+  // scrollbar durante il cambio di sezione.
   toSection.classList.add('view-fluid-entering', enterClass);
+  toSection.classList.remove('hidden');
 
   // L'altezza del contenitore segue quella della vista in arrivo con una
   // transizione morbida invece di restare bloccata sull'altezza della vista

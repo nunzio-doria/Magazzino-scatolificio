@@ -37,8 +37,9 @@
 </head>
 <body class="bg-graphite-900 text-graphite-100 font-body min-h-screen">
 
-<!-- Contenitore notifiche toast -->
-<div id="toast-container" class="fixed top-0 inset-x-0 z-[100] flex flex-col items-center gap-2 px-4 pt-4 pointer-events-none"></div>
+<!-- Contenitore notifiche toast: appena sopra la bottom nav, non in cima
+     allo schermo — piú vicino al pollice, e non copre l'header -->
+<div id="toast-container" class="fixed bottom-[76px] inset-x-0 z-[100] flex flex-col items-center gap-2 px-4 pointer-events-none"></div>
 
 <!-- =================== VISTA LOGIN =================== -->
 <div id="auth-view" class="min-h-screen flex flex-col items-center justify-center px-6">
