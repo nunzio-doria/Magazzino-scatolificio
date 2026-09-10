@@ -166,6 +166,19 @@ export function animateFluidSwap(fromSection, toSection, forward, onSettled) {
   isTransitioning = true;
   const host = toSection.parentElement;
 
+  // Per la durata della transizione, sia la vista uscente (ancora presente,
+  // position:absolute alla sua geometria originale) sia quella entrante
+  // (già alla sua altezza reale, non "cresce" gradualmente: solo min-height
+  // lo fa, il contenuto vero no) contribuiscono insieme all'altezza
+  // scrollabile del documento, che quindi oscilla bruscamente per una
+  // frazione di secondo. Su Android questo fa lampeggiare per un istante
+  // la scrollbar overlay — confermato via screen recording. Bloccando qui
+  // lo scroll della pagina, il browser non ha nulla a cui reagire; lo stato
+  // finale (corretto) si ristabilisce da solo non appena sblocchiamo, a
+  // transizione conclusa.
+  const previousHtmlOverflowY = document.documentElement.style.overflowY;
+  document.documentElement.style.overflowY = 'hidden';
+
   // Misura la posizione reale (in px, coordinate viewport) della vista uscente
   // PRIMA di renderla absolute, cosí resta perfettamente allineata alla vista
   // entrante anche con il padding del contenitore.
@@ -216,6 +229,7 @@ export function animateFluidSwap(fromSection, toSection, forward, onSettled) {
     toSection.classList.remove('view-fluid-entering', 'view-fluid-enter-right', 'view-fluid-enter-left');
     host.style.minHeight = '';
     host.style.transition = '';
+    document.documentElement.style.overflowY = previousHtmlOverflowY;
     isTransitioning = false;
     // Il lavoro pesante (fetch + ricostruzione DOM + icone) parte solo ora,
     // a thread principale libero dall'animazione appena conclusa.
