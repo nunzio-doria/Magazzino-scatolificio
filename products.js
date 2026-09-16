@@ -60,10 +60,10 @@ function toWritableRow(row) {
   };
 }
 
-const CATEGORY_LABELS = {
+export const CATEGORY_LABELS = {
   cuscinetti: 'Cuscinetti',
   cinghie: 'Cinghie',
-  pezzi_ricambio: 'Pezzi di ricambio',
+  pezzi_ricambio: 'Ricambi tecnici',
 };
 
 const LINEA_OPTIONS = ['L1', 'L2', 'L1-L2'];

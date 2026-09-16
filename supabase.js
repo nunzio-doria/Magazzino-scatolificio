@@ -62,6 +62,18 @@ export function getCachedProductByBarcode(codiceBarre) {
   const id = cache.byBarcode?.[codiceBarre];
   return id != null ? cache.byId?.[id] || null : null;
 }
+/** Cerca prodotti nella cache locale per codice articolo (o barcode),
+ *  quando la rete non risponde — fallback offline della ricerca manuale
+ *  per codice articolo nello scanner. */
+export function searchCachedProducts(term) {
+  const q = (term || '').trim().toLowerCase();
+  if (!q) return [];
+  const cache = loadProductCache();
+  const all = Object.values(cache.byId || {});
+  return all.filter(
+    (p) => (p.codice_articolo || '').toLowerCase().includes(q) || (p.codice_barre || '').toLowerCase().includes(q)
+  );
+}
 /**
  * Aggiorna otticamente la giacenza di un prodotto in cache dopo una
  * transazione messa in coda offline, cosí lo scanner mostra un valore

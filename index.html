@@ -178,7 +178,7 @@
         </div>
       </div>
 
-      <form id="manual-barcode-form" class="hidden flex gap-2 mb-4">
+      <form id="manual-barcode-form" class="hidden flex gap-2 mb-3">
         <div class="relative flex-1">
           <i data-lucide="barcode" class="w-4 h-4 text-graphite-500 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" stroke-width="1.8"></i>
           <input id="manual-barcode-input" type="text" placeholder="Oppure inserisci il codice manualmente"
@@ -189,6 +189,24 @@
           Cerca
         </button>
       </form>
+
+      <!-- Ricerca per codice articolo: alternativa allo scanner/barcode.
+           Filtra dinamicamente mentre si scrive; la selezione di un
+           risultato dalla tendina è l'UNICO modo per procedere — niente
+           pulsante "conferma", cosí non è possibile procedere con un
+           codice inesistente digitato a mano. -->
+      <div id="scanner-code-search-wrap" class="custom-select hidden relative mb-4">
+        <div class="relative">
+          <i data-lucide="hash" class="w-4 h-4 text-graphite-500 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" stroke-width="1.8"></i>
+          <input id="scanner-code-search-input" type="text" autocomplete="off" placeholder="Oppure cerca per codice articolo"
+            class="w-full rounded-lg bg-graphite-800 border border-graphite-700 pl-9 pr-3.5 py-2.5 text-sm font-mono placeholder-graphite-600 focus:border-amber-400 outline-none transition-colors">
+        </div>
+        <div class="custom-select-panel-track">
+          <div class="custom-select-panel-inner card-plate rounded-lg border border-graphite-700">
+            <div id="scanner-code-search-results" class="max-h-72 overflow-y-auto"></div>
+          </div>
+        </div>
+      </div>
 
       <!-- Skeleton mentre cerca l'articolo -->
       <div id="scan-result-skeleton" class="hidden card-plate rounded-xl p-4 space-y-3">
@@ -250,7 +268,7 @@
       <div class="grid grid-cols-3 gap-2 mb-3">
         <button type="button" data-category-tab="cuscinetti" class="category-tab card-plate rounded-lg py-2.5 text-xs font-display font-semibold uppercase tracking-wide border-2 border-graphite-700">Cuscinetti</button>
         <button type="button" data-category-tab="cinghie" class="category-tab card-plate rounded-lg py-2.5 text-xs font-display font-semibold uppercase tracking-wide border-2 border-graphite-700">Cinghie</button>
-        <button type="button" data-category-tab="pezzi_ricambio" class="category-tab card-plate rounded-lg py-2.5 text-xs font-display font-semibold uppercase tracking-wide border-2 border-graphite-700">Pezzi ricambio</button>
+        <button type="button" data-category-tab="pezzi_ricambio" class="category-tab card-plate rounded-lg py-2.5 text-xs font-display font-semibold uppercase tracking-wide border-2 border-graphite-700">Ricambi tecnici</button>
       </div>
 
       <!-- Toggle modalità di visualizzazione: elenco piatto, scaffalatura per
@@ -448,7 +466,7 @@
         <div class="grid grid-cols-3 gap-2 mb-4">
           <button type="button" data-import-category-tab="cuscinetti" class="import-category-tab card-plate rounded-lg py-2.5 text-xs font-display font-semibold uppercase tracking-wide border-2 border-graphite-700">Cuscinetti</button>
           <button type="button" data-import-category-tab="cinghie" class="import-category-tab card-plate rounded-lg py-2.5 text-xs font-display font-semibold uppercase tracking-wide border-2 border-graphite-700">Cinghie</button>
-          <button type="button" data-import-category-tab="pezzi_ricambio" class="import-category-tab card-plate rounded-lg py-2.5 text-xs font-display font-semibold uppercase tracking-wide border-2 border-graphite-700">Pezzi ricambio</button>
+          <button type="button" data-import-category-tab="pezzi_ricambio" class="import-category-tab card-plate rounded-lg py-2.5 text-xs font-display font-semibold uppercase tracking-wide border-2 border-graphite-700">Ricambi tecnici</button>
         </div>
 
         <div id="product-import-wrap" class="hidden card-plate rounded-xl p-4 mb-4">
@@ -546,7 +564,7 @@
         <select id="product-categoria" required class="w-full rounded-lg bg-graphite-800 border border-graphite-700 px-3.5 py-2.5 text-sm focus:border-amber-400 outline-none transition-colors">
           <option value="cuscinetti">Cuscinetti</option>
           <option value="cinghie">Cinghie</option>
-          <option value="pezzi_ricambio">Pezzi di ricambio</option>
+          <option value="pezzi_ricambio">Ricambi tecnici</option>
         </select>
       </div>
       <div>
