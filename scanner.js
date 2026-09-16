@@ -99,10 +99,17 @@ function selectMode(mode) {
     mode === 'deposito' ? 'bg-emerald-500/15 text-emerald-700' : 'bg-amber-500/15 text-amber-300'
   }`;
   els.modeBanner.classList.remove('hidden');
-  els.readerWrap.classList.remove('hidden');
-  els.manualForm.classList.remove('hidden');
   els.idlePanel.classList.add('hidden');
 
+  openScanningUI();
+}
+
+/** Mostra reader/fotocamera + form manuale e avvia la fotocamera: stato
+ *  "pronto a scansionare", sia alla prima selezione della modalità sia
+ *  tornando a scansionare il prossimo articolo dopo un annullamento/conferma. */
+function openScanningUI() {
+  els.readerWrap.classList.remove('hidden');
+  els.manualForm.classList.remove('hidden');
   startCamera('scanner-reader', handleDetectedCode, {
     focusHintEl: els.focusHint,
     switchBtnEl: els.switchCameraBtn,
@@ -110,6 +117,20 @@ function selectMode(mode) {
   }).then((started) => {
     if (started) els.stopCameraBtn.classList.remove('hidden');
   });
+}
+
+/** Chiude reader/fotocamera e ferma la ripresa: chiamata appena un codice
+ *  viene trovato con successo, cosí l'attenzione passa subito alla
+ *  selezione di quantità e dettagli invece di lasciare la fotocamera
+ *  accesa dietro/accanto al risultato. */
+function closeScanningUI() {
+  stopCamera();
+  els.readerWrap.classList.add('hidden');
+  els.manualForm.classList.add('hidden');
+  els.switchCameraBtn?.classList.add('hidden');
+  els.stopCameraBtn?.classList.add('hidden');
+  els.torchBtn?.classList.add('hidden');
+  els.focusHint?.classList.add('hidden');
 }
 
 let lastCode = null;
@@ -152,6 +173,7 @@ async function handleDetectedCode(code) {
     replayAnimation(els.reader, 'reader-flash-ok');
     if (fromCache) toastWarning('Offline: dati dell\'articolo dall\'ultima sincronizzazione, potrebbero non essere aggiornati.', 4000);
     currentProduct = product;
+    closeScanningUI(); // codice matchato: si passa subito a quantità/dettagli, niente più fotocamera in mezzo
     renderResult(product);
   } catch (err) {
     console.error(err);
@@ -197,6 +219,10 @@ function resetResult() {
   currentProduct = null;
   els.resultCard.classList.add('hidden');
   els.resultSkeleton.classList.add('hidden');
+  // Si torna a scansionare il prossimo articolo solo se la modalità è
+  // ancora attiva: durante resetAll() (si lascia la vista Scanner) mode è
+  // già stato azzerato prima di arrivare qui, quindi non riapre la fotocamera.
+  if (currentMode) openScanningUI();
 }
 
 function resetAll() {
