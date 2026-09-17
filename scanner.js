@@ -301,6 +301,7 @@ async function handleDetectedCode(code) {
  *  selezione di quantità/dettagli. Punto unico condiviso da tutti e tre i
  *  modi di trovare un articolo, cosí si comportano sempre allo stesso modo. */
 function onProductMatched(product, { fromCache = false } = {}) {
+  document.activeElement?.blur(); // chiude la tastiera se un campo (barcode manuale o ricerca codice) aveva il focus
   if (fromCache) toastWarning('Offline: dati dell\'articolo dall\'ultima sincronizzazione, potrebbero non essere aggiornati.', 4000);
   currentProduct = product;
   closeScanningUI();
@@ -330,12 +331,6 @@ function renderResult(product) {
   els.confirmBtn.className = `flex-1 rounded-lg py-3 font-display font-semibold uppercase tracking-wide text-white transition-transform active:scale-95 ${
     currentMode === 'deposito' ? 'bg-emerald-400 hover:bg-emerald-300' : 'bg-amber-400 hover:bg-amber-300'
   }`;
-
-  // Focus automatico sul campo quantità per inserimento rapido
-  requestAnimationFrame(() => {
-    els.qtyInput.focus();
-    els.qtyInput.select();
-  });
 }
 
 function resetResult() {
