@@ -14,7 +14,7 @@ import {
 } from './supabase.js';
 import { toastSuccess, toastError, toastWarning } from './toast.js';
 import { isAdmin } from './auth.js';
-import { startCamera, stopCamera } from './camera.js';
+import { startCamera, stopCamera, switchCamera as switchCameraShared, toggleTorch } from './camera.js';
 import { openPicker, attachFieldDropdown } from './picker.js';
 import { animateFluidSwap } from './app.js';
 import { loadIdlePanel } from './scanner.js';
@@ -154,6 +154,8 @@ export function initProducts() {
   els.scanBarcodeBtn = document.getElementById('product-scan-barcode-btn');
   els.scanBarcodeStopBtn = document.getElementById('product-scan-barcode-stop');
   els.barcodeScannerWrap = document.getElementById('product-barcode-scanner-wrap');
+  els.scanSwitchBtn = document.getElementById('product-scan-switch-btn');
+  els.scanTorchBtn = document.getElementById('product-scan-torch-btn');
 
   els.searchInput.addEventListener('input', () => {
     clearTimeout(searchDebounce);
@@ -175,6 +177,10 @@ export function initProducts() {
   els.categoriaSelect.addEventListener('change', updateLineaMacchinaVisibility);
   els.scanBarcodeBtn.addEventListener('click', startBarcodeScan);
   els.scanBarcodeStopBtn.addEventListener('click', stopBarcodeScan);
+  els.scanSwitchBtn?.addEventListener('click', () =>
+    switchCameraShared(handleBarcodeScanDetected, { switchBtnEl: els.scanSwitchBtn, torchBtnEl: els.scanTorchBtn })
+  );
+  els.scanTorchBtn?.addEventListener('click', () => toggleTorch(els.scanTorchBtn));
   els.importInput.addEventListener('change', handleImportFileChange);
   attachFieldDropdown({
     triggerBtn: els.lineaBtn,
@@ -715,15 +721,20 @@ function updateBarcodePreview() {
   }
 }
 
+function handleBarcodeScanDetected(code) {
+  document.getElementById('product-codice-barre').value = code;
+  updateBarcodePreview();
+  stopBarcodeScan();
+  feedback.scanFound();
+  toastSuccess(`Codice a barre acquisito: ${code}`);
+}
+
 /** Apre la fotocamera per acquisire il barcode già stampato sulla confezione (cuscinetti) */
 async function startBarcodeScan() {
   els.barcodeScannerWrap.classList.remove('hidden');
-  const started = await startCamera('product-barcode-scanner-reader', (code) => {
-    document.getElementById('product-codice-barre').value = code;
-    updateBarcodePreview();
-    stopBarcodeScan();
-    feedback.scanFound();
-    toastSuccess(`Codice a barre acquisito: ${code}`);
+  const started = await startCamera('product-barcode-scanner-reader', handleBarcodeScanDetected, {
+    switchBtnEl: els.scanSwitchBtn,
+    torchBtnEl: els.scanTorchBtn,
   });
   if (!started) els.barcodeScannerWrap.classList.add('hidden');
 }
@@ -731,6 +742,8 @@ async function startBarcodeScan() {
 function stopBarcodeScan() {
   stopCamera();
   els.barcodeScannerWrap.classList.add('hidden');
+  els.scanSwitchBtn?.classList.add('hidden');
+  els.scanTorchBtn?.classList.add('hidden');
 }
 
 /**

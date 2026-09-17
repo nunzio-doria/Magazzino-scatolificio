@@ -625,6 +625,16 @@
 
       <div id="product-barcode-scanner-wrap" class="hidden">
         <div id="product-barcode-scanner-reader" class="w-full relative"></div>
+        <div class="flex items-center justify-center gap-4 mt-1">
+          <button id="product-scan-switch-btn" type="button" class="hidden inline-flex items-center gap-1.5 text-xs text-graphite-500 hover:text-amber-300 py-1.5 transition-colors">
+            <i data-lucide="switch-camera" class="w-3.5 h-3.5" stroke-width="2"></i>
+            Cambia fotocamera
+          </button>
+          <button id="product-scan-torch-btn" type="button" aria-label="Torcia" class="hidden inline-flex items-center gap-1.5 text-xs text-graphite-500 hover:text-amber-300 py-1.5 transition-colors">
+            <i data-lucide="flashlight" class="w-3.5 h-3.5" stroke-width="2"></i>
+            Torcia
+          </button>
+        </div>
         <button id="product-scan-barcode-stop" type="button" class="w-full mt-2 text-xs text-graphite-500 hover:text-graphite-300 py-1.5 transition-colors">Annulla scansione</button>
       </div>
 
