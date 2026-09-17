@@ -22,14 +22,18 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
 
-<!-- Tailwind CSS (CDN, versione pinnata — mai @latest/non versionato: un
-     aggiornamento del CDN a nostra insaputa non deve poter cambiare cosa
-     gira in produzione) + configurazione tema.
-     NOTA: il Play CDN compila le classi a runtime iniettando un <style>
-     nella pagina, quindi non può esporre un hash SRI verificabile (il
-     contenuto non è un file statico) — è il limite intrinseco che rende
-     preferibile, in futuro, una build Tailwind reale (CLI/PostCSS). -->
-<script src="https://cdn.tailwindcss.com/[email protected]"></script>
+<!-- Tailwind CSS (CDN). NOTA: qui era stata provata una versione "pinnata"
+     (https://cdn.tailwindcss.com/3.4.17) per evitare che un aggiornamento
+     del CDN cambiasse cosa gira in produzione — ma quell'URL non era
+     verificabile da un ambiente senza accesso diretto alla rete, e in
+     produzione ha restituito un errore, lasciando l'app completamente
+     senza stile. Ripristinato l'URL originale, verificato funzionante.
+     Il Play CDN compila le classi a runtime iniettando un <style> nella
+     pagina, quindi non può comunque esporre un hash SRI verificabile
+     (il contenuto non è un file statico) — è il limite intrinseco che
+     rende preferibile, in futuro, una build Tailwind reale (CLI/PostCSS),
+     che risolverebbe sia questo che il problema del pinning. -->
+<script src="https://cdn.tailwindcss.com"></script>
 <script src="./tailwind.config.js"></script>
 
 <!-- Librerie: generazione barcode, PDF, scanner fotocamera — tutte a
