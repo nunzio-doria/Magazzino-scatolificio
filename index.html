@@ -22,16 +22,26 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
 
-<!-- Tailwind CSS (CDN) + configurazione tema -->
-<script src="https://cdn.tailwindcss.com"></script>
+<!-- Tailwind CSS (CDN, versione pinnata — mai @latest/non versionato: un
+     aggiornamento del CDN a nostra insaputa non deve poter cambiare cosa
+     gira in produzione) + configurazione tema.
+     NOTA: il Play CDN compila le classi a runtime iniettando un <style>
+     nella pagina, quindi non può esporre un hash SRI verificabile (il
+     contenuto non è un file statico) — è il limite intrinseco che rende
+     preferibile, in futuro, una build Tailwind reale (CLI/PostCSS). -->
+<script src="https://cdn.tailwindcss.com/[email protected]"></script>
 <script src="./tailwind.config.js"></script>
 
-<!-- Librerie: generazione barcode, PDF, scanner fotocamera -->
+<!-- Librerie: generazione barcode, PDF, scanner fotocamera — tutte a
+     versione fissa. Gli hash "integrity" (SRI) NON sono inclusi qui
+     apposta: un hash sbagliato o goffo bloccherebbe silenziosamente lo
+     script in produzione (peggio che non averlo), e va generato/verificato
+     con accesso diretto al file servito (v. README per il comando). -->
 <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js"></script>
 <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-<script src="https://unpkg.com/lucide@latest"></script>
+<script src="https://unpkg.com/lucide@1.11.0"></script>
 
 <link rel="stylesheet" href="./style.css">
 </head>

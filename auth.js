@@ -13,6 +13,66 @@ export const authState = {
 
 const CACHED_PROFILE_KEY = 'magazzino-cached-profile';
 
+// --- LOGOUT AUTOMATICO PER INATTIVITÀ --------------------------------
+// Su dispositivi condivisi (tablet/PC in reparto) una sessione rimasta
+// aperta resta autenticata a tempo indeterminato. Dopo il periodo di
+// inattività sotto, l'utente viene disconnesso automaticamente; un
+// avviso compare 60s prima per dargli il tempo di reagire con un tocco.
+const IDLE_TIMEOUT_MS = 10 * 60 * 1000; // 10 minuti senza interazione
+const IDLE_WARNING_MS = 60 * 1000; // avviso 60s prima della disconnessione
+const ACTIVITY_EVENTS = ['pointerdown', 'keydown', 'touchstart', 'wheel'];
+
+let idleTimer = null;
+let idleWarningTimer = null;
+let activityListenersAttached = false;
+
+/**
+ * Avvia (o riavvia da zero) il conto alla rovescia di inattività. Va
+ * richiamato ad ogni interazione dell'utente mentre è autenticato.
+ * @param {() => void} onTimeout callback da eseguire allo scadere del tempo
+ */
+function resetIdleTimer(onTimeout) {
+  clearTimeout(idleTimer);
+  clearTimeout(idleWarningTimer);
+  idleWarningTimer = setTimeout(() => {
+    toastWarning('Disconnessione automatica tra 60s per inattività — tocca lo schermo per restare collegato.', 6000);
+  }, IDLE_TIMEOUT_MS - IDLE_WARNING_MS);
+  idleTimer = setTimeout(onTimeout, IDLE_TIMEOUT_MS);
+}
+
+function stopIdleTimer() {
+  clearTimeout(idleTimer);
+  clearTimeout(idleWarningTimer);
+  idleTimer = null;
+  idleWarningTimer = null;
+}
+
+/**
+ * Collega gli ascoltatori di attività globali una sola volta per tutta la
+ * vita della pagina. Il callback riceve sempre l'ultimo onTimeout valido
+ * tramite il riferimento mutabile passato da initAuth, cosí funziona
+ * identicamente su login/logout ripetuti nella stessa sessione di pagina.
+ */
+function attachActivityListeners(getIsAuthed, onTimeout) {
+  if (activityListenersAttached) return;
+  activityListenersAttached = true;
+  for (const evt of ACTIVITY_EVENTS) {
+    document.addEventListener(
+      evt,
+      () => {
+        if (getIsAuthed()) resetIdleTimer(onTimeout);
+      },
+      { passive: true }
+    );
+  }
+  // Se l'app torna in primo piano dopo essere stata in background a
+  // lungo (schermo bloccato, altra app), è essa stessa "un'interazione":
+  // riparte il conteggio invece di scattare subito al resume.
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && getIsAuthed()) resetIdleTimer(onTimeout);
+  });
+}
+
 function cacheProfile(profile) {
   try {
     localStorage.setItem(CACHED_PROFILE_KEY, JSON.stringify(profile));
@@ -53,6 +113,20 @@ export function initAuth(onAuthed, onSignedOut) {
   const submitBtn = document.getElementById('login-submit');
   const errorBox = document.getElementById('login-error');
 
+  const handleIdleTimeout = async () => {
+    try {
+      await signOut();
+    } catch (err) {
+      console.error(err);
+    }
+    authState.session = null;
+    authState.profile = null;
+    stopIdleTimer();
+    onSignedOut();
+    toastWarning('Sessione terminata automaticamente per inattività.');
+  };
+  attachActivityListeners(() => !!authState.session, handleIdleTimeout);
+
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     errorBox.classList.add('hidden');
@@ -67,6 +141,7 @@ export function initAuth(onAuthed, onSignedOut) {
       authState.session = session;
       authState.profile = profile;
       cacheProfile(profile);
+      resetIdleTimer(handleIdleTimeout);
       toastSuccess(`Bentornato, ${profile.full_name || profile.email}`);
       onAuthed(profile);
     } catch (err) {
@@ -91,6 +166,7 @@ export function initAuth(onAuthed, onSignedOut) {
     }
     authState.session = null;
     authState.profile = null;
+    stopIdleTimer();
     onSignedOut();
   });
 
@@ -113,6 +189,7 @@ export function initAuth(onAuthed, onSignedOut) {
         authState.session = session;
         authState.profile = profile;
         cacheProfile(profile);
+        resetIdleTimer(handleIdleTimeout);
         onAuthed(profile);
       } catch (err) {
         console.error(err);
@@ -120,6 +197,7 @@ export function initAuth(onAuthed, onSignedOut) {
         if (cached) {
           authState.session = session;
           authState.profile = cached;
+          resetIdleTimer(handleIdleTimeout);
           toastWarning('Connessione assente: accesso con gli ultimi dati salvati.');
           onAuthed(cached);
         } else {
@@ -133,7 +211,10 @@ export function initAuth(onAuthed, onSignedOut) {
     .catch(() => onSignedOut());
 
   supabase.auth.onAuthStateChange((event) => {
-    if (event === 'SIGNED_OUT') onSignedOut();
+    if (event === 'SIGNED_OUT') {
+      stopIdleTimer();
+      onSignedOut();
+    }
   });
 }
 

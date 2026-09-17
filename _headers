@@ -1,0 +1,28 @@
+# =============================================================
+# _headers — Header di sicurezza HTTP per Cloudflare Pages
+# =============================================================
+# Cloudflare Pages legge questo file (non netlify.toml, che è specifico
+# di Netlify) e applica gli header alle risposte che serve.
+# Ogni header deve stare su UNA riga sola: niente indentazione multi-riga
+# come nel TOML, altrimenti Cloudflare lo tratta come testo non valido.
+#
+# Nota sulla CSP: 'unsafe-inline' su style-src è necessario perché il
+# Play CDN di Tailwind (cdn.tailwindcss.com) compila le classi a runtime
+# iniettando un tag <style> nella pagina — non usa un file .css esterno.
+# Passare a una build Tailwind reale (CLI/PostCSS) permetterebbe di
+# togliere anche questo 'unsafe-inline' e avere una CSP più stretta.
+
+/*
+  Content-Security-Policy: default-src 'self'; script-src 'self' https://cdn.tailwindcss.com https://cdn.jsdelivr.net https://unpkg.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' https://ffbwazuikbqkikuybcyp.supabase.co; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests
+  Strict-Transport-Security: max-age=31536000; includeSubDomains
+  X-Content-Type-Options: nosniff
+  X-Frame-Options: DENY
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: camera=(self), microphone=(), geolocation=(), payment=(), usb=()
+
+# Il service worker deve poter essere ri-scaricato subito ad ogni deploy
+# (l'auto-update già gestito in app.js via registration.update() dipende
+# da questo): una cache troppo aggressiva qui vanificherebbe l'aggiornamento
+# automatico che avvisa gli operatori della nuova versione.
+/service-worker.js
+  Cache-Control: no-cache
