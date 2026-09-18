@@ -797,6 +797,16 @@ input.peer:checked ~ span:first-of-type {
 #pull-refresh-indicator i {
   transition: transform 60ms linear;
 }
+/* Mentre l'utente sta trascinando col dito, l'indicatore va aggiornato
+   1:1 ad ogni evento touchmove: qualunque transizione qui sopra entra in
+   conflitto con quegli aggiornamenti continui (ognuno riparte prima che
+   la precedente finisca) e il risultato è visivamente a scatti invece che
+   fluido. Le transizioni servono solo per gli stati "a riposo" — comparsa,
+   scomparsa, scatto verso lo spinning — non durante il gesto attivo. */
+#pull-refresh-indicator.pull-dragging,
+#pull-refresh-indicator.pull-dragging i {
+  transition: none;
+}
 #pull-refresh-indicator.pull-ready {
   background: var(--accent-dark);
 }

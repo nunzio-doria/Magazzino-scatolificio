@@ -170,7 +170,7 @@ export function initPullToRefresh(viewRefreshMap) {
     indicator.style.transform = 'translate(-50%, 0)';
     indicator.style.opacity = '0';
     indicator.classList.add('hidden');
-    indicator.classList.remove('pull-ready', 'pull-spinning');
+    indicator.classList.remove('pull-ready', 'pull-spinning', 'pull-dragging');
     ready = false;
   }
 
@@ -178,11 +178,18 @@ export function initPullToRefresh(viewRefreshMap) {
     'touchstart',
     (e) => {
       if (refreshing || window.scrollY > 4) return;
+      // Non avviare il gesto se il tocco parte dentro una lista che
+      // scorre per conto suo (dropdown risultati scanner, storico
+      // articolo, form nella modale, picker): lì lo scroll interno non
+      // si riflette su window.scrollY, che quindi la scambierebbe per
+      // "pagina in cima" anche quando non lo è affatto.
+      if (e.target.closest('.overflow-y-auto')) return;
       activeFn = findActiveRefreshFn();
       if (!activeFn) return;
       startY = e.touches[0].clientY;
       pulling = true;
       indicator.classList.remove('hidden');
+      indicator.classList.add('pull-dragging');
     },
     { passive: true }
   );
@@ -212,6 +219,7 @@ export function initPullToRefresh(viewRefreshMap) {
     pulling = false;
     if (ready && activeFn) {
       refreshing = true;
+      indicator.classList.remove('pull-dragging');
       indicator.classList.add('pull-spinning');
       indicator.style.transform = 'translate(-50%, 54px)';
       indicator.style.opacity = '1';
