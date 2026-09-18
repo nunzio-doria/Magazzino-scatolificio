@@ -152,11 +152,17 @@ export function initPullToRefresh(viewRefreshMap) {
 
   const THRESHOLD = 62;
   const MAX_PULL = 100;
+  // Deve combaciare con la durata della transizione "a riposo" impostata
+  // in CSS (transform 260ms, opacity 220ms): l'elemento va nascosto
+  // (display:none) solo a rientro concluso, altrimenti l'occultamento
+  // interrompe la transizione a metà e sembra sparire di scatto.
+  const RETRACT_MS = 280;
   let startY = 0;
   let pulling = false;
   let ready = false;
   let refreshing = false;
   let activeFn = null;
+  let hideTimer = null;
 
   function findActiveRefreshFn() {
     for (const [viewId, fn] of Object.entries(viewRefreshMap)) {
@@ -166,12 +172,21 @@ export function initPullToRefresh(viewRefreshMap) {
     return null;
   }
 
+  /**
+   * Rientro animato: rimuove subito 'pull-dragging' (cosí le transizioni
+   * CSS su transform/opacity tornano attive) e lascia che l'elemento
+   * scivoli via da solo — proprio come su Gmail, prima finisce
+   * l'animazione all'indietro, e solo a quel punto lo si nasconde
+   * davvero con 'hidden'. Lo scroll della lista sotto non è comunque
+   * bloccato nel frattempo: l'indicatore è in overlay (position: fixed).
+   */
   function reset() {
+    clearTimeout(hideTimer);
+    indicator.classList.remove('pull-ready', 'pull-spinning', 'pull-dragging');
     indicator.style.transform = 'translate(-50%, 0)';
     indicator.style.opacity = '0';
-    indicator.classList.add('hidden');
-    indicator.classList.remove('pull-ready', 'pull-spinning', 'pull-dragging');
     ready = false;
+    hideTimer = setTimeout(() => indicator.classList.add('hidden'), RETRACT_MS);
   }
 
   document.addEventListener(
@@ -186,6 +201,7 @@ export function initPullToRefresh(viewRefreshMap) {
       if (e.target.closest('.overflow-y-auto')) return;
       activeFn = findActiveRefreshFn();
       if (!activeFn) return;
+      clearTimeout(hideTimer); // un nuovo tocco annulla un rientro ancora in corso
       startY = e.touches[0].clientY;
       pulling = true;
       indicator.classList.remove('hidden');

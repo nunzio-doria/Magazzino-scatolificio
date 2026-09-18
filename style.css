@@ -792,7 +792,12 @@ input.peer:checked ~ span:first-of-type {
 
 /* ---- Indicatore di pull-to-refresh ------------------------------------ */
 #pull-refresh-indicator {
-  transition: opacity 120ms ease;
+  /* Attiva solo a riposo (gesto rilasciato): durante il trascinamento
+     .pull-dragging le disattiva per seguire il dito 1:1 — vedi sotto.
+     Il transform ha una molla leggera (overshoot minimo) coerente con
+     le altre micro-interazioni dell'app; l'opacity resta lineare per
+     non "sbattere" mentre l'elemento sta ancora rientrando in vista. */
+  transition: opacity 220ms ease, transform 260ms cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 #pull-refresh-indicator i {
   transition: transform 60ms linear;
