@@ -94,6 +94,18 @@ const CATEGORY_IMPORT_CONFIG = {
       scorta_minima: toInt(c[6]),
     }),
   },
+  pezzi_ricambio: {
+    hint: 'Colonne A→G: Codice, Locazione, Quantità, Linea, Macchina, Punto di utilizzo, Scorta minima.',
+    mapRow: (c) => ({
+      codice_articolo: c[0],
+      locazione: c[1] || null,
+      quantita_disponibile: toInt(c[2]),
+      linea: c[3] || null,
+      macchina: c[4] || null,
+      punto_utilizzo_standard: c[5] || null,
+      scorta_minima: toInt(c[6]),
+    }),
+  },
 };
 
 function toInt(v) {
@@ -261,17 +273,14 @@ async function handleSearchScanDetected(code) {
     els.searchInput.value = product.codice_articolo;
     if (product.categoria && product.categoria !== currentCategory) setCategory(product.categoria);
     else refresh();
-    // Per l'admin la ricerca da barcode è tipicamente un salto rapido alla
-    // scheda dell'articolo: recupera il record completo (get_product_by_barcode
-    // restituisce solo i campi che servono allo scanner) per non rischiare di
-    // sovrascrivere campi come scorta minima/linea/macchina con valori vuoti.
-    if (isAdmin()) {
-      try {
-        const fullProduct = await getProductById(product.id);
-        openModal(fullProduct);
-      } catch (modalErr) {
-        console.warn('Impossibile aprire la scheda completa dell\'articolo.', modalErr);
-      }
+    // Recupera il record completo (get_product_by_barcode restituisce solo i
+    // campi che servono allo scanner) cosí la scheda mostra/permette di
+    // modificare anche linea/macchina/scorta minima, non solo i campi base.
+    try {
+      const fullProduct = await getProductById(product.id);
+      openModal(fullProduct);
+    } catch (modalErr) {
+      console.warn('Impossibile aprire la scheda completa dell\'articolo.', modalErr);
     }
   } catch (err) {
     console.error(err);
@@ -456,8 +465,7 @@ function renderList() {
         ${lowStock ? '<p class="text-[10px] uppercase tracking-wide text-rose-700 mt-1">sotto scorta</p>' : ''}
       </div>
     `;
-    if (isAdmin()) row.addEventListener('click', () => openModal(p));
-    else row.disabled = true;
+    row.addEventListener('click', () => openModal(p));
     els.listWrap.appendChild(row);
   });
 }
@@ -573,18 +581,15 @@ function renderGroupedCards({ wrapEl, openSet, groupKeyFn, subtitleFields, unass
       else openSet.delete(key);
     });
 
-    // Sola lettura per l'operatore: stesso criterio usato nell'elenco piatto.
+    // Sola lettura per l'operatore (vedi applyModalPermissions): può aprire
+    // la scheda, ma i campi risulteranno disabilitati.
     card.querySelectorAll('.shelf-item').forEach((btn) => {
-      if (isAdmin()) {
-        const product = items.find((p) => String(p.id) === btn.dataset.productId);
-        btn.addEventListener('click', (e) => {
-          e.stopPropagation();
-          openModal(product);
-        });
-        btn.classList.add('hover:bg-graphite-700/30', 'transition-colors');
-      } else {
-        btn.disabled = true;
-      }
+      const product = items.find((p) => String(p.id) === btn.dataset.productId);
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        openModal(product);
+      });
+      btn.classList.add('hover:bg-graphite-700/30', 'transition-colors');
     });
 
     wrapEl.appendChild(card);
@@ -593,10 +598,34 @@ function renderGroupedCards({ wrapEl, openSet, groupKeyFn, subtitleFields, unass
   window.lucide?.createIcons();
 }
 
+/**
+ * Un operatore (non admin) può aprire la scheda di un articolo per
+ * consultarla, ma non modificarla: disabilita tutti i campi e nasconde i
+ * pulsanti che scrivono sul database (salva, elimina). Il codice a barre
+ * resta comunque visibile/stampabile — è una lettura, non una scrittura.
+ */
+function applyModalPermissions() {
+  const readOnly = !isAdmin();
+  ['product-codice-articolo', 'product-punto-standard', 'product-locazione', 'product-quantita', 'product-scorta-minima', 'product-codice-barre'].forEach((id) => {
+    const el = document.getElementById(id);
+    if (el) el.disabled = readOnly;
+  });
+  els.categoriaSelectUI ? els.categoriaSelectUI.setDisabled(readOnly) : (els.categoriaSelect.disabled = readOnly);
+  els.lineaBtn.disabled = readOnly;
+  els.macchinaBtn.disabled = readOnly;
+  els.scanBarcodeBtn.disabled = readOnly;
+  if (readOnly) {
+    els.deleteBtn.classList.add('hidden');
+    els.generateBarcodeBtn.classList.add('hidden');
+  }
+  const submitBtn = els.form.querySelector('button[type="submit"]');
+  submitBtn?.classList.toggle('hidden', readOnly);
+  els.modalTitle.textContent = readOnly ? 'Dettaglio articolo' : (editingId ? 'Modifica articolo' : 'Nuovo articolo');
+}
+
 function openModal(product = null) {
   editingId = product?.id || null;
   editingSnapshot = product ? { ...product } : null;
-  els.modalTitle.textContent = product ? 'Modifica articolo' : 'Nuovo articolo';
   els.deleteBtn.classList.toggle('hidden', !product);
   els.form.reset();
   stopBarcodeScan();
@@ -621,13 +650,15 @@ function openModal(product = null) {
   updateLineaMacchinaVisibility();
   updateBarcodePreview();
   updateGenerateBarcodeVisibility();
+  applyModalPermissions();
   els.modal.classList.remove('hidden');
   lockBodyScroll();
   requestAnimationFrame(() => els.modal.classList.add('modal-visible'));
 }
 
 function updateLineaMacchinaVisibility() {
-  els.lineaMacchinaWrap.classList.toggle('hidden', els.categoriaSelect.value !== 'cinghie');
+  const categoria = els.categoriaSelect.value;
+  els.lineaMacchinaWrap.classList.toggle('hidden', categoria !== 'cinghie' && categoria !== 'pezzi_ricambio');
   updateGenerateBarcodeVisibility();
 }
 

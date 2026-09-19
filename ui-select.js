@@ -116,5 +116,13 @@ export function enhanceSelect(selectEl) {
       sync();
       window.lucide?.createIcons();
     },
+    /** Disabilita/riabilita sia il trigger visibile sia la select nativa sottostante. */
+    setDisabled(disabled) {
+      selectEl.disabled = disabled;
+      trigger.disabled = disabled;
+      trigger.classList.toggle('opacity-60', disabled);
+      trigger.classList.toggle('pointer-events-none', disabled);
+      if (disabled) close();
+    },
   };
 }
