@@ -220,6 +220,14 @@ export function initPullToRefresh(viewRefreshMap) {
         pulling = false;
         return;
       }
+      // Da qui in poi il gesto è "nostro": blocchiamo il comportamento
+      // nativo del browser (rimbalzo/overscroll ed eventuale
+      // pull-to-refresh di Chrome). Senza questo preventDefault il
+      // listener era 'passive', quindi non poteva mai bloccarlo: capitava
+      // che comparisse ANCHE l'indicatore nativo di Chrome insieme al
+      // nostro, due cose diverse sovrapposte. Per poter chiamare
+      // preventDefault il listener non può più essere passive (v. sotto).
+      e.preventDefault();
       const dist = Math.min(dy * 0.5, MAX_PULL);
       indicator.style.transform = `translate(-50%, ${dist}px)`;
       indicator.style.opacity = String(Math.min(dist / THRESHOLD, 1));
@@ -227,7 +235,7 @@ export function initPullToRefresh(viewRefreshMap) {
       ready = dist >= THRESHOLD;
       indicator.classList.toggle('pull-ready', ready);
     },
-    { passive: true }
+    { passive: false }
   );
 
   document.addEventListener('touchend', async () => {

@@ -19,7 +19,7 @@
 
 html, body {
   height: 100%;
-  overscroll-behavior-y: contain;
+  overscroll-behavior: contain;
   /* Riserva sempre lo spazio della scrollbar verticale, anche quando il
      contenuto non ne ha bisogno. Senza questo, durante le transizioni tra
      sezioni l'altezza del documento oscilla per un istante (la vista
