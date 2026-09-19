@@ -36,6 +36,7 @@ export function initScanner() {
   els.codeSearchWrap = document.getElementById('scanner-code-search-wrap');
   els.codeSearchInput = document.getElementById('scanner-code-search-input');
   els.codeSearchResults = document.getElementById('scanner-code-search-results');
+  els.findDivider = document.getElementById('scan-find-divider');
   els.resultCard = document.getElementById('scan-result-card');
   els.resultSkeleton = document.getElementById('scan-result-skeleton');
   els.productName = document.getElementById('scan-product-name');
@@ -68,6 +69,22 @@ export function initScanner() {
     closeScanModal();
   });
   els.openCameraBtn.addEventListener('click', expandCamera);
+  // Sul telefono la tastiera occupa metà schermo: appena si tocca il campo
+  // di ricerca, il pulsante "scansiona" e il separatore spariscono per fare
+  // spazio, e la ricerca sale in cima allo spazio visibile rimasto — cosí i
+  // risultati compaiono subito sotto invece di finire coperti dalla
+  // tastiera. Tornano visibili solo se si esce dal campo senza aver
+  // scritto nulla (altrimenti resta comunque la scheda risultato, che
+  // nasconde tutto il resto).
+  els.codeSearchInput.addEventListener('focus', () => {
+    toggleScanCameraSection(false);
+    setTimeout(() => {
+      els.codeSearchWrap.scrollIntoView({ block: 'start', behavior: 'smooth' });
+    }, 300);
+  });
+  els.codeSearchInput.addEventListener('blur', () => {
+    if (!els.codeSearchInput.value.trim()) toggleScanCameraSection(true);
+  });
   initCodeSearch();
   els.cancelBtn.addEventListener('click', () => {
     feedback.cancelAction();
@@ -141,6 +158,18 @@ function showFindMethods() {
   els.resultSkeleton.classList.add('hidden');
   resetCodeSearch();
   collapseCamera();
+  toggleScanCameraSection(true);
+}
+
+/** Nasconde/mostra il pulsante "Effettua scansione codice" (e il
+ *  separatore "oppure") per lasciare tutto lo spazio disponibile alla
+ *  ricerca per codice mentre la tastiera è aperta. Se la fotocamera era
+ *  attiva la richiude, dato che si sta comunque passando all'altro modo
+ *  di cercare l'articolo. */
+function toggleScanCameraSection(show) {
+  if (!show) collapseCamera();
+  els.openCameraBtn.classList.toggle('hidden', !show);
+  els.findDivider?.classList.toggle('hidden', !show);
 }
 
 /** Un articolo è stato trovato: si passa alla scheda quantità/conferma,
