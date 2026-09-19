@@ -40,6 +40,9 @@ export function initScanner() {
   els.productStock = document.getElementById('scan-product-stock');
   els.productLoc = document.getElementById('scan-product-loc');
   els.qtyInput = document.getElementById('scan-qty-input');
+  els.qtyValue = document.getElementById('scan-qty-value');
+  els.qtyMinusBtn = document.getElementById('scan-qty-minus');
+  els.qtyPlusBtn = document.getElementById('scan-qty-plus');
   els.puntoInput = document.getElementById('scan-punto-input');
   els.confirmBtn = document.getElementById('scan-confirm-btn');
   els.cancelBtn = document.getElementById('scan-cancel-btn');
@@ -69,6 +72,8 @@ export function initScanner() {
     resetResult();
   });
   els.confirmBtn.addEventListener('click', confirmTransaction);
+  els.qtyMinusBtn.addEventListener('click', () => stepQty(-1));
+  els.qtyPlusBtn.addEventListener('click', () => stepQty(1));
   els.stopCameraBtn.addEventListener('click', () => {
     stopCamera();
     els.stopCameraBtn.classList.add('hidden');
@@ -316,6 +321,19 @@ function hideResultSkeleton() {
   els.resultSkeleton.classList.add('hidden');
 }
 
+/** Aggiorna sia il valore nascosto (quello letto da confirmTransaction) sia
+ *  quello mostrato all'operatore, con un minimo di 1. Niente tastiera:
+ *  la quantità si cambia solo con i due pulsanti +/-. */
+function setQty(value) {
+  const qty = Math.max(1, Math.round(value) || 1);
+  els.qtyInput.value = qty;
+  els.qtyValue.textContent = qty;
+}
+function stepQty(delta) {
+  feedback.focusTap();
+  setQty(parseInt(els.qtyInput.value, 10) + delta);
+}
+
 function renderResult(product) {
   hideResultSkeleton();
   els.resultCard.classList.remove('hidden');
@@ -325,7 +343,7 @@ function renderResult(product) {
   els.productStock.textContent = product.quantita_disponibile;
   els.productLoc.textContent = product.locazione || '—';
   els.puntoInput.value = product.punto_utilizzo_standard || '';
-  els.qtyInput.value = 1;
+  setQty(1);
 
   els.confirmBtn.textContent = currentMode === 'deposito' ? 'Conferma deposito' : 'Conferma prelievo';
   els.confirmBtn.className = `flex-1 rounded-lg py-3 font-display font-semibold uppercase tracking-wide text-white transition-transform active:scale-95 ${
