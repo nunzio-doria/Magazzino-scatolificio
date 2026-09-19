@@ -9,15 +9,15 @@ import { initDashboard, refresh as refreshDashboard } from './dashboard.js';
 import { initUsers, refreshUsers } from './users.js';
 import { initPicker } from './picker.js';
 import feedback, { initFeedbackSettings } from './feedback.js';
-import { initPullToRefresh } from './ui-utils.js';
 import { initOfflineSync } from './offline-queue.js';
 import { processTransaction } from './supabase.js';
-import { toastSuccess } from './toast.js';
+import { toastSuccess, toastError } from './toast.js';
 
 const VIEWS = ['scanner', 'products', 'dashboard', 'settings'];
 let modulesInitialized = false;
 let currentView = null;
 let isTransitioning = false;
+let swRegistration = null;
 
 function onAuthed(profile) {
   document.getElementById('auth-view').classList.add('hidden');
@@ -50,10 +50,7 @@ function onAuthed(profile) {
     initUsers();
     initNav();
     initFeedbackSettings();
-    initPullToRefresh({
-      'view-products': refreshProducts,
-      'view-dashboard': refreshDashboard,
-    });
+    initSettingsRefreshButton();
     initOfflineSync(async (payload) => {
       const result = await processTransaction(payload);
       toastSuccess(`Sincronizzato: ${payload.codice_articolo} (${payload.tipo === 'deposito' ? 'deposito' : 'prelievo'})`, 3000);
@@ -89,6 +86,52 @@ function initNav() {
   document.getElementById('settings-btn').addEventListener('click', () => {
     feedback.navTap();
     switchView('settings');
+  });
+}
+
+/**
+ * Unico punto da cui, ora, si può forzare un aggiornamento: niente più
+ * gesti (pull-to-refresh, con o senza tocco, sono stati rimossi). Il
+ * pulsante fa due cose distinte:
+ * 1. Ricarica i dati (articoli + dashboard) dal database.
+ * 2. Chiede al service worker di controllare se c'è una versione più
+ *    recente dell'app — se la trova, il listener 'controllerchange' già
+ *    registrato più sotto ricarica la pagina in automatico una volta sola.
+ */
+function initSettingsRefreshButton() {
+  const btn = document.getElementById('settings-refresh-btn');
+  const status = document.getElementById('settings-refresh-status');
+  if (!btn) return;
+  let running = false;
+
+  btn.addEventListener('click', async () => {
+    if (running) return;
+    running = true;
+    btn.disabled = true;
+    btn.classList.add('opacity-60', 'pointer-events-none');
+    if (status) status.textContent = 'Aggiornamento in corso…';
+
+    const results = await Promise.allSettled([
+      refreshProducts(),
+      refreshDashboard(),
+      swRegistration ? swRegistration.update() : Promise.resolve(),
+    ]);
+    const failed = results.some((r) => r.status === 'rejected');
+
+    btn.disabled = false;
+    btn.classList.remove('opacity-60', 'pointer-events-none');
+    running = false;
+
+    if (failed) {
+      if (status) status.textContent = '';
+      toastError('Aggiornamento parziale: controlla la connessione.');
+    } else {
+      if (status) status.textContent = 'Dati aggiornati.';
+      toastSuccess('Aggiornato.', 2000);
+      setTimeout(() => {
+        if (status) status.textContent = '';
+      }, 4000);
+    }
   });
 }
 
@@ -251,6 +294,7 @@ if ('serviceWorker' in navigator) {
   window.addEventListener('load', async () => {
     try {
       const registration = await navigator.serviceWorker.register('./service-worker.js');
+      swRegistration = registration;
       // Controlla subito se c'è una versione più recente (utile se l'app
       // resta aperta a lungo, o il browser non ha ancora rifatto il check).
       registration.update().catch(() => {});

@@ -790,41 +790,6 @@ input.peer:checked ~ span:first-of-type {
   100% { transform: scale(1) translateY(0); opacity: 1; }
 }
 
-/* ---- Indicatore di pull-to-refresh ------------------------------------ */
-#pull-refresh-indicator {
-  /* Attiva solo a riposo (gesto rilasciato): durante il trascinamento
-     .pull-dragging le disattiva per seguire il dito 1:1 — vedi sotto.
-     Il transform ha una molla leggera (overshoot minimo) coerente con
-     le altre micro-interazioni dell'app; l'opacity resta lineare per
-     non "sbattere" mentre l'elemento sta ancora rientrando in vista. */
-  transition: opacity 220ms ease, transform 260ms cubic-bezier(0.34, 1.56, 0.64, 1);
-}
-#pull-refresh-indicator i {
-  transition: transform 60ms linear, opacity 200ms ease;
-}
-/* Mentre l'utente sta trascinando col dito, l'indicatore va aggiornato
-   1:1 ad ogni evento touchmove: qualunque transizione qui sopra entra in
-   conflitto con quegli aggiornamenti continui (ognuno riparte prima che
-   la precedente finisca) e il risultato è visivamente a scatti invece che
-   fluido. Le transizioni servono solo per gli stati "a riposo" — comparsa,
-   scomparsa, scatto verso lo spinning — non durante il gesto attivo. */
-#pull-refresh-indicator.pull-dragging,
-#pull-refresh-indicator.pull-dragging i {
-  transition: none;
-}
-#pull-refresh-indicator.pull-ready {
-  background: var(--accent-dark);
-}
-#pull-refresh-indicator.pull-ready i {
-  color: #ffffff;
-}
-#pull-refresh-indicator.pull-spinning i {
-  animation: pull-spin 700ms linear infinite;
-}
-@keyframes pull-spin {
-  to { transform: rotate(360deg); }
-}
-
 /* ---- Riduzione animazioni per chi la richiede -------------------------- */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {

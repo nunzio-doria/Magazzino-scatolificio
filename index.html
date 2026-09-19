@@ -116,10 +116,6 @@
 
   <main class="view-host flex-1 max-w-2xl w-full mx-auto px-4 py-4">
 
-    <div id="pull-refresh-indicator" class="hidden fixed left-1/2 top-16 z-50 w-10 h-10 rounded-full bg-graphite-800 border border-graphite-700 shadow-lift flex items-center justify-center opacity-0" style="transform: translate(-50%, 0);">
-      <i data-lucide="refresh-cw" class="w-4 h-4 text-graphite-300" stroke-width="2.2"></i>
-    </div>
-
     <!-- ============ VISTA SCANNER (Deposito/Prelievo) ============ -->
     <section id="view-scanner">
 
@@ -433,6 +429,16 @@
         <button id="logout-btn" type="button" class="shrink-0 rounded-lg border border-rose-500/40 text-rose-700 hover:bg-rose-500/10 px-3.5 py-2 text-xs font-display font-semibold uppercase tracking-wide transition-colors">
           Esci
         </button>
+      </div>
+
+      <div class="card-plate rounded-xl p-4 mb-5">
+        <h3 class="font-display font-semibold uppercase tracking-wide text-sm text-graphite-400 mb-1">Aggiornamenti</h3>
+        <p class="text-xs text-graphite-500 mb-3">Ricarica i dati e controlla se è disponibile una nuova versione dell'app.</p>
+        <button id="settings-refresh-btn" type="button" class="w-full flex items-center justify-center gap-2 rounded-lg border border-graphite-700 hover:bg-graphite-800 px-3.5 py-2.5 text-sm font-display font-semibold uppercase tracking-wide transition-colors">
+          <i data-lucide="refresh-cw" class="w-4 h-4"></i>
+          Aggiorna
+        </button>
+        <p id="settings-refresh-status" class="text-xs text-graphite-500 mt-2 text-center"></p>
       </div>
 
       <div class="card-plate rounded-xl p-4 mb-5">
