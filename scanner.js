@@ -15,7 +15,7 @@ import { toastSuccess, toastError, toastWarning } from './toast.js';
 import { startCamera, stopCamera, switchCamera as switchCameraShared, toggleTorch } from './camera.js';
 import feedback from './feedback.js';
 import { enqueueTransaction, onQueueChange, getQueueCount, isNetworkError } from './offline-queue.js';
-import { animateNumber, replayAnimation, emptyStateHtml } from './ui-utils.js';
+import { animateNumber, replayAnimation, emptyStateHtml, lockBodyScroll, unlockBodyScroll } from './ui-utils.js';
 import { CATEGORY_LABELS } from './products.js';
 
 let currentMode = null; // 'deposito' | 'prelievo'
@@ -26,10 +26,13 @@ const els = {};
 export function initScanner() {
   els.modeDeposito = document.getElementById('mode-deposito');
   els.modePrelievo = document.getElementById('mode-prelievo');
+  els.scanModal = document.getElementById('scan-mode-modal');
+  els.closeModalBtn = document.getElementById('scan-mode-close-btn');
+  els.findMethods = document.getElementById('scan-find-methods');
+  els.openCameraBtn = document.getElementById('scan-open-camera-btn');
+  els.cameraCollapse = document.getElementById('scanner-camera-collapse');
   els.readerWrap = document.getElementById('scanner-reader-wrap');
   els.reader = document.getElementById('scanner-reader');
-  els.manualForm = document.getElementById('manual-barcode-form');
-  els.manualInput = document.getElementById('manual-barcode-input');
   els.codeSearchWrap = document.getElementById('scanner-code-search-wrap');
   els.codeSearchInput = document.getElementById('scanner-code-search-input');
   els.codeSearchResults = document.getElementById('scanner-code-search-results');
@@ -60,12 +63,11 @@ export function initScanner() {
 
   els.modeDeposito.addEventListener('click', () => selectMode('deposito'));
   els.modePrelievo.addEventListener('click', () => selectMode('prelievo'));
-  els.manualForm.addEventListener('submit', (e) => {
-    e.preventDefault();
-    const code = els.manualInput.value.trim();
-    if (code) handleDetectedCode(code);
-    els.manualInput.value = '';
+  els.closeModalBtn.addEventListener('click', () => {
+    feedback.cancelAction();
+    closeScanModal();
   });
+  els.openCameraBtn.addEventListener('click', expandCamera);
   initCodeSearch();
   els.cancelBtn.addEventListener('click', () => {
     feedback.cancelAction();
@@ -74,13 +76,7 @@ export function initScanner() {
   els.confirmBtn.addEventListener('click', confirmTransaction);
   els.qtyMinusBtn.addEventListener('click', () => stepQty(-1));
   els.qtyPlusBtn.addEventListener('click', () => stepQty(1));
-  els.stopCameraBtn.addEventListener('click', () => {
-    stopCamera();
-    els.stopCameraBtn.classList.add('hidden');
-    els.switchCameraBtn.classList.add('hidden');
-    els.torchBtn?.classList.add('hidden');
-    els.focusHint?.classList.add('hidden');
-  });
+  els.stopCameraBtn.addEventListener('click', collapseCamera);
   els.switchCameraBtn.addEventListener('click', () =>
     switchCameraShared(handleDetectedCode, { focusHintEl: els.focusHint, switchBtnEl: els.switchCameraBtn, torchBtnEl: els.torchBtn })
   );
@@ -105,43 +101,77 @@ function selectMode(mode) {
   els.modeDeposito.classList.toggle('mode-active-deposito', mode === 'deposito');
   els.modePrelievo.classList.toggle('mode-active-prelievo', mode === 'prelievo');
 
-  els.modeBanner.textContent = mode === 'deposito' ? 'Modalità DEPOSITO — inquadra il barcode' : 'Modalità PRELIEVO — inquadra il barcode';
-  els.modeBanner.className = `text-center text-sm font-display font-semibold tracking-wide uppercase py-2 rounded-md ${
-    mode === 'deposito' ? 'bg-emerald-500/15 text-emerald-700' : 'bg-amber-500/15 text-amber-300'
+  els.modeBanner.textContent = mode === 'deposito' ? 'Modalità Deposito' : 'Modalità Prelievo';
+  els.modeBanner.className = `font-display font-bold text-base uppercase tracking-wide ${
+    mode === 'deposito' ? 'text-emerald-700' : 'text-amber-300'
   }`;
-  els.modeBanner.classList.remove('hidden');
-  els.idlePanel.classList.add('hidden');
 
-  openScanningUI();
+  openScanModal();
 }
 
-/** Mostra reader/fotocamera + form manuale e avvia la fotocamera: stato
- *  "pronto a scansionare", sia alla prima selezione della modalità sia
- *  tornando a scansionare il prossimo articolo dopo un annullamento/conferma. */
-function openScanningUI() {
-  els.readerWrap.classList.remove('hidden');
-  els.manualForm.classList.remove('hidden');
-  els.codeSearchWrap.classList.remove('hidden');
+/** Apre la finestra di scansione/ricerca sopra la vista Scanner. La
+ *  fotocamera NON parte da sola: resta il pulsante "Effettua scansione
+ *  codice" finché l'utente non lo preme (vedi expandCamera). */
+function openScanModal() {
+  showFindMethods();
+  els.scanModal.classList.remove('hidden');
+  lockBodyScroll();
+  requestAnimationFrame(() => els.scanModal.classList.add('modal-visible'));
+}
+
+/** Chiude del tutto la finestra ed esce dalla modalità deposito/prelievo. */
+function closeScanModal() {
+  if (els.scanModal.classList.contains('hidden')) return; // già chiusa: evita di sballare lo scroll-lock
+  collapseCamera();
+  currentMode = null;
+  currentProduct = null;
+  els.modeDeposito.classList.remove('mode-active-deposito');
+  els.modePrelievo.classList.remove('mode-active-prelievo');
+  els.scanModal.classList.remove('modal-visible');
+  unlockBodyScroll();
+  setTimeout(() => els.scanModal.classList.add('hidden'), 180);
+}
+
+/** Torna alla schermata "scansiona o cerca", pronta per il prossimo
+ *  articolo: fotocamera richiusa (va riaperta col pulsante), ricerca per
+ *  codice azzerata. Usata sia alla prima apertura sia dopo un Annulla. */
+function showFindMethods() {
+  els.findMethods.classList.remove('hidden');
+  els.resultCard.classList.add('hidden');
+  els.resultSkeleton.classList.add('hidden');
   resetCodeSearch();
+  collapseCamera();
+}
+
+/** Un articolo è stato trovato: si passa alla scheda quantità/conferma,
+ *  richiudendo fotocamera e ricerca. */
+function hideFindMethods() {
+  collapseCamera();
+  els.findMethods.classList.add('hidden');
+  closeCodeSearchPanel();
+}
+
+/** Espande con animazione fluida il riquadro della fotocamera e la avvia:
+ *  chiamata solo dal pulsante "Effettua scansione codice", mai in automatico. */
+function expandCamera() {
+  els.openCameraBtn.classList.add('hidden');
+  els.cameraCollapse.classList.add('expanded');
   startCamera('scanner-reader', handleDetectedCode, {
     focusHintEl: els.focusHint,
     switchBtnEl: els.switchCameraBtn,
     torchBtnEl: els.torchBtn,
   }).then((started) => {
     if (started) els.stopCameraBtn.classList.remove('hidden');
+    else collapseCamera(); // fotocamera non disponibile: torna al pulsante
   });
 }
 
-/** Chiude reader/fotocamera e ferma la ripresa: chiamata appena un codice
- *  viene trovato con successo, cosí l'attenzione passa subito alla
- *  selezione di quantità e dettagli invece di lasciare la fotocamera
- *  accesa dietro/accanto al risultato. */
-function closeScanningUI() {
+/** Richiude il riquadro della fotocamera (stessa animazione, alla
+ *  rovescia) e la ferma. Riporta al solo pulsante "Effettua scansione". */
+function collapseCamera() {
   stopCamera();
-  els.readerWrap.classList.add('hidden');
-  els.manualForm.classList.add('hidden');
-  els.codeSearchWrap.classList.add('hidden');
-  closeCodeSearchPanel();
+  els.cameraCollapse.classList.remove('expanded');
+  els.openCameraBtn.classList.remove('hidden');
   els.switchCameraBtn?.classList.add('hidden');
   els.stopCameraBtn?.classList.add('hidden');
   els.torchBtn?.classList.add('hidden');
@@ -301,15 +331,15 @@ async function handleDetectedCode(code) {
   }
 }
 
-/** Un articolo è stato individuato (fotocamera, barcode manuale, o ricerca
- *  per codice): chiude subito l'interfaccia di scansione e passa alla
- *  selezione di quantità/dettagli. Punto unico condiviso da tutti e tre i
- *  modi di trovare un articolo, cosí si comportano sempre allo stesso modo. */
+/** Un articolo è stato individuato (fotocamera o ricerca per codice): chiude
+ *  subito l'interfaccia di ricerca e passa alla selezione di quantità/
+ *  dettagli. Punto unico condiviso da entrambi i modi di trovare un
+ *  articolo, cosí si comportano sempre allo stesso modo. */
 function onProductMatched(product, { fromCache = false } = {}) {
-  document.activeElement?.blur(); // chiude la tastiera se un campo (barcode manuale o ricerca codice) aveva il focus
+  document.activeElement?.blur(); // chiude la tastiera se il campo ricerca codice aveva il focus
   if (fromCache) toastWarning('Offline: dati dell\'articolo dall\'ultima sincronizzazione, potrebbero non essere aggiornati.', 4000);
   currentProduct = product;
-  closeScanningUI();
+  hideFindMethods();
   renderResult(product);
 }
 
@@ -355,26 +385,14 @@ function resetResult() {
   currentProduct = null;
   els.resultCard.classList.add('hidden');
   els.resultSkeleton.classList.add('hidden');
-  // Si torna a scansionare il prossimo articolo solo se la modalità è
+  // Si torna alla schermata "scansiona o cerca" solo se la modalità è
   // ancora attiva: durante resetAll() (si lascia la vista Scanner) mode è
-  // già stato azzerato prima di arrivare qui, quindi non riapre la fotocamera.
-  if (currentMode) openScanningUI();
+  // già stato azzerato prima di arrivare qui, quindi la modale resta chiusa.
+  if (currentMode) showFindMethods();
 }
 
 function resetAll() {
-  currentMode = null;
-  currentProduct = null;
-  els.modeBanner.classList.add('hidden');
-  els.readerWrap.classList.add('hidden');
-  els.manualForm.classList.add('hidden');
-  els.idlePanel.classList.remove('hidden');
-  els.modeDeposito.classList.remove('mode-active-deposito');
-  els.modePrelievo.classList.remove('mode-active-prelievo');
-  els.switchCameraBtn?.classList.add('hidden');
-  els.stopCameraBtn?.classList.add('hidden');
-  els.torchBtn?.classList.add('hidden');
-  els.focusHint?.classList.add('hidden');
-  resetResult();
+  closeScanModal();
 }
 
 /**

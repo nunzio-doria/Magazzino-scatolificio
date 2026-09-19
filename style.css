@@ -616,22 +616,41 @@ input.peer:checked ~ span:first-of-type {
   animation: torch-flash 380ms cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
-/* ---- Modal (generico: product-modal, field-picker-modal, article-history-modal) --- */
-#product-modal, #field-picker-modal, #article-history-modal {
+/* ---- Modal (generico: product-modal, field-picker-modal, article-history-modal, scan-mode-modal) --- */
+#product-modal, #field-picker-modal, #article-history-modal, #scan-mode-modal {
   transition: opacity 200ms ease;
   opacity: 0;
 }
-#product-modal.modal-visible, #field-picker-modal.modal-visible, #article-history-modal.modal-visible { opacity: 1; }
-#product-modal .modal-panel, #field-picker-modal .modal-panel, #article-history-modal .modal-panel {
+#product-modal.modal-visible, #field-picker-modal.modal-visible, #article-history-modal.modal-visible, #scan-mode-modal.modal-visible { opacity: 1; }
+#product-modal .modal-panel, #field-picker-modal .modal-panel, #article-history-modal .modal-panel, #scan-mode-modal .modal-panel {
   transition: transform 260ms cubic-bezier(0.22, 1.4, 0.36, 1), opacity 220ms ease;
   transform: translateY(18px) scale(0.97);
   opacity: 0;
 }
 #product-modal.modal-visible .modal-panel,
 #field-picker-modal.modal-visible .modal-panel,
-#article-history-modal.modal-visible .modal-panel {
+#article-history-modal.modal-visible .modal-panel,
+#scan-mode-modal.modal-visible .modal-panel {
   transform: translateY(0) scale(1);
   opacity: 1;
+}
+
+/* ---- Apertura "a fisarmonica" della fotocamera nella modale di scansione:
+   grid-template-rows anima da 0fr a 1fr senza dover conoscere l'altezza
+   reale del contenuto (che varia: reader della fotocamera + eventuali
+   pulsanti torcia/cambia fotocamera). Tecnica piú robusta di max-height,
+   che richiederebbe un valore arbitrario "abbastanza grande". ---- */
+#scanner-camera-collapse {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 320ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+#scanner-camera-collapse.expanded {
+  grid-template-rows: 1fr;
+}
+.grid-rows-collapse-inner {
+  overflow: hidden;
+  min-height: 0;
 }
 
 /* ---- Barra consumi (dashboard) ----------------------------------- */
