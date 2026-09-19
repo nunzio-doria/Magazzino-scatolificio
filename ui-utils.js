@@ -152,6 +152,13 @@ export function initPullToRefresh(viewRefreshMap) {
 
   const THRESHOLD = 62;
   const MAX_PULL = 100;
+  // Sotto questi pixel di trascinamento non facciamo nulla e non
+  // blocchiamo lo scroll nativo: senza questa zona morta, bastava un
+  // movimento minimo verso il basso proprio in cima alla pagina (tipico
+  // mentre si sta ancora "frenando" uno scroll verso l'alto arrivato da
+  // metà pagina) per agganciare subito il gesto e impedire di continuare
+  // a scorrere normalmente.
+  const DEAD_ZONE = 10;
   // Deve combaciare con la durata della transizione "a riposo" impostata
   // in CSS (transform 260ms, opacity 220ms): l'elemento va nascosto
   // (display:none) solo a rientro concluso, altrimenti l'occultamento
@@ -183,8 +190,12 @@ export function initPullToRefresh(viewRefreshMap) {
   function reset() {
     clearTimeout(hideTimer);
     indicator.classList.remove('pull-ready', 'pull-spinning', 'pull-dragging');
-    indicator.style.transform = 'translate(-50%, 0)';
+    indicator.style.transform = 'translate(-50%, 0) scale(0.35)';
     indicator.style.opacity = '0';
+    if (icon) {
+      icon.style.opacity = '0';
+      icon.style.transform = 'rotate(0deg)';
+    }
     ready = false;
     hideTimer = setTimeout(() => indicator.classList.add('hidden'), RETRACT_MS);
   }
@@ -220,6 +231,7 @@ export function initPullToRefresh(viewRefreshMap) {
         pulling = false;
         return;
       }
+      if (dy < DEAD_ZONE) return;
       // Da qui in poi il gesto è "nostro": blocchiamo il comportamento
       // nativo del browser (rimbalzo/overscroll ed eventuale
       // pull-to-refresh di Chrome). Senza questo preventDefault il
@@ -228,11 +240,22 @@ export function initPullToRefresh(viewRefreshMap) {
       // nostro, due cose diverse sovrapposte. Per poter chiamare
       // preventDefault il listener non può più essere passive (v. sotto).
       e.preventDefault();
-      const dist = Math.min(dy * 0.5, MAX_PULL);
-      indicator.style.transform = `translate(-50%, ${dist}px)`;
-      indicator.style.opacity = String(Math.min(dist / THRESHOLD, 1));
-      if (icon) icon.style.transform = `rotate(${dist * 2.8}deg)`;
-      ready = dist >= THRESHOLD;
+      const dist = Math.min((dy - DEAD_ZONE) * 0.5, MAX_PULL);
+      const progress = Math.min(dist / THRESHOLD, 1);
+      // Il cerchio parte piccolo (scala 0.35) e si allarga fino alla
+      // dimensione piena mano a mano che ci si avvicina alla soglia; la
+      // freccia dentro compare gradualmente e ruota. Essendo ricalcolato
+      // ad ogni evento in base alla distanza attuale, il movimento è
+      // automaticamente reversibile 1:1 anche risalendo col dito ancora
+      // premuto, senza bisogno di logica separata per la risalita.
+      const scale = 0.35 + 0.65 * progress;
+      indicator.style.transform = `translate(-50%, ${dist}px) scale(${scale})`;
+      indicator.style.opacity = String(Math.min(progress * 1.3, 1));
+      if (icon) {
+        icon.style.opacity = String(progress);
+        icon.style.transform = `rotate(${dist * 2.8}deg)`;
+      }
+      ready = progress >= 1;
       indicator.classList.toggle('pull-ready', ready);
     },
     { passive: false }
@@ -245,8 +268,9 @@ export function initPullToRefresh(viewRefreshMap) {
       refreshing = true;
       indicator.classList.remove('pull-dragging');
       indicator.classList.add('pull-spinning');
-      indicator.style.transform = 'translate(-50%, 54px)';
+      indicator.style.transform = 'translate(-50%, 54px) scale(1)';
       indicator.style.opacity = '1';
+      if (icon) icon.style.opacity = '1';
       try {
         await activeFn();
       } catch (err) {
