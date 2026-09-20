@@ -69,22 +69,17 @@ export function initScanner() {
     closeScanModal();
   });
   els.openCameraBtn.addEventListener('click', expandCamera);
-  // Sul telefono la tastiera occupa metà schermo: appena si tocca il campo
-  // di ricerca, il pulsante "scansiona" e il separatore spariscono per fare
-  // spazio, e la ricerca sale in cima allo spazio visibile rimasto — cosí i
-  // risultati compaiono subito sotto invece di finire coperti dalla
-  // tastiera. Tornano visibili solo se si esce dal campo senza aver
-  // scritto nulla (altrimenti resta comunque la scheda risultato, che
-  // nasconde tutto il resto).
+  // Appena si tocca il campo di ricerca, il pulsante "scansiona" e il
+  // separatore spariscono per fare spazio ai risultati (la modale è
+  // sempre ancorata in alto, quindi c'è già spazio sotto la barra di
+  // ricerca a prescindere dalla tastiera).
   els.codeSearchInput.addEventListener('focus', () => {
     toggleScanCameraSection(false);
-    els.scanModal.classList.add('keyboard-open');
     setTimeout(() => {
       els.codeSearchWrap.scrollIntoView({ block: 'start', behavior: 'smooth' });
     }, 300);
   });
   els.codeSearchInput.addEventListener('blur', () => {
-    els.scanModal.classList.remove('keyboard-open');
     if (!els.codeSearchInput.value.trim()) toggleScanCameraSection(true);
   });
   initCodeSearch();
@@ -144,7 +139,6 @@ function closeScanModal() {
   collapseCamera();
   currentMode = null;
   currentProduct = null;
-  els.scanModal.classList.remove('keyboard-open');
   els.modeDeposito.classList.remove('mode-active-deposito');
   els.modePrelievo.classList.remove('mode-active-prelievo');
   els.scanModal.classList.remove('modal-visible');
