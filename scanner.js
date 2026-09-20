@@ -27,6 +27,7 @@ export function initScanner() {
   els.modeDeposito = document.getElementById('mode-deposito');
   els.modePrelievo = document.getElementById('mode-prelievo');
   els.scanModal = document.getElementById('scan-mode-modal');
+  els.scanModalPanel = document.getElementById('scan-modal-panel');
   els.closeModalBtn = document.getElementById('scan-mode-close-btn');
   els.findMethods = document.getElementById('scan-find-methods');
   els.openCameraBtn = document.getElementById('scan-open-camera-btn');
@@ -78,11 +79,16 @@ export function initScanner() {
   // nasconde tutto il resto).
   els.codeSearchInput.addEventListener('focus', () => {
     toggleScanCameraSection(false);
+    els.scanModal.classList.add('keyboard-open');
+    syncModalHeightToViewport();
     setTimeout(() => {
+      syncModalHeightToViewport(); // la tastiera è animata: ricalcola anche a transizione finita
       els.codeSearchWrap.scrollIntoView({ block: 'start', behavior: 'smooth' });
     }, 300);
   });
   els.codeSearchInput.addEventListener('blur', () => {
+    els.scanModal.classList.remove('keyboard-open');
+    els.scanModalPanel.style.maxHeight = '';
     if (!els.codeSearchInput.value.trim()) toggleScanCameraSection(true);
   });
   initCodeSearch();
@@ -102,8 +108,28 @@ export function initScanner() {
   onQueueChange(updateOfflineBadge);
   updateOfflineBadge(getQueueCount());
 
+  // La tastiera virtuale, su Android/Chrome, non riduce sempre in modo
+  // affidabile le unità 'vh'/'dvh' mentre si apre: risultato, un attimo
+  // dopo aver toccato il campo di ricerca la modale poteva restare
+  // schiacciata a un'altezza minima. visualViewport riflette invece SEMPRE
+  // lo spazio dello schermo davvero visibile (tastiera esclusa), quindi
+  // teniamo l'altezza della modale sincronizzata con quello, in tempo
+  // reale, per tutta la durata dell'apertura/chiusura.
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener('resize', syncModalHeightToViewport);
+  }
+
   resetAll();
   loadIdlePanel();
+}
+
+/** Aggiorna l'altezza massima della modale sullo spazio visibile reale
+ *  (window.visualViewport, che si riduce quando compare la tastiera).
+ *  Se non disponibile in questo browser, si torna al max-h fisso da CSS. */
+function syncModalHeightToViewport() {
+  if (!els.scanModalPanel || els.scanModal.classList.contains('hidden')) return;
+  if (!window.visualViewport) return;
+  els.scanModalPanel.style.maxHeight = `${Math.round(window.visualViewport.height * 0.94)}px`;
 }
 
 function updateOfflineBadge(count) {
@@ -142,6 +168,8 @@ function closeScanModal() {
   collapseCamera();
   currentMode = null;
   currentProduct = null;
+  els.scanModal.classList.remove('keyboard-open');
+  els.scanModalPanel.style.maxHeight = '';
   els.modeDeposito.classList.remove('mode-active-deposito');
   els.modePrelievo.classList.remove('mode-active-prelievo');
   els.scanModal.classList.remove('modal-visible');
