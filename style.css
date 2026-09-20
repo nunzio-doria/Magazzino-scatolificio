@@ -616,23 +616,52 @@ input.peer:checked ~ span:first-of-type {
   animation: torch-flash 380ms cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
-/* ---- Modal (generico: product-modal, field-picker-modal, article-history-modal, scan-mode-modal) --- */
-#product-modal, #field-picker-modal, #article-history-modal, #scan-mode-modal {
+/* ---- Modal (generico: product-modal, field-picker-modal, article-history-modal) --- */
+#product-modal, #field-picker-modal, #article-history-modal {
   transition: opacity 200ms ease;
   opacity: 0;
 }
-#product-modal.modal-visible, #field-picker-modal.modal-visible, #article-history-modal.modal-visible, #scan-mode-modal.modal-visible { opacity: 1; }
-#product-modal .modal-panel, #field-picker-modal .modal-panel, #article-history-modal .modal-panel, #scan-mode-modal .modal-panel {
+#product-modal.modal-visible, #field-picker-modal.modal-visible, #article-history-modal.modal-visible { opacity: 1; }
+#product-modal .modal-panel, #field-picker-modal .modal-panel, #article-history-modal .modal-panel {
   transition: transform 260ms cubic-bezier(0.22, 1.4, 0.36, 1), opacity 220ms ease;
   transform: translateY(18px) scale(0.97);
   opacity: 0;
 }
 #product-modal.modal-visible .modal-panel,
 #field-picker-modal.modal-visible .modal-panel,
-#article-history-modal.modal-visible .modal-panel,
-#scan-mode-modal.modal-visible .modal-panel {
+#article-history-modal.modal-visible .modal-panel {
   transform: translateY(0) scale(1);
   opacity: 1;
+}
+
+/* ---- Modale di scansione: vero cassetto (bottom sheet), non il fade
+   leggero delle altre modali. Il fondo dello sfondo scuro dietro (bg-black/60)
+   basta da solo come dissolvenza: il pannello bianco entra/esce scorrendo
+   verticalmente, a schermo intero fino al bordo inferiore, senza tagli. ---- */
+#scan-mode-modal {
+  transition: opacity 240ms ease;
+  opacity: 0;
+}
+#scan-mode-modal.modal-visible {
+  opacity: 1;
+}
+#scan-mode-modal .modal-panel {
+  transition: transform 340ms cubic-bezier(0.32, 0.72, 0, 1);
+  transform: translateY(100%);
+}
+#scan-mode-modal.modal-visible .modal-panel {
+  transform: translateY(0);
+}
+/* Mentre si trascina manualmente la maniglia, niente transizione: il
+   pannello deve seguire il dito 1:1, esattamente come per il
+   pull-to-refresh — la transizione va bene solo per l'apertura/chiusura
+   automatica, non per l'inseguimento continuo del tocco. */
+#scan-mode-modal .modal-panel.sheet-dragging {
+  transition: none;
+}
+#scan-modal-drag-handle {
+  touch-action: none;
+  cursor: grab;
 }
 
 /* ---- Apertura "a fisarmonica" della fotocamera nella modale di scansione:

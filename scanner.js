@@ -20,6 +20,9 @@ import { CATEGORY_LABELS } from './products.js';
 
 let currentMode = null; // 'deposito' | 'prelievo'
 let currentProduct = null;
+let sheetDragStartY = 0;
+let sheetDragY = 0;
+let isDraggingSheet = false;
 
 const els = {};
 
@@ -27,6 +30,8 @@ export function initScanner() {
   els.modeDeposito = document.getElementById('mode-deposito');
   els.modePrelievo = document.getElementById('mode-prelievo');
   els.scanModal = document.getElementById('scan-mode-modal');
+  els.scanModalPanel = document.getElementById('scan-modal-panel');
+  els.dragHandle = document.getElementById('scan-modal-drag-handle');
   els.closeModalBtn = document.getElementById('scan-mode-close-btn');
   els.findMethods = document.getElementById('scan-find-methods');
   els.openCameraBtn = document.getElementById('scan-open-camera-btn');
@@ -68,6 +73,10 @@ export function initScanner() {
     feedback.cancelAction();
     closeScanModal();
   });
+  els.dragHandle.addEventListener('touchstart', onSheetDragStart, { passive: true });
+  els.dragHandle.addEventListener('touchmove', onSheetDragMove, { passive: false });
+  els.dragHandle.addEventListener('touchend', onSheetDragEnd);
+  els.dragHandle.addEventListener('touchcancel', onSheetDragEnd);
   els.openCameraBtn.addEventListener('click', expandCamera);
   // Appena si tocca il campo di ricerca, il pulsante "scansiona" e il
   // separatore spariscono per fare spazio ai risultati (la modale è
@@ -143,7 +152,44 @@ function closeScanModal() {
   els.modePrelievo.classList.remove('mode-active-prelievo');
   els.scanModal.classList.remove('modal-visible');
   unlockBodyScroll();
-  setTimeout(() => els.scanModal.classList.add('hidden'), 180);
+  setTimeout(() => els.scanModal.classList.add('hidden'), 340); // deve combaciare con la transizione del cassetto in CSS
+}
+
+/**
+ * Maniglia in cima al cassetto: permette di accompagnare la chiusura
+ * manualmente trascinando verso il basso, come un vero bottom sheet.
+ * Segue il dito 1:1 (transizione disattivata durante il trascinamento,
+ * stessa tecnica già usata per il pull-to-refresh), e solo al rilascio
+ * decide se richiudersi del tutto o tornare aperta.
+ */
+function onSheetDragStart(e) {
+  isDraggingSheet = true;
+  sheetDragStartY = e.touches[0].clientY;
+  sheetDragY = 0;
+  els.scanModalPanel.classList.add('sheet-dragging');
+}
+function onSheetDragMove(e) {
+  if (!isDraggingSheet) return;
+  const dy = e.touches[0].clientY - sheetDragStartY;
+  sheetDragY = Math.max(0, dy); // non si trascina oltre la posizione tutta aperta
+  e.preventDefault();
+  els.scanModalPanel.style.transform = `translateY(${sheetDragY}px)`;
+}
+function onSheetDragEnd() {
+  if (!isDraggingSheet) return;
+  isDraggingSheet = false;
+  els.scanModalPanel.classList.remove('sheet-dragging');
+  const panelHeight = els.scanModalPanel.getBoundingClientRect().height || 1;
+  const pastThreshold = sheetDragY > panelHeight * 0.28;
+  els.scanModalPanel.style.transform = '';
+  sheetDragY = 0;
+  if (pastThreshold) {
+    feedback.cancelAction();
+    closeScanModal();
+  }
+  // Sotto soglia: si rilascia lo stile inline e la transizione CSS
+  // (ora riattivata, .sheet-dragging appena rimossa) riporta da sola il
+  // pannello a translateY(0) — nessun altro codice necessario.
 }
 
 /** Torna alla schermata "scansiona o cerca", pronta per il prossimo
