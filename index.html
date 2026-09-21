@@ -176,13 +176,26 @@
          oppure ricerca per codice. Niente inserimento manuale del barcode:
          nessuno lo ricorderebbe a memoria. -->
     <div id="scan-mode-modal" class="modal-overlay hidden fixed inset-0 z-[90] flex items-stretch sm:items-center justify-center bg-black/60 backdrop-blur-sm px-0 sm:px-4 pt-10 sm:pt-0">
-      <div id="scan-modal-panel" class="modal-panel w-full sm:max-w-md bg-graphite-900 border border-graphite-700 rounded-t-2xl sm:rounded-2xl sm:h-auto sm:max-h-[92vh] flex flex-col">
-        <div data-sheet-drag class="sheet-grabber sm:hidden"><span class="sheet-grabber-pill"></span></div>
-        <div data-sheet-drag class="flex items-center justify-between px-5 pb-4 pt-1 sm:pt-4 border-b border-graphite-800 shrink-0">
-          <p id="scan-mode-banner" class="font-display font-bold text-base uppercase tracking-wide"></p>
-          <button id="scan-mode-close-btn" aria-label="Chiudi" class="hit-area w-8 h-8 rounded-lg flex items-center justify-center text-graphite-500 hover:text-graphite-200 hover:bg-graphite-800 transition-colors">
-            <i data-lucide="x" class="w-5 h-5" stroke-width="2"></i>
-          </button>
+      <div id="scan-modal-panel" class="modal-panel w-full sm:max-w-md bg-graphite-900 border border-graphite-700 rounded-t-2xl sm:rounded-2xl sm:h-auto sm:max-h-[92vh] flex flex-col overflow-hidden">
+        <!-- Testata a colore pieno: il colore (verde = deposito, blu = prelievo) arriva
+             da data-mode sul pannello, impostato in scanner.js -->
+        <div class="scan-head shrink-0">
+          <!-- Filigrana: grande scatola sfumata sul fondo della testata, ritagliata sul bordo destro -->
+          <span class="scan-watermark" aria-hidden="true">
+            <i data-lucide="package-plus" class="mode-icon-deposito" stroke-width="1.5"></i>
+            <i data-lucide="package-minus" class="mode-icon-prelievo" stroke-width="1.5"></i>
+          </span>
+          <div data-sheet-drag class="sheet-grabber sm:hidden"><span class="sheet-grabber-pill"></span></div>
+          <div data-sheet-drag class="scan-head-row flex items-center gap-3 px-5 pb-4 pt-1 sm:pt-4">
+            <span class="scan-mode-symbol shrink-0" aria-hidden="true">
+              <i data-lucide="arrow-down-to-line" class="mode-icon-deposito w-8 h-8" stroke-width="2"></i>
+              <i data-lucide="arrow-up-from-line" class="mode-icon-prelievo w-8 h-8" stroke-width="2"></i>
+            </span>
+            <p id="scan-mode-banner" class="flex-1 min-w-0 truncate font-display font-bold text-xl uppercase tracking-wide"></p>
+            <button id="scan-mode-close-btn" aria-label="Chiudi" class="hit-area shrink-0 w-8 h-8 rounded-lg flex items-center justify-center text-white hover:bg-white/15 transition-colors">
+              <i data-lucide="x" class="w-5 h-5" stroke-width="2"></i>
+            </button>
+          </div>
         </div>
 
         <div class="flex-1 overflow-y-auto p-5">
@@ -270,10 +283,10 @@
                 <label class="block text-xs font-display font-semibold uppercase tracking-wide text-graphite-400 mb-1.5">Quantità</label>
                 <div class="flex items-center gap-1.5">
                   <button id="scan-qty-minus" type="button" aria-label="Diminuisci quantità"
-                    class="press-spring shrink-0 w-11 h-11 rounded-lg bg-graphite-900 border border-graphite-700 hover:border-amber-400 hover:text-amber-300 active:bg-graphite-800 flex items-center justify-center text-2xl font-display font-bold leading-none transition-colors">−</button>
+                    class="press-spring shrink-0 w-11 h-11 rounded-lg bg-graphite-900 border border-graphite-700 qty-btn active:bg-graphite-800 flex items-center justify-center text-2xl font-display font-bold leading-none transition-colors">−</button>
                   <span id="scan-qty-value" class="flex-1 min-w-0 h-11 rounded-lg bg-graphite-900 border border-graphite-700 flex items-center justify-center text-lg font-mono font-bold select-none">1</span>
                   <button id="scan-qty-plus" type="button" aria-label="Aumenta quantità"
-                    class="press-spring shrink-0 w-11 h-11 rounded-lg bg-graphite-900 border border-graphite-700 hover:border-amber-400 hover:text-amber-300 active:bg-graphite-800 flex items-center justify-center text-2xl font-display font-bold leading-none transition-colors">+</button>
+                    class="press-spring shrink-0 w-11 h-11 rounded-lg bg-graphite-900 border border-graphite-700 qty-btn active:bg-graphite-800 flex items-center justify-center text-2xl font-display font-bold leading-none transition-colors">+</button>
                 </div>
                 <input id="scan-qty-input" type="hidden" value="1">
               </div>
@@ -282,6 +295,11 @@
                 <input id="scan-punto-input" type="text" placeholder="es. Linea 3"
                   class="w-full rounded-lg bg-graphite-900 border border-graphite-700 px-3 py-2.5 text-sm focus:border-amber-400 outline-none transition-colors">
               </div>
+            </div>
+
+            <div id="scan-after" class="scan-after mt-3 rounded-lg px-3 py-2 flex items-center justify-between gap-3 text-sm" aria-live="polite">
+              <span id="scan-after-label">Giacenza dopo</span>
+              <strong id="scan-after-value" class="font-mono text-base whitespace-nowrap"></strong>
             </div>
 
             <div class="flex gap-3 mt-4">

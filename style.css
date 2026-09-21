@@ -741,6 +741,49 @@ input.peer:checked ~ span:first-of-type {
 }
 html { touch-action: manipulation; } /* niente ritardo/zoom col doppio tocco; pizzico e scroll restano */
 
+/* ---- Identità di colore dei cassetti Deposito / Prelievo -----------------
+   Un solo attributo (data-mode sul pannello, impostato in scanner.js) decide
+   colori di testata, bordo, pulsante di conferma e anteprima: verde scuro per
+   il deposito, blu del logo per il prelievo. Testo bianco sulle testate:
+   contrasto ~5,5 sul verde e ~8 sul blu. L'icona e la parola rendono la
+   modalità riconoscibile anche senza distinguere i colori. */
+#scan-modal-panel[data-mode="deposito"] { --mode: #047857; --mode-dark: #065f46; --mode-tint: #ecfdf5; }
+#scan-modal-panel[data-mode="prelievo"] { --mode: #2f4f92; --mode-dark: #24406f; --mode-tint: #e8eefb; }
+#scan-modal-panel { border: 2px solid var(--mode, var(--line)); transition: border-color 200ms ease; }
+
+.scan-head {
+  position: relative;
+  overflow: hidden;
+  background: var(--mode, var(--accent));
+  color: #fff;
+  transition: background-color 200ms ease;
+}
+.scan-head .sheet-grabber-pill { background: rgba(255, 255, 255, 0.55); }
+/* Il contenuto della testata sta sopra la filigrana */
+.scan-head .sheet-grabber, .scan-head-row { position: relative; z-index: 1; }
+.scan-mode-symbol { display: flex; align-items: center; }
+/* Filigrana: scatola grande, bianca al 16%, ritagliata a destra; non intercetta i tocchi */
+.scan-watermark {
+  position: absolute;
+  right: -18px;
+  top: -8px;
+  width: 104px;
+  height: 104px;
+  color: rgba(255, 255, 255, 0.16);
+  pointer-events: none;
+  z-index: 0;
+}
+.scan-watermark svg { width: 100%; height: 100%; }
+#scan-modal-panel[data-mode="deposito"] .mode-icon-prelievo,
+#scan-modal-panel[data-mode="prelievo"] .mode-icon-deposito { display: none; }
+
+.btn-mode { background: var(--mode, var(--accent)); color: #fff; transition: background-color 160ms ease, transform 160ms ease; }
+.btn-mode:hover { background: var(--mode-dark, var(--accent-dark)); }
+.qty-btn:hover { border-color: var(--mode, var(--accent)); color: var(--mode, var(--accent)); }
+
+.scan-after { background: var(--mode-tint, #eef0f3); color: var(--mode-dark, var(--accent-dark)); transition: background-color 160ms ease, color 160ms ease; }
+.scan-after.scan-after-warn { background: rgba(225, 29, 72, 0.10); color: #be123c; }
+
 /* ---- Apertura "a fisarmonica" della fotocamera nella modale di scansione:
    grid-template-rows anima da 0fr a 1fr senza dover conoscere l'altezza
    reale del contenuto (che varia: reader della fotocamera + eventuali
