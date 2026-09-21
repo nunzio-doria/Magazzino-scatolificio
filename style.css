@@ -749,7 +749,9 @@ html { touch-action: manipulation; } /* niente ritardo/zoom col doppio tocco; pi
    modalità riconoscibile anche senza distinguere i colori. */
 #scan-modal-panel[data-mode="deposito"] { --mode: #047857; --mode-dark: #065f46; --mode-tint: #ecfdf5; }
 #scan-modal-panel[data-mode="prelievo"] { --mode: #2f4f92; --mode-dark: #24406f; --mode-tint: #e8eefb; }
-#scan-modal-panel { border: 2px solid var(--mode, var(--line)); transition: border-color 200ms ease; }
+/* Attenzione: qui NON si dichiara `transition`. Un selettore con id batterebbe
+   quello generico di .modal-panel e cancellerebbe l'animazione a cassetto. */
+#scan-modal-panel { border: 2px solid var(--mode, var(--line)); }
 
 .scan-head {
   position: relative;
@@ -769,10 +771,11 @@ html { touch-action: manipulation; } /* niente ritardo/zoom col doppio tocco; pi
    zona più chiara o più scura. */
 .scan-watermark {
   position: absolute;
-  right: -18px;
-  top: -8px;
-  width: 104px;
-  height: 104px;
+  right: 36px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 88px;
+  height: 88px;
   color: #fff;
   opacity: 0.16;
   pointer-events: none;
