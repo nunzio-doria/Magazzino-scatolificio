@@ -4,13 +4,14 @@
 
 import { initAuth, authState, isAdmin } from './auth.js';
 import { initScanner, teardownScanner, activateMode } from './scanner.js';
-import { initProducts, refresh as refreshProducts, teardownProducts } from './products.js';
+import { initProducts, refresh as refreshProducts, enterProducts, resetProducts, teardownProducts } from './products.js';
 import { initDashboard, refresh as refreshDashboard } from './dashboard.js';
 import { initUsers, refreshUsers } from './users.js';
+import { initMachines, refreshMachines } from './machines.js';
 import { initPicker } from './picker.js';
 import feedback, { initFeedbackSettings } from './feedback.js';
 import { initOfflineSync } from './offline-queue.js';
-import { processTransaction, adjustCachedProductQuantity } from './supabase.js';
+import { processTransaction, adjustCachedProductQuantity, bumpProductsVersion } from './supabase.js';
 import { toastSuccess, toastError } from './toast.js';
 import { closeAllOverlays } from './ui-utils.js';
 
@@ -29,7 +30,7 @@ function onAuthed(profile) {
   const roleLabel = profile.role === 'admin' ? 'Admin' : 'Operatore';
   document.getElementById('user-role-badge').textContent = roleLabel;
   document.getElementById('user-role-badge').className = `ui-label whitespace-nowrap font-display font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${
-    profile.role === 'admin' ? 'bg-amber-500/20 text-amber-400' : 'bg-sky-500/20 text-sky-700'
+    profile.role === 'admin' ? 'bg-white text-amber-400' : 'bg-white/20 text-white'
   }`;
   document.getElementById('settings-user-name').textContent = profile.full_name || profile.email;
   document.getElementById('settings-user-role').textContent = roleLabel;
@@ -50,12 +51,14 @@ function onAuthed(profile) {
     initProducts();
     initDashboard();
     initUsers();
+    initMachines();
     initNav();
     initFeedbackSettings();
     initSettingsRefreshButton();
     initOfflineSync(
       async (payload) => {
         const result = await processTransaction(payload);
+        bumpProductsVersion(); // una giacenza è cambiata: la lista del Magazzino si aggiornerà al rientro
         toastSuccess(`Sincronizzato: ${payload.codice_articolo} (${payload.tipo === 'deposito' ? 'deposito' : 'prelievo'})`, 3000);
         return result;
       },
@@ -65,6 +68,7 @@ function onAuthed(profile) {
         onDiscard: ({ payload }, err) => {
           const delta = payload.tipo === 'deposito' ? payload.quantita : -payload.quantita;
           adjustCachedProductQuantity(payload.productId, -delta);
+          bumpProductsVersion();
           const reason = err.message?.includes('Giacenza insufficiente') ? err.message : 'il server ha rifiutato l\'operazione';
           toastError(
             `Movimento offline NON registrato: ${payload.tipo === 'deposito' ? 'deposito' : 'prelievo'} di ${payload.quantita} su ${payload.codice_articolo} — ${reason}.`,
@@ -95,6 +99,7 @@ function onSignedOut() {
     closeAllOverlays();
     teardownScanner();
     teardownProducts();
+    resetProducts(); // al prossimo accesso la lista si ricarica da capo (e non resta quella di un altro utente)
     for (const v of VIEWS) {
       document.getElementById(`view-${v}`)?.classList.add('hidden');
       document.querySelector(`[data-nav-target="${v}"]`)?.classList.remove('nav-active');
@@ -222,9 +227,14 @@ export function switchView(view, { animate = true, onStart } = {}) {
   // principale compete con la CSS animation proprio nei suoi primi frame,
   // ed è la causa più probabile di scatti percepiti durante il cambio vista.
   const doRefresh = () => {
-    if (view === 'products') refreshProducts();
+    // Magazzino: caricamento completo solo al primo ingresso dopo l'accesso; ai rientri la
+    // lista già in memoria compare subito (se qualcosa è cambiato si aggiorna in silenzio).
+    if (view === 'products') enterProducts();
     if (view === 'dashboard') refreshDashboard();
-    if (view === 'settings' && isAdmin()) refreshUsers();
+    if (view === 'settings' && isAdmin()) {
+      refreshUsers();
+      refreshMachines();
+    }
   };
 
   const toSection = document.getElementById(`view-${view}`);

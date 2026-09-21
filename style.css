@@ -32,6 +32,15 @@
   --deposito: #047857;
   --deposito-rgb: 4, 120, 87;
 
+  /* Tinte OPACHE per stati attivi/premuti dei pulsanti (equivalgono al colore al 6/8/10% su
+     bianco): con un colore semitrasparente il pulsante lascerebbe intravedere lo sfondo forato. */
+  --accent-tint: #eaedf4;      /* 10% */
+  --accent-tint-8: #eef1f6;    /*  8% */
+  --accent-tint-soft: #f3f4f8; /*  6% */
+  --accent-edge: #97a7c8;      /* bordo attivo (50%) */
+  --deposito-tint: #e6f1ee;
+  --deposito-edge: #82bcab;
+
   /* Movimento: una sola scala di tempi e poche curve, usate da tutta l'app.
      --dur-press = pressione, --dur-fast = colori/hover, --dur-base = comparse,
      --dur-slow = cassetti, aperture e rimbalzi. La chiusura delle modali in
@@ -57,6 +66,18 @@
   padding-right: var(--sar);
 }
 #toast-container { bottom: calc(var(--nav-h) + 0.75rem); }
+/* Con la barra di stato trasparente (iPhone installato come app) il contenuto
+   arriva fino in cima: anche la schermata di accesso rispetta il margine alto. */
+#auth-view { padding-top: var(--sat); }
+
+/* Testata dell'app: blu pieno del marchio, continua con la barra di stato del
+   telefono (theme-color). Testo e icone bianchi; anello di focus bianco. */
+.app-header {
+  background: var(--accent);
+  color: #fff;
+  border-bottom: 1px solid var(--accent-deep);
+}
+.app-header :focus-visible { outline-color: #fff; }
 
 html, body {
   height: 100%;
@@ -93,7 +114,7 @@ body::before {
   z-index: -1;
   pointer-events: none;
   background-color: var(--paper);
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16'%3E%3Ccircle cx='4' cy='4' r='1.7' fill='%23d5dae0'/%3E%3Ccircle cx='12' cy='12' r='1.7' fill='%23d5dae0'/%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16'%3E%3Ccircle cx='4' cy='4' r='1.7' fill='%2313223f' fill-opacity='.045'/%3E%3Ccircle cx='12' cy='12' r='1.7' fill='%2313223f' fill-opacity='.045'/%3E%3C/svg%3E");
   background-size: 16px 16px;
 }
 input, textarea {
@@ -190,18 +211,21 @@ input, textarea {
   content: '';
   position: absolute;
   top: 0;
-  left: -55%;
+  left: 0;
   width: 45%;
   height: 100%;
   background: linear-gradient(115deg, transparent, rgba(255, 255, 255, 0.65) 45%, transparent 90%);
-  transform: skewX(-20deg);
+  transform: translateX(-122%) skewX(-20deg);
   animation: nav-sheen 7s ease-in-out infinite;
   pointer-events: none;
+  will-change: transform;
 }
+/* Il riflesso si muove con transform (compositor), non con `left`: animare `left`
+   costringe il browser a ricalcolare il layout a ogni fotogramma. */
 @keyframes nav-sheen {
-  0%   { left: -55%; }
-  40%  { left: 115%; }
-  100% { left: 115%; }
+  0%   { transform: translateX(-122%) skewX(-20deg); }
+  40%  { transform: translateX(255%) skewX(-20deg); }
+  100% { transform: translateX(255%) skewX(-20deg); }
 }
 /* ---- Bottom nav ----------------------------------------------- */
 .nav-item {
@@ -215,8 +239,6 @@ input, textarea {
   inset: 2px 10px;
   border-radius: 14px;
   background: rgba(var(--accent-rgb), 0.10);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
   border: 1px solid rgba(var(--accent-rgb), 0.18);
   opacity: 0;
   transform: scale(0.85);
@@ -243,23 +265,26 @@ input, textarea {
   transition: opacity var(--dur-fast) ease, transform var(--dur-fast) var(--ease-out);
 }
 
-/* Bounce a molla quando si cambia sezione: overshoot elastico con un
-   piccolo assestamento finale, per un rimbalzo più credibile di una
-   semplice oscillazione singola. */
-@keyframes nav-tap-spring {
+/* Pressione della barra in basso: sobria. Il pulsante non si rimpicciolisce (la
+   regola globale sui bottoni qui non vale) e l'icona scende appena, in modo fluido
+   e senza rimbalzo. Al cambio sezione l'icona fa un solo, piccolo, assestamento. */
+button.nav-item:not(:disabled):active { transform: none; }
+.nav-item .nav-icon-wrap {
+  display: inline-flex;
+  transition: transform var(--dur-base) var(--ease-out);
+}
+.nav-item:active .nav-icon-wrap { transform: scale(0.92); transition-duration: var(--dur-press); }
+.nav-item.nav-active:active .nav-icon-wrap { transform: translateY(-2px) scale(0.92); }
+@keyframes nav-tap-soft {
   0%   { transform: scale(1); }
-  30%  { transform: scale(0.86); }
-  55%  { transform: scale(1.14); }
-  75%  { transform: scale(0.96); }
+  40%  { transform: scale(0.94); }
   100% { transform: scale(1); }
 }
-.nav-item.nav-tapped {
-  animation: nav-tap-spring var(--dur-slow) var(--ease-spring);
-}
+.nav-item.nav-tapped .nav-icon-wrap svg { animation: nav-tap-soft var(--dur-base) var(--ease-out); }
 
 @media (prefers-reduced-motion: reduce) {
   .nav-glass::before { animation: none; }
-  .nav-item.nav-tapped { animation: none; }
+  .nav-item.nav-tapped .nav-icon-wrap svg { animation: none; }
 }
 
 /* =============================================================
@@ -366,6 +391,9 @@ input.peer:checked ~ span:first-of-type {
   animation: list-item-in var(--dur-slow) var(--ease-out) forwards;
   animation-delay: calc(var(--i, 0) * 30ms);
 }
+/* Ai rientri nel Magazzino gli elementi già presenti restano al loro posto: niente
+   dissolvenza/scorrimento d'ingresso (che sembrerebbe un nuovo caricamento). */
+.list-static .list-item-in { animation: none; opacity: 1; transform: none; }
 @keyframes list-item-in {
   to { opacity: 1; transform: translateY(0); }
 }
@@ -492,7 +520,7 @@ input.peer:checked ~ span:first-of-type {
 /* ---- Tab storico (modale drill-down consumi) ------------------------ */
 .history-tab { color: #5c6672; transition: var(--tr-colors); }
 .history-tab-active {
-  background: rgba(var(--accent-rgb), 0.10) !important;
+  background: var(--accent-tint) !important;
   border-color: rgba(var(--accent-rgb), 0.5) !important;
   color: var(--accent-dark) !important;
 }
@@ -506,14 +534,14 @@ input.peer:checked ~ span:first-of-type {
   transform: scale(0.96);
 }
 .mode-active-deposito {
-  background: rgba(var(--deposito-rgb), 0.10) !important;
-  border-color: rgba(var(--deposito-rgb), 0.5) !important;
+  background: var(--deposito-tint) !important;
+  border-color: var(--deposito-edge) !important;
   color: var(--deposito) !important;
   transform: scale(1.02);
 }
 .mode-active-prelievo {
-  background: rgba(var(--accent-rgb), 0.10) !important;
-  border-color: rgba(var(--accent-rgb), 0.5) !important;
+  background: var(--accent-tint) !important;
+  border-color: var(--accent-edge) !important;
   color: var(--accent-dark) !important;
   transform: scale(1.02);
 }
@@ -529,7 +557,7 @@ input.peer:checked ~ span:first-of-type {
 /* ---- Tab categoria magazzino -------------------------------------- */
 .category-tab, .import-category-tab { transition: var(--tr-colors); color: #5c6672; }
 .category-tab-active, .import-category-tab-active {
-  background: rgba(var(--accent-rgb), 0.10) !important;
+  background: var(--accent-tint) !important;
   border-color: rgba(var(--accent-rgb), 0.5) !important;
   color: var(--accent-dark) !important;
 }
@@ -546,9 +574,10 @@ input.peer:checked ~ span:first-of-type {
    il feedback alla pressione resta solo un'attenuazione di opacità. */
 button.view-mode-tab:not(:disabled):active {
   transform: none;
-  opacity: 0.65;
+  background-color: var(--accent-tint); /* tinta OPACA: mai opacity, il pulsante non deve diventare trasparente */
   transition-duration: var(--dur-press);
 }
+button.view-mode-tab-active:not(:disabled):active { background: var(--accent-dark) !important; }
 
 /* ---- Scaffalatura magazzino: scaffale per locazione, espansione animata
    con la tecnica grid-template-rows 0fr→1fr — fluida senza dover misurare
@@ -559,8 +588,8 @@ button.view-mode-tab:not(:disabled):active {
   transition: border-color var(--dur-fast) ease, background-color var(--dur-fast) ease, transform var(--dur-slow) var(--ease-spring);
 }
 .shelf-card.shelf-open .shelf-header {
-  border-color: rgba(var(--accent-rgb), 0.5);
-  background: rgba(var(--accent-rgb), 0.06);
+  border-color: var(--accent-edge);
+  background: var(--accent-tint-soft);
 }
 .shelf-chevron { transition: transform var(--dur-base) var(--ease-inout); }
 .shelf-card.shelf-open .shelf-chevron { transform: rotate(180deg); }
@@ -591,7 +620,7 @@ button.view-mode-tab:not(:disabled):active {
    cornice" contro la riga sopra/sotto visto sul toggle di visualizzazione. */
 button.shelf-item:not(:disabled):active {
   transform: none;
-  background-color: rgba(var(--accent-rgb), 0.08);
+  background-color: var(--accent-tint-8);
 }
 @media (prefers-reduced-motion: reduce) {
   .shelf-body-track { transition-duration: 1ms; }
@@ -800,7 +829,7 @@ html { touch-action: manipulation; } /* niente ritardo/zoom col doppio tocco; pi
   box-shadow: 0 0 0 3px rgba(var(--mode-rgb, var(--accent-rgb)), 0.16);
 }
 #scan-modal-panel .custom-select-option:hover,
-#scan-modal-panel .custom-select-option:active { background: rgba(var(--mode-rgb, var(--accent-rgb)), 0.10); }
+#scan-modal-panel .custom-select-option:active { background: var(--mode-tint, var(--accent-tint)); }
 #scan-modal-panel :focus-visible:not(.modal-close) { outline-color: var(--mode, var(--accent)); }
 /* Attenzione: qui NON si dichiara `transition`. Un selettore con id batterebbe
    quello generico di .modal-panel e cancellerebbe l'animazione a cassetto. */
@@ -979,7 +1008,7 @@ html { touch-action: manipulation; } /* niente ritardo/zoom col doppio tocco; pi
 }
 .custom-select-option:hover,
 .custom-select-option:active {
-  background: rgba(var(--accent-rgb), 0.10);
+  background: var(--accent-tint);
   padding-left: 18px;
 }
 /* Sovrascrive lo scale-press globale: opzioni impilate senza gap, separate

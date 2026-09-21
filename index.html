@@ -15,7 +15,7 @@
 <link rel="icon" type="image/png" sizes="192x192" href="./icons/icon-192.png">
 <link rel="apple-touch-icon" sizes="180x180" href="./icons/apple-touch-icon.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Magazzino">
 
 <!-- Font -->
@@ -97,19 +97,19 @@
 <div id="app-shell" class="hidden min-h-screen flex flex-col">
 
   <!-- Topbar -->
-  <header class="sticky top-0 z-40 bg-graphite-900/90 backdrop-blur border-b border-graphite-800">
+  <header class="app-header sticky top-0 z-40">
     <div class="flex items-center justify-between px-4 py-3 max-w-2xl mx-auto">
       <div class="flex items-center gap-2 min-w-0">
-        <div class="w-9 h-9 rounded-lg overflow-hidden shrink-0">
+        <div class="w-9 h-9 rounded-lg overflow-hidden shrink-0 ring-1 ring-white/30">
           <img src="./icons/icon-192.png" alt="Scatolificio Sarno" class="w-full h-full object-cover">
         </div>
         <div class="min-w-0">
-          <p class="font-display font-bold uppercase tracking-wide text-sm leading-none truncate">Magazzino Scatolificio</p>
+          <p class="font-display font-bold uppercase tracking-wide text-sm leading-none truncate text-white">Magazzino Scatolificio</p>
         </div>
       </div>
       <div class="flex items-center gap-2 shrink-0">
-        <span id="user-role-badge" class="ui-label whitespace-nowrap font-display font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-graphite-700 text-graphite-300">—</span>
-        <button id="settings-btn" aria-label="Impostazioni" class="hit-area-sm w-9 h-9 rounded-lg flex items-center justify-center text-graphite-500 hover:text-amber-300 hover:bg-graphite-800 transition-colors">
+        <span id="user-role-badge" class="ui-label whitespace-nowrap font-display font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-white/20 text-white">—</span>
+        <button id="settings-btn" aria-label="Impostazioni" class="hit-area-sm w-9 h-9 rounded-lg flex items-center justify-center text-white hover:bg-white/15 transition-colors">
           <i data-lucide="settings" class="w-5 h-5" stroke-width="1.8"></i>
         </button>
       </div>
@@ -492,7 +492,7 @@
           <p id="settings-user-name" class="font-medium text-graphite-100 truncate">—</p>
           <p id="settings-user-role" class="text-xs text-graphite-500 mt-0.5">—</p>
         </div>
-        <button id="logout-btn" type="button" class="shrink-0 rounded-lg border border-rose-500/40 text-rose-700 hover:bg-rose-500/10 px-3.5 py-2 text-xs font-display font-semibold uppercase tracking-wide transition-colors min-h-[44px]">
+        <button id="logout-btn" type="button" class="shrink-0 rounded-lg border border-rose-500/40 text-rose-700 hover:bg-rose-50 px-3.5 py-2 text-xs font-display font-semibold uppercase tracking-wide transition-colors min-h-[44px]">
           Esci
         </button>
       </div>
@@ -547,6 +547,20 @@
         </div>
         <div id="users-list" class="hidden space-y-2 mb-5"></div>
 
+        <h3 class="font-display font-semibold uppercase tracking-wide text-sm text-graphite-400 mb-2">Macchine</h3>
+        <p class="text-xs text-graphite-500 mb-2">Le macchine registrate qui compaiono nel form articolo e nel filtro "per macchina".</p>
+        <p id="machines-notice" class="hidden text-xs rounded-lg px-3 py-2 mb-2 bg-rose-500/10 text-rose-700">La tabella delle macchine non è ancora stata creata sul database: finché non viene creata non si possono aggiungere macchine.</p>
+        <form id="machine-form" class="flex gap-2 mb-3">
+          <input id="machine-name-input" type="text" maxlength="60" autocomplete="off" placeholder="Nome della nuova macchina"
+            class="flex-1 min-w-0 rounded-lg bg-graphite-800 border border-graphite-700 px-3.5 py-2.5 text-sm focus:border-amber-400 outline-none transition-colors">
+          <button id="machine-add-btn" type="submit" class="press-spring shrink-0 rounded-lg bg-amber-400 hover:bg-amber-300 text-white font-display font-semibold uppercase tracking-wide text-xs px-4 min-h-[44px]">Aggiungi</button>
+        </form>
+        <div id="machines-list-skeleton" class="space-y-2 mb-5">
+          <div class="skeleton h-12 w-full"></div>
+          <div class="skeleton h-12 w-full"></div>
+        </div>
+        <div id="machines-list" class="hidden space-y-2 mb-5"></div>
+
         <h3 class="font-display font-semibold uppercase tracking-wide text-sm text-graphite-400 mb-2">Carica da Excel</h3>
 
         <div class="grid grid-cols-3 gap-2 mb-4">
@@ -577,7 +591,7 @@
             Cancella per sempre TUTTI i depositi e prelievi registrati, di tutti gli articoli. La giacenza attuale non cambia: viene rimosso solo lo storico. Utile per ripulire i report senza toccare gli articoli (eliminare un articolo elimina già in automatico i suoi movimenti collegati).
           </p>
           <button id="settings-delete-all-history-btn" type="button"
-            class="w-full flex items-center justify-center gap-2 rounded-lg border border-rose-500/40 text-rose-700 hover:bg-rose-500/10 px-4 py-2.5 text-sm font-display font-semibold uppercase tracking-wide transition-colors min-h-[44px]">
+            class="w-full flex items-center justify-center gap-2 rounded-lg border border-rose-500/40 text-rose-700 hover:bg-rose-50 px-4 py-2.5 text-sm font-display font-semibold uppercase tracking-wide transition-colors min-h-[44px]">
             <i data-lucide="history" class="w-4 h-4" stroke-width="2"></i>
             Elimina tutta la cronologia
           </button>
@@ -734,7 +748,7 @@
         <button id="product-print-label-btn" type="button" aria-label="Stampa etichetta PDF" title="Stampa etichetta PDF" class="shrink-0 w-11 h-11 rounded-lg border border-graphite-700 hover:border-amber-400 text-graphite-300 hover:text-amber-400 flex items-center justify-center transition-colors">
           <i data-lucide="printer" class="w-5 h-5" stroke-width="1.6"></i>
         </button>
-        <button id="product-delete-btn" type="button" class="hidden flex-1 rounded-lg border border-rose-500/40 text-rose-700 hover:bg-rose-500/10 px-4 py-2.5 text-sm font-display font-semibold uppercase tracking-wide transition-colors min-h-[44px]">
+        <button id="product-delete-btn" type="button" class="hidden flex-1 rounded-lg border border-rose-500/40 text-rose-700 hover:bg-rose-50 px-4 py-2.5 text-sm font-display font-semibold uppercase tracking-wide transition-colors min-h-[44px]">
           Elimina
         </button>
       </div>

@@ -130,8 +130,10 @@ function escapeHtml(str) {
  * @param {string[] | (() => (string[]|Promise<string[]>))} opts.getOptions - opzioni statiche, o funzione (anche async) che le carica
  * @param {boolean} [opts.allowCustom] - se true, permette di digitare e aggiungere un valore non in elenco
  * @param {(value: string) => void} [opts.onChange] - richiamata quando l'utente sceglie/svuota un valore
+ * @param {(value: string) => Promise<string|null>} [opts.onCreate] - richiamata quando l'utente sceglie "Aggiungi …" (valore nuovo):
+ *   deve registrarlo (es. su database) e restituire il valore da usare, oppure null per non selezionare nulla
  */
-export function attachFieldDropdown({ triggerBtn, valueEl, hiddenInput, getOptions, allowCustom = false, hideSearch = false, onChange }) {
+export function attachFieldDropdown({ triggerBtn, valueEl, hiddenInput, getOptions, allowCustom = false, hideSearch = false, onChange, onCreate }) {
   if (!triggerBtn || triggerBtn.dataset.fieldDropdown === 'true') return;
   triggerBtn.dataset.fieldDropdown = 'true';
   triggerBtn.classList.add('custom-select-trigger');
@@ -224,7 +226,18 @@ export function attachFieldDropdown({ triggerBtn, valueEl, hiddenInput, getOptio
       addRow.innerHTML = `<i data-lucide="plus" class="w-4 h-4 shrink-0" stroke-width="2.5"></i><span>Aggiungi "${escapeHtml(
         filterText.trim()
       )}"</span>`;
-      addRow.addEventListener('click', () => selectValue(filterText.trim()));
+      addRow.addEventListener('click', async () => {
+        const typed = filterText.trim();
+        if (!onCreate) return selectValue(typed);
+        addRow.disabled = true;
+        addRow.classList.add('opacity-60');
+        const created = await onCreate(typed);
+        if (created) selectValue(created);
+        else {
+          addRow.disabled = false;
+          addRow.classList.remove('opacity-60');
+        }
+      });
       listEl.appendChild(addRow);
     }
 

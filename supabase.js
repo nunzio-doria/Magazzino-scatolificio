@@ -79,6 +79,17 @@ export function searchCachedProducts(term) {
  * transazione messa in coda offline, cosí lo scanner mostra un valore
  * coerente anche prima della sincronizzazione.
  */
+// Contatore condiviso: aumenta ogni volta che una giacenza cambia (movimento registrato,
+// movimento offline sincronizzato). Il Magazzino lo confronta con l'ultimo valore visto
+// per sapere se la lista in memoria va aggiornata (in silenzio) al rientro nella sezione.
+let productsVersion = 0;
+export function getProductsVersion() {
+  return productsVersion;
+}
+export function bumpProductsVersion() {
+  productsVersion += 1;
+}
+
 export function adjustCachedProductQuantity(id, delta) {
   const cache = loadProductCache();
   const p = cache.byId?.[id];
@@ -198,12 +209,116 @@ export async function bulkUpsertProducts(categoria, rows) {
   return data?.[0] ?? null;
 }
 
-/** Elenco delle "macchina" già registrate (valori distinti, non vuoti), per la combobox del form articolo */
+// --- MACCHINE --------------------------------------------------
+// Le macchine si registrano nella tabella `machines` (vedi sql/create_machines_table.sql).
+// products.macchina resta un testo libero: le macchine "storiche" usate solo dagli articoli
+// continuano a comparire negli elenchi anche se non sono (ancora) nella tabella.
+
+/** Toglie spazi doppi e ai bordi dal nome di una macchina */
+export function normalizeMachineName(name) {
+  return String(name || '').replace(/\s+/g, ' ').trim();
+}
+
+/** True se l'errore indica che la tabella `machines` non esiste (ancora) sul database */
+function isMissingMachinesTable(error) {
+  const msg = `${error?.message || ''} ${error?.details || ''}`;
+  return error?.code === 'PGRST205' || error?.code === '42P01' || /machines/.test(msg) && /schema cache|does not exist/i.test(msg);
+}
+
+/** Elenco delle macchine (tabella `machines` + valori già usati dagli articoli), per la tendina del form articolo e i filtri */
 export async function listDistinctMacchine() {
+  const byKey = new Map(); // chiave minuscola -> nome (vince la forma scritta nella tabella)
+  const registered = await supabase.from('machines').select('nome');
+  if (!registered.error) {
+    registered.data.forEach((r) => {
+      const n = normalizeMachineName(r.nome);
+      if (n) byKey.set(n.toLowerCase(), n);
+    });
+  } else if (!isMissingMachinesTable(registered.error)) {
+    throw registered.error;
+  }
   const { data, error } = await supabase.from('products').select('macchina').not('macchina', 'is', null);
   if (error) throw error;
-  const values = new Set(data.map((r) => r.macchina).filter((v) => v && v.trim()));
-  return Array.from(values).sort((a, b) => a.localeCompare(b, 'it'));
+  data.forEach((r) => {
+    const n = normalizeMachineName(r.macchina);
+    if (n && !byKey.has(n.toLowerCase())) byKey.set(n.toLowerCase(), n);
+  });
+  return Array.from(byKey.values()).sort((a, b) => a.localeCompare(b, 'it'));
+}
+
+/**
+ * Macchine con il numero di articoli associati, per la gestione in Impostazioni.
+ * @returns {Promise<{machines: {id: string|null, nome: string, articoli: number}[], tableMissing: boolean}>}
+ */
+export async function listMachinesWithCounts() {
+  const [registered, products] = await Promise.all([
+    supabase.from('machines').select('id, nome'),
+    supabase.from('products').select('macchina').not('macchina', 'is', null),
+  ]);
+  if (products.error) throw products.error;
+  const tableMissing = !!registered.error && isMissingMachinesTable(registered.error);
+  if (registered.error && !tableMissing) throw registered.error;
+
+  const byKey = new Map();
+  const add = (raw, countIt, id = null) => {
+    const nome = normalizeMachineName(raw);
+    if (!nome) return;
+    const key = nome.toLowerCase();
+    if (!byKey.has(key)) byKey.set(key, { id, nome, articoli: 0 });
+    if (id && !byKey.get(key).id) byKey.get(key).id = id;
+    if (countIt) byKey.get(key).articoli += 1;
+  };
+  (registered.data || []).forEach((r) => add(r.nome, false, r.id));
+  products.data.forEach((r) => add(r.macchina, true));
+  const machines = Array.from(byKey.values()).sort((a, b) => a.nome.localeCompare(b.nome, 'it'));
+  return { machines, tableMissing };
+}
+
+/** Aggiunge una macchina alla tabella (solo admin: lo garantisce anche il database con la RLS) */
+export async function createMachine(nome) {
+  const clean = normalizeMachineName(nome);
+  if (!clean) throw new Error('Scrivi il nome della macchina.');
+  if (clean.length > 60) throw new Error('Il nome è troppo lungo (massimo 60 caratteri).');
+  const { data, error } = await supabase.from('machines').insert({ nome: clean }).select('id, nome').single();
+  if (error) {
+    if (error.code === '23505') throw new Error(`La macchina "${clean}" è già presente.`);
+    if (error.code === '42501') throw new Error('Solo un amministratore può aggiungere macchine.');
+    if (isMissingMachinesTable(error)) {
+      throw new Error('La tabella delle macchine non è ancora stata creata sul database (vedi sql/create_machines_table.sql).');
+    }
+    throw error;
+  }
+  return data;
+}
+
+/**
+ * Rimuove una macchina: la toglie dalla tabella e svuota il campo "macchina" degli articoli che la usavano
+ * (confronto senza maiuscole/spazi), altrimenti continuerebbe a comparire negli elenchi.
+ * @param {{ id: string|null, nome: string }} machine
+ * @returns {Promise<{ articoliSvuotati: number }>}
+ */
+export async function deleteMachine({ id, nome }) {
+  const key = normalizeMachineName(nome).toLowerCase();
+
+  // 1) dalla tabella. Con la RLS un utente non admin non riceve un errore ma 0 righe: si controlla.
+  if (id) {
+    const { data, error } = await supabase.from('machines').delete().eq('id', id).select('id');
+    if (error) {
+      if (isMissingMachinesTable(error)) throw new Error('La tabella delle macchine non esiste ancora sul database.');
+      throw error;
+    }
+    if (!data || data.length === 0) throw new Error('Non è stato possibile rimuovere la macchina (solo un amministratore può farlo).');
+  }
+
+  // 2) dagli articoli che la usavano
+  const { data: rows, error: readErr } = await supabase.from('products').select('id, macchina').not('macchina', 'is', null);
+  if (readErr) throw readErr;
+  const ids = rows.filter((r) => normalizeMachineName(r.macchina).toLowerCase() === key).map((r) => r.id);
+  for (let i = 0; i < ids.length; i += 100) {
+    const { error } = await supabase.from('products').update({ macchina: null }).in('id', ids.slice(i, i + 100));
+    if (error) throw error;
+  }
+  return { articoliSvuotati: ids.length };
 }
 
 // --- TRANSAZIONI (deposito/prelievo) ------------------------------

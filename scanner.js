@@ -10,6 +10,7 @@ import {
   getCachedProductByBarcode,
   searchCachedProducts,
   adjustCachedProductQuantity,
+  bumpProductsVersion,
 } from './supabase.js';
 import { toastSuccess, toastError, toastWarning } from './toast.js';
 import { startCamera, stopCamera, switchCamera as switchCameraShared, toggleTorch } from './camera.js';
@@ -521,6 +522,7 @@ async function confirmTransaction() {
   els.confirmBtn.classList.remove('opacity-60');
 
   if (outcome.ok) {
+    bumpProductsVersion(); // la lista del Magazzino verrà aggiornata in silenzio al rientro
     // Il numero conta visibilmente verso il nuovo valore invece di
     // cambiare di scatto, e lampeggia brevemente: il momento in cui il
     // pezzo viene registrato deve essere impossibile da non notare.

@@ -11,6 +11,8 @@ import {
   listDistinctMacchine,
   getProductByBarcode,
   getProductById,
+  getProductsVersion,
+  createMachine,
 } from './supabase.js';
 import { toastSuccess, toastError, toastWarning } from './toast.js';
 import { isAdmin } from './auth.js';
@@ -28,6 +30,17 @@ let currentList = [];
 let editingId = null;
 let editingSnapshot = null; // riga completa del prodotto in modifica/eliminazione, per l'undo
 let searchDebounce = null;
+
+// --- Caricamento della lista: completo solo una volta per accesso ---------
+// Al primo ingresso nel Magazzino dopo l'accesso si vede il caricamento; ai rientri
+// successivi la lista già in memoria compare subito, senza caricamento né animazione
+// d'ingresso. Se nel frattempo è cambiata una giacenza (movimento registrato) o sono
+// passati più di REVALIDATE_MS, l'elenco si aggiorna in silenzio, senza che si veda nulla.
+const REVALIDATE_MS = 10 * 60 * 1000;
+let productsLoadedOnce = false;
+let seenProductsVersion = 0;
+let lastLoadedAt = 0;
+let refreshSeq = 0; // scarta le risposte arrivate in ritardo (ricerche digitate in fretta)
 let currentCategory = 'cuscinetti';
 let importCategory = 'cuscinetti';
 let lineaFilterValue = '';
@@ -179,6 +192,14 @@ export function initProducts() {
   els.lowStockToggle.addEventListener('change', refresh);
   els.lineaFilterBtn?.addEventListener('click', pickLineaFilter);
   els.macchinaFilterBtn?.addEventListener('click', pickMacchinaFilter);
+  // Una macchina è stata rimossa dalle Impostazioni: se era il filtro attivo, lo si toglie
+  document.addEventListener('machine-removed', (e) => {
+    const removed = (e.detail?.nome || '').trim().toLowerCase();
+    if (removed && macchinaFilterValue.trim().toLowerCase() === removed) {
+      macchinaFilterValue = '';
+      updateFilterLabels();
+    }
+  });
   els.newBtn.addEventListener('click', () => openModal());
   els.undoBtn.addEventListener('click', undo);
   els.redoBtn.addEventListener('click', redo);
@@ -214,8 +235,22 @@ export function initProducts() {
         return [];
       }
     },
-    allowCustom: false,
-    hideSearch: true,
+    // Si può scrivere il nome di una macchina nuova e aggiungerla: viene registrata nella
+    // tabella delle macchine (solo admin, come tutto il form articolo) e selezionata.
+    allowCustom: true,
+    hideSearch: false,
+    onCreate: async (nome) => {
+      try {
+        const row = await createMachine(nome);
+        feedback.confirmAction();
+        toastSuccess(`Macchina "${row.nome}" aggiunta.`);
+        return row.nome;
+      } catch (err) {
+        feedback.errorAction();
+        toastError(err.message || 'Impossibile aggiungere la macchina.');
+        return null;
+      }
+    },
   });
 
   els.categoryTabs.forEach((btn) => {
@@ -256,6 +291,8 @@ async function stopSearchScan() {
 export function teardownProducts() {
   stopSearchScan();
   stopBarcodeScan();
+  // Uscendo dal Magazzino: al rientro gli elementi già presenti non devono rifare l'animazione d'ingresso
+  setListStatic(true);
 }
 
 async function handleSearchScanDetected(code) {
@@ -384,22 +421,78 @@ const CONNECTION_ERROR_HTML = `
   <p class="text-xs text-graphite-500 max-w-[220px] text-center leading-relaxed">Controlla la rete e riprova.</p>
 `;
 
+/** Interroga il database con i filtri correnti (ricerca, sotto scorta, categoria, linea/macchina). */
+async function fetchCurrentList() {
+  let list = await listProducts({
+    search: els.searchInput.value.trim(),
+    onlyLowStock: els.lowStockToggle.checked,
+    categoria: currentCategory,
+  });
+  if (currentCategory === 'cinghie') {
+    if (lineaFilterValue) list = list.filter((p) => matchesLineaFilter(p.linea, lineaFilterValue));
+    if (macchinaFilterValue) list = list.filter((p) => p.macchina === macchinaFilterValue);
+  }
+  return list;
+}
+
+/** Con `list-static` sulla vista gli elementi dell'elenco compaiono già al loro posto (niente animazione d'ingresso). */
+function setListStatic(on) {
+  document.getElementById('view-products')?.classList.toggle('list-static', on);
+}
+
+function markListLoaded() {
+  productsLoadedOnce = true;
+  seenProductsVersion = getProductsVersion();
+  lastLoadedAt = Date.now();
+}
+
+/** Chiamata da app.js ogni volta che si entra nel Magazzino. */
+export function enterProducts() {
+  if (!productsLoadedOnce) return refresh(); // primo ingresso: caricamento completo
+  const changed = getProductsVersion() !== seenProductsVersion;
+  const old = Date.now() - lastLoadedAt > REVALIDATE_MS;
+  if (changed || old) return silentRefresh();
+  return Promise.resolve(); // la lista in memoria è quella giusta: niente da fare
+}
+
+/** Dopo il logout: la prossima volta si riparte da zero. */
+export function resetProducts() {
+  productsLoadedOnce = false;
+  seenProductsVersion = 0;
+  lastLoadedAt = 0;
+  currentList = [];
+  refreshSeq += 1; // eventuali richieste in volo non devono più scrivere nulla
+}
+
+/** Aggiorna l'elenco senza caricamento e senza animazioni; se la rete non c'è resta l'elenco attuale. */
+async function silentRefresh() {
+  const seq = ++refreshSeq;
+  try {
+    const list = await fetchCurrentList();
+    if (seq !== refreshSeq) return;
+    currentList = list;
+    setListStatic(true);
+    renderCurrentList();
+    markListLoaded();
+  } catch (err) {
+    console.warn('Aggiornamento silenzioso del Magazzino non riuscito, resta l\'elenco attuale.', err);
+  }
+}
+
 export async function refresh() {
+  const seq = ++refreshSeq;
+  setListStatic(false); // caricamento "vero": gli elementi entrano con la loro animazione
   els.skeleton.classList.remove('hidden');
   els.listWrap.classList.add('hidden');
   els.emptyState.classList.add('hidden');
   try {
-    currentList = await listProducts({
-      search: els.searchInput.value.trim(),
-      onlyLowStock: els.lowStockToggle.checked,
-      categoria: currentCategory,
-    });
-    if (currentCategory === 'cinghie') {
-      if (lineaFilterValue) currentList = currentList.filter((p) => matchesLineaFilter(p.linea, lineaFilterValue));
-      if (macchinaFilterValue) currentList = currentList.filter((p) => p.macchina === macchinaFilterValue);
-    }
+    const list = await fetchCurrentList();
+    if (seq !== refreshSeq) return; // nel frattempo è partita una richiesta più recente
+    currentList = list;
     renderCurrentList();
+    markListLoaded();
   } catch (err) {
+    if (seq !== refreshSeq) return;
     console.error(err);
     // Se la richiesta fallisce (rete assente, timeout...) currentList NON
     // viene sovrascritta: mantiene ancora l'ultimo elenco caricato con
@@ -417,7 +510,7 @@ export async function refresh() {
       toastError('Impossibile caricare gli articoli. Controlla la connessione.');
     }
   } finally {
-    els.skeleton.classList.add('hidden');
+    if (seq === refreshSeq) els.skeleton.classList.add('hidden');
   }
 }
 
