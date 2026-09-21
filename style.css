@@ -771,7 +771,9 @@ html { touch-action: manipulation; } /* niente ritardo/zoom col doppio tocco; pi
    zona più chiara o più scura. */
 .scan-watermark {
   position: absolute;
-  right: 136px; /* distanza dal bordo destro: aumentare per spostare a sinistra */
+  /* Parte subito dopo la barretta di trascinamento (che è centrata e larga 40px):
+     28px a destra del centro. Per spostarla, cambiare solo questo valore. */
+  left: calc(50% + 28px);
   top: 50%;
   transform: translateY(-50%);
   width: 88px;
