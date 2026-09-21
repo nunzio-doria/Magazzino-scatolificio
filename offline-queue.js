@@ -11,7 +11,16 @@
 // =============================================================
 
 const QUEUE_KEY = 'magazzino-offline-queue';
+const FAILED_KEY = 'magazzino-offline-failed'; // movimenti rifiutati dal server, tenuti da parte
+const FAILED_MAX = 50;
 const listeners = [];
+
+// Codici con cui il database rifiuta DEFINITIVAMENTE un movimento (regola di
+// business violata, articolo inesistente, valore non valido): ritentarlo non
+// servirebbe mai. Qualsiasi altro errore (rete, sessione scaduta, server
+// momentaneamente giù) è trattato come temporaneo e la coda si ferma per
+// riprovare più tardi: meglio non perdere un movimento che scartarlo per errore.
+const PERMANENT_REJECTION_CODES = new Set(['P0001', '23503', '23505', '23514', '22003', '22P02', 'PGRST116']);
 
 function loadQueue() {
   try {
@@ -23,9 +32,35 @@ function loadQueue() {
 function saveQueue(queue) {
   try {
     localStorage.setItem(QUEUE_KEY, JSON.stringify(queue));
+    return true;
   } catch (err) {
     console.warn('Impossibile salvare la coda offline.', err);
+    return false;
   }
+}
+
+/** Movimenti rifiutati dal server durante la sincronizzazione (più recenti in fondo) */
+export function getFailedTransactions() {
+  try {
+    return JSON.parse(localStorage.getItem(FAILED_KEY) || '[]');
+  } catch (err) {
+    return [];
+  }
+}
+function addFailedTransaction(item, reason) {
+  try {
+    const failed = getFailedTransactions();
+    failed.push({ ...item, failedAt: new Date().toISOString(), reason });
+    localStorage.setItem(FAILED_KEY, JSON.stringify(failed.slice(-FAILED_MAX)));
+  } catch (err) {
+    console.warn('Impossibile salvare il movimento non sincronizzato.', err);
+  }
+}
+
+/** true se il server ha rifiutato in modo definitivo l'operazione (vedi PERMANENT_REJECTION_CODES) */
+export function isPermanentRejection(err) {
+  if (isNetworkError(err)) return false;
+  return PERMANENT_REJECTION_CODES.has(err?.code) || (err?.message || '').includes('Giacenza insufficiente');
 }
 function notify() {
   const count = getQueueCount();
@@ -47,7 +82,11 @@ export function onQueueChange(fn) {
   listeners.push(fn);
 }
 
-/** Accoda una transazione da sincronizzare appena torna la rete */
+/**
+ * Accoda una transazione da sincronizzare appena torna la rete.
+ * @returns {boolean} false se non è stato possibile salvarla sul dispositivo
+ *   (es. memoria piena): il chiamante deve dirlo all'operatore.
+ */
 export function enqueueTransaction(payload) {
   const queue = loadQueue();
   queue.push({
@@ -55,52 +94,72 @@ export function enqueueTransaction(payload) {
     payload,
     queuedAt: new Date().toISOString(),
   });
-  saveQueue(queue);
+  if (!saveQueue(queue)) return false;
   notify();
+  return true;
 }
 
 let flushing = false;
 
 /**
  * Prova a inviare le transazioni in coda, in ordine, tramite processFn
- * (tipicamente processTransaction di supabase.js). Si ferma al primo
- * errore cosí da riprovare più tardi nello stesso ordine, invece di
- * scartare o disordinare le transazioni rimaste.
+ * (tipicamente processTransaction di supabase.js), nell'ordine di creazione.
+ * - Errore temporaneo (rete, sessione, server giù): si ferma e riprova più
+ *   tardi, cosí l'ordine non viene alterato.
+ * - Rifiuto definitivo del server (es. giacenza insufficiente): il movimento
+ *   viene tolto dalla coda e messo da parte tra i "non sincronizzati", poi si
+ *   prosegue con i successivi, senza che uno solo blocchi tutti gli altri.
  * @param {(payload: object) => Promise<any>} processFn
- * @returns {Promise<{synced: number}>}
+ * @param {{ onDiscard?: (item: object, err: Error) => void }} [opts]
+ * @returns {Promise<{synced: number, discarded: number}>}
  */
-export async function flushQueue(processFn) {
-  if (flushing) return { synced: 0 };
+export async function flushQueue(processFn, { onDiscard } = {}) {
+  if (flushing) return { synced: 0, discarded: 0 };
   flushing = true;
   let synced = 0;
+  let discarded = 0;
   try {
-    let queue = loadQueue();
+    const queue = loadQueue();
     while (queue.length) {
       const item = queue[0];
+      let rejected = null;
       try {
         await processFn(item.payload);
       } catch (err) {
-        console.warn('Sincronizzazione offline interrotta, riprovo più tardi.', err);
-        break;
+        if (!isPermanentRejection(err)) {
+          console.warn('Sincronizzazione offline interrotta, riprovo più tardi.', err);
+          break;
+        }
+        rejected = err;
       }
       queue.shift();
       saveQueue(queue);
+      if (rejected) {
+        addFailedTransaction(item, rejected.message || 'Rifiutato dal server');
+        discarded += 1;
+        try {
+          onDiscard?.(item, rejected);
+        } catch (cbErr) {
+          console.warn(cbErr);
+        }
+      } else {
+        synced += 1;
+      }
       notify();
-      synced += 1;
     }
   } finally {
     flushing = false;
   }
-  return { synced };
+  return { synced, discarded };
 }
 
 /**
  * Collega il flush automatico: alla riconnessione (evento 'online') e,
  * se già online, subito all'avvio.
  */
-export function initOfflineSync(processFn) {
-  window.addEventListener('online', () => flushQueue(processFn));
-  if (navigator.onLine) flushQueue(processFn);
+export function initOfflineSync(processFn, opts = {}) {
+  window.addEventListener('online', () => flushQueue(processFn, opts));
+  if (navigator.onLine) flushQueue(processFn, opts);
 }
 
 /** Un errore è "di rete" (quindi da mettere in coda) se siamo offline o se la chiamata è proprio fallita per assenza di connessione */

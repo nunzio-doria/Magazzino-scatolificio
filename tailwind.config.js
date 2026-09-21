@@ -15,8 +15,8 @@ tailwind.config = {
           800: '#ffffff', // sfondo card/input
           700: '#e3e5e9', // bordi
           600: '#d3d6db', // bordi più marcati / hover
-          500: '#70747c', // testo secondario/muted
-          400: '#9a9ea6', // placeholder
+          500: '#62666e', // testo secondario/muted (contrasto ~5,9 su bianco)
+          400: '#6b6f77', // testo di supporto: etichette, sottotitoli (contrasto ~5 su bianco)
           300: '#565a62', // testo secondario più scuro (icone hover)
           200: '#40444c', // testo secondario scuro
           100: '#14161a', // testo principale

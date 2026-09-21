@@ -5,7 +5,7 @@
 import { getConsumptionStats, listTransactions } from './supabase.js';
 import { toastError, toastSuccess, toastWarning } from './toast.js';
 import { enhanceSelect } from './ui-select.js';
-import { animateNumber, animateRing, emptyStateHtml, lockBodyScroll, unlockBodyScroll, staggerIndex } from './ui-utils.js';
+import { animateNumber, animateRing, emptyStateHtml, openOverlay, closeOverlay, enableSheetDrag, staggerIndex } from './ui-utils.js';
 import feedback from './feedback.js';
 
 const els = {};
@@ -33,6 +33,7 @@ export function initDashboard() {
 
   // Modale storico articolo
   els.articleModal = document.getElementById('article-history-modal');
+  enableSheetDrag(els.articleModal.querySelector('.modal-panel'), () => closeArticleHistory());
   els.articleModalTitle = document.getElementById('article-history-title');
   els.articleModalClose = document.getElementById('article-history-close');
   els.articleModalList = document.getElementById('article-history-list');
@@ -190,9 +191,7 @@ async function openArticleHistory(productId, codiceArticolo) {
   els.articleModalTabs.forEach((b) => b.classList.toggle('history-tab-active', b.dataset.historyTab === 'tutti'));
   els.articleModalList.innerHTML = '<div class="skeleton h-12 w-full mb-2"></div><div class="skeleton h-12 w-full mb-2"></div><div class="skeleton h-12 w-full"></div>';
 
-  els.articleModal.classList.remove('hidden');
-  lockBodyScroll();
-  requestAnimationFrame(() => els.articleModal.classList.add('modal-visible'));
+  openOverlay(els.articleModal);
 
   try {
     articleHistoryCache = await listTransactions({ from: currentFrom, productId, limit: 500 });
@@ -219,9 +218,7 @@ function renderArticleHistory() {
 }
 
 function closeArticleHistory() {
-  els.articleModal.classList.remove('modal-visible');
-  unlockBodyScroll();
-  setTimeout(() => els.articleModal.classList.add('hidden'), 180);
+  closeOverlay(els.articleModal);
 }
 
 function escapeHtml(str) {

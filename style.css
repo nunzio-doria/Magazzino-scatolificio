@@ -15,7 +15,28 @@
   --accent-rgb: 47, 79, 146;
   --accent-dark: #24406f;
   --accent-deep: #13223f;
+
+  /* Margini di sicurezza dello schermo (notch, Dynamic Island, indicatore
+     home, barra dei gesti): li comunica il sistema e cambiano da soli col
+     dispositivo e con la rotazione. Dove non servono valgono 0. */
+  --sat: env(safe-area-inset-top, 0px);
+  --sar: env(safe-area-inset-right, 0px);
+  --sab: env(safe-area-inset-bottom, 0px);
+  --sal: env(safe-area-inset-left, 0px);
+  /* Altezza reale della barra in basso (margine incluso): la aggiorna
+     app.js misurandola; 64px è solo il valore di partenza. */
+  --nav-h: 64px;
 }
+
+/* Contenuto, toast e barra si dispongono in base ai margini sopra e
+   all'altezza misurata della barra: niente numeri fissi per dispositivo. */
+#app-shell { padding-bottom: calc(var(--nav-h) + 1rem); }
+#app-shell > header {
+  padding-top: var(--sat);
+  padding-left: var(--sal);
+  padding-right: var(--sar);
+}
+#toast-container { bottom: calc(var(--nav-h) + 0.75rem); }
 
 html, body {
   height: 100%;
@@ -52,6 +73,17 @@ body {
 input, textarea {
   -webkit-user-select: text;
   user-select: text;
+}
+/* Segnaposto dei campi: più chiari del testo scritto ma sempre leggibili
+   (contrasto ~3,7 su bianco). Regola unica per tutti i campi dell'app. */
+/* Scale tipografiche minime dell'app (mai sotto gli 11px):
+   .ui-label = etichette e badge in maiuscolo, .ui-note = note e sottotitoli. */
+.ui-label { font-size: 11px; }
+.ui-note { font-size: 0.75rem; }
+
+::placeholder {
+  color: #80848c;
+  opacity: 1; /* Firefox applica di suo una trasparenza */
 }
 
 .font-display { letter-spacing: 0.01em; }
@@ -134,8 +166,12 @@ input, textarea {
   -webkit-backdrop-filter: blur(22px) saturate(160%);
   border-top: 1px solid rgba(255, 255, 255, 0.6);
   box-shadow: 0 -8px 30px -10px rgba(13, 17, 23, 0.16);
-  position: relative;
   overflow: hidden;
+  /* Sotto i pulsanti resta libera la zona dell'indicatore home / barra dei
+     gesti; ai lati, quella del notch in orizzontale. */
+  padding-bottom: var(--sab);
+  padding-left: var(--sal);
+  padding-right: var(--sar);
 }
 .nav-glass::before {
   /* riflesso di luce dinamico: una banda chiara che attraversa la nav in loop */
@@ -463,6 +499,14 @@ input.peer:checked ~ span:first-of-type {
   transform: scale(1.02);
 }
 
+/* Schermi molto stretti (<360px): nel selettore di visualizzazione le icone
+   lasciano spazio alle etichette, così nessun testo esce dal proprio tab. */
+@media (max-width: 359px) {
+  .view-mode-tab > svg, .view-mode-tab > i { display: none; }
+  /* stesso criterio per i tab categoria: un filo meno di font e spaziatura */
+  .category-tab, .import-category-tab { font-size: 11px; letter-spacing: 0; padding-left: 0.25rem; padding-right: 0.25rem; }
+}
+
 /* ---- Tab categoria magazzino -------------------------------------- */
 .category-tab, .import-category-tab { transition: all 160ms ease; color: #5c6672; }
 .category-tab-active, .import-category-tab-active {
@@ -616,53 +660,86 @@ input.peer:checked ~ span:first-of-type {
   animation: torch-flash 380ms cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
-/* ---- Modal (generico: product-modal, field-picker-modal, article-history-modal) --- */
-#product-modal, #field-picker-modal, #article-history-modal {
-  transition: opacity 200ms ease;
-  opacity: 0;
-}
-#product-modal.modal-visible, #field-picker-modal.modal-visible, #article-history-modal.modal-visible { opacity: 1; }
-#product-modal .modal-panel, #field-picker-modal .modal-panel, #article-history-modal .modal-panel {
-  transition: transform 260ms cubic-bezier(0.22, 1.4, 0.36, 1), opacity 220ms ease;
-  transform: translateY(18px) scale(0.97);
-  opacity: 0;
-}
-#product-modal.modal-visible .modal-panel,
-#field-picker-modal.modal-visible .modal-panel,
-#article-history-modal.modal-visible .modal-panel {
-  transform: translateY(0) scale(1);
-  opacity: 1;
-}
-
-/* ---- Modale di scansione: vero cassetto (bottom sheet), non il fade
-   leggero delle altre modali. Il fondo dello sfondo scuro dietro (bg-black/60)
-   basta da solo come dissolvenza: il pannello bianco entra/esce scorrendo
-   verticalmente, a schermo intero fino al bordo inferiore, senza tagli. ---- */
-#scan-mode-modal {
+/* ---- Modali (tutte): stessa struttura e stessi tempi di Deposito/Prelievo.
+   Overlay = .modal-overlay, pannello = .modal-panel, stato aperto = .modal-visible.
+   Mobile: cassetto che scorre dal basso. Desktop: pannello centrato che sale
+   leggermente con un piccolo scale, stessa durata e stessa curva. ---- */
+.modal-overlay {
   transition: opacity 240ms ease;
   opacity: 0;
 }
-#scan-mode-modal.modal-visible {
+.modal-overlay.modal-visible {
   opacity: 1;
 }
-#scan-mode-modal .modal-panel {
+.modal-overlay .modal-panel {
   transition: transform 340ms cubic-bezier(0.32, 0.72, 0, 1);
   transform: translateY(100%);
 }
-#scan-mode-modal.modal-visible .modal-panel {
+.modal-overlay.modal-visible .modal-panel {
   transform: translateY(0);
+}
+@media (min-width: 640px) {
+  .modal-overlay .modal-panel {
+    transform: translateY(24px) scale(0.98);
+  }
+  .modal-overlay.modal-visible .modal-panel {
+    transform: translateY(0) scale(1);
+  }
 }
 /* Mentre si trascina manualmente la maniglia, niente transizione: il
    pannello deve seguire il dito 1:1, esattamente come per il
    pull-to-refresh — la transizione va bene solo per l'apertura/chiusura
    automatica, non per l'inseguimento continuo del tocco. */
-#scan-mode-modal .modal-panel.sheet-dragging {
+/* Cassetto da mobile: il fondo del pannello lascia libera la zona di
+   sicurezza inferiore, così i pulsanti non finiscono sotto l'indicatore
+   home. Su schermi larghi il pannello è centrato: nessun margine. */
+.modal-overlay .modal-panel { padding-bottom: var(--sab); }
+.modal-overlay .modal-panel.modal-panel-card { padding-bottom: calc(1.5rem + var(--sab)); }
+@media (min-width: 640px) {
+  .modal-overlay .modal-panel { padding-bottom: 0; }
+  .modal-overlay .modal-panel.modal-panel-card { padding-bottom: 1.25rem; }
+}
+
+.modal-overlay .modal-panel.sheet-dragging {
   transition: none;
 }
-#scan-modal-drag-handle {
-  touch-action: none;
+/* Zona di trascinamento dei cassetti: maniglia alta 32px a tutta larghezza
+   (la barretta è solo il segno visivo) + la riga del titolo, tutte marcate
+   con data-sheet-drag. touch-action: none evita che il browser interpreti
+   il gesto come scroll o pull-to-refresh. */
+[data-sheet-drag] { touch-action: none; }
+.sheet-grabber {
+  flex-shrink: 0;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   cursor: grab;
 }
+.sheet-grabber-pill {
+  width: 40px;
+  height: 6px;
+  border-radius: 9999px;
+  background: #c3c8d0;
+}
+
+/* Area di tocco minima di 44px senza cambiare l'aspetto: il pulsante resta
+   grande com'è, ma la zona sensibile si estende attorno a lui. */
+.hit-area, .hit-area-sm { position: relative; }
+.hit-area::after { content: ''; position: absolute; inset: -6px; }    /* 32px -> 44px */
+.hit-area-sm::after { content: ''; position: absolute; inset: -4px; } /* 36px -> 44px */
+
+/* iOS ingrandisce da solo la pagina quando si tocca un campo con testo
+   sotto i 16px. Poiché lo zoom a due dita è ora consentito (vedi viewport),
+   i campi su iOS usano 16px per evitare quel salto. */
+@supports (-webkit-touch-callout: none) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]),
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}
+html { touch-action: manipulation; } /* niente ritardo/zoom col doppio tocco; pizzico e scroll restano */
 
 /* ---- Apertura "a fisarmonica" della fotocamera nella modale di scansione:
    grid-template-rows anima da 0fr a 1fr senza dover conoscere l'altezza
@@ -791,41 +868,6 @@ input.peer:checked ~ span:first-of-type {
 .custom-select-option-active {
   color: var(--accent-dark);
   font-weight: 700;
-}
-
-/* ---- Modale di conferma (sostituisce confirm() nativo) --------------
-   Overlay con fade dello sfondo + card che entra con un piccolo overshoot
-   elastico, in tema con la fisica a molla usata nel resto dell'app. */
-.confirm-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 95;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 24px;
-  background: rgba(13, 17, 23, 0);
-  transition: background-color 220ms ease;
-}
-.confirm-overlay.confirm-open {
-  background: rgba(13, 17, 23, 0.52);
-  backdrop-filter: blur(2px);
-}
-.confirm-card {
-  width: 100%;
-  max-width: 360px;
-  transform: scale(0.9) translateY(10px);
-  opacity: 0;
-  transition: transform 360ms cubic-bezier(0.34, 1.56, 0.64, 1), opacity 220ms ease;
-}
-.confirm-overlay.confirm-open .confirm-card {
-  transform: scale(1) translateY(0);
-  opacity: 1;
-}
-.confirm-overlay.confirm-closing .confirm-card {
-  transform: scale(0.92) translateY(6px);
-  opacity: 0;
-  transition: transform 180ms ease, opacity 180ms ease;
 }
 
 /* ---- Micro-animazione di comparsa della card risultato scanner -------- */

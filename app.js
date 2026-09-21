@@ -10,13 +10,15 @@ import { initUsers, refreshUsers } from './users.js';
 import { initPicker } from './picker.js';
 import feedback, { initFeedbackSettings } from './feedback.js';
 import { initOfflineSync } from './offline-queue.js';
-import { processTransaction } from './supabase.js';
+import { processTransaction, adjustCachedProductQuantity } from './supabase.js';
 import { toastSuccess, toastError } from './toast.js';
+import { closeAllOverlays } from './ui-utils.js';
 
 const VIEWS = ['scanner', 'products', 'dashboard', 'settings'];
 let modulesInitialized = false;
 let currentView = null;
 let isTransitioning = false;
+let pendingSwitch = null; // ultima sezione richiesta durante una transizione: parte appena finisce
 let swRegistration = null;
 
 function onAuthed(profile) {
@@ -26,7 +28,7 @@ function onAuthed(profile) {
 
   const roleLabel = profile.role === 'admin' ? 'Admin' : 'Operatore';
   document.getElementById('user-role-badge').textContent = roleLabel;
-  document.getElementById('user-role-badge').className = `text-[10px] font-display font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${
+  document.getElementById('user-role-badge').className = `ui-label whitespace-nowrap font-display font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${
     profile.role === 'admin' ? 'bg-amber-500/20 text-amber-400' : 'bg-sky-500/20 text-sky-700'
   }`;
   document.getElementById('settings-user-name').textContent = profile.full_name || profile.email;
@@ -51,11 +53,26 @@ function onAuthed(profile) {
     initNav();
     initFeedbackSettings();
     initSettingsRefreshButton();
-    initOfflineSync(async (payload) => {
-      const result = await processTransaction(payload);
-      toastSuccess(`Sincronizzato: ${payload.codice_articolo} (${payload.tipo === 'deposito' ? 'deposito' : 'prelievo'})`, 3000);
-      return result;
-    });
+    initOfflineSync(
+      async (payload) => {
+        const result = await processTransaction(payload);
+        toastSuccess(`Sincronizzato: ${payload.codice_articolo} (${payload.tipo === 'deposito' ? 'deposito' : 'prelievo'})`, 3000);
+        return result;
+      },
+      {
+        // Movimento rifiutato dal server: si avvisa l'operatore e si toglie dalla
+        // cache la variazione di giacenza applicata "a vista" quando era stato accodato.
+        onDiscard: ({ payload }, err) => {
+          const delta = payload.tipo === 'deposito' ? payload.quantita : -payload.quantita;
+          adjustCachedProductQuantity(payload.productId, -delta);
+          const reason = err.message?.includes('Giacenza insufficiente') ? err.message : 'il server ha rifiutato l\'operazione';
+          toastError(
+            `Movimento offline NON registrato: ${payload.tipo === 'deposito' ? 'deposito' : 'prelievo'} di ${payload.quantita} su ${payload.codice_articolo} — ${reason}.`,
+            9000
+          );
+        },
+      }
+    );
     modulesInitialized = true;
   }
   switchView('scanner', { animate: false });
@@ -70,6 +87,21 @@ function onAuthed(profile) {
 }
 
 function onSignedOut() {
+  // Pulizia completa: senza, modali aperte, fotocamera accesa e blocco dello
+  // scroll resterebbero attivi sotto la schermata di login (e riapparirebbero
+  // al login successivo, magari di un altro utente). Solo se l'app è già
+  // stata avviata: al primo caricamento senza sessione non c'è nulla da chiudere.
+  if (modulesInitialized) {
+    closeAllOverlays();
+    teardownScanner();
+    teardownProducts();
+    for (const v of VIEWS) {
+      document.getElementById(`view-${v}`)?.classList.add('hidden');
+      document.querySelector(`[data-nav-target="${v}"]`)?.classList.remove('nav-active');
+    }
+    currentView = null; // il prossimo login riparte sempre dallo Scanner
+    pendingSwitch = null;
+  }
   document.getElementById('app-shell').classList.add('hidden');
   document.getElementById('auth-view').classList.remove('hidden');
   document.getElementById('login-password').value = '';
@@ -78,14 +110,17 @@ function onSignedOut() {
 function initNav() {
   document.querySelectorAll('[data-nav-target]').forEach((btn) => {
     btn.addEventListener('click', () => {
-      feedback.navTap();
-      switchView(btn.dataset.navTarget);
-      triggerNavTap(btn);
+      // Feedback e rimbalzo partono solo quando il cambio vista avviene davvero
+      switchView(btn.dataset.navTarget, {
+        onStart: () => {
+          feedback.navTap();
+          triggerNavTap(btn);
+        },
+      });
     });
   });
   document.getElementById('settings-btn').addEventListener('click', () => {
-    feedback.navTap();
-    switchView('settings');
+    switchView('settings', { onStart: () => feedback.navTap() });
   });
 }
 
@@ -142,13 +177,25 @@ function triggerNavTap(btn) {
   btn.classList.add('nav-tapped');
 }
 
-export function switchView(view, { animate = true } = {}) {
+/**
+ * @param {string} view
+ * @param {{ animate?: boolean, onStart?: () => void }} [opts] onStart viene
+ *   richiamata solo quando il cambio vista parte davvero (non se è già la
+ *   vista corrente, e con un po' di ritardo se prima deve finire una transizione).
+ */
+export function switchView(view, { animate = true, onStart } = {}) {
   // Solo la Dashboard/Report resta riservata all'admin: il Magazzino è
   // visibile anche all'operatore in sola lettura (CRUD già disabilitato
   // in products.js tramite isAdmin() sui singoli controlli).
   if (view === 'dashboard' && !isAdmin()) view = 'scanner';
+  if (isTransitioning) {
+    // Non si sovrappongono due transizioni: si ricorda solo l'ultimo tocco
+    // (se torna alla vista già in arrivo, la richiesta in coda decade).
+    pendingSwitch = view === currentView ? null : { view, opts: { animate, onStart } };
+    return;
+  }
   if (view === currentView) return;
-  if (isTransitioning) return; // evita di sovrapporre più transizioni se si tocca velocemente
+  onStart?.();
 
   const previousView = currentView;
   const fromIndex = previousView ? VIEWS.indexOf(previousView) : -1;
@@ -260,9 +307,13 @@ export function animateFluidSwap(fromSection, toSection, forward, onSettled) {
   });
 
   let done = false;
+  const onEnterEnd = (e) => {
+    if (e.target === toSection) cleanup();
+  };
   const cleanup = () => {
     if (done) return;
     done = true;
+    toSection.removeEventListener('animationend', onEnterEnd); // niente listener residui se scatta prima il timer
     fromSection.classList.add('hidden');
     fromSection.classList.remove('view-fluid-leaving', 'view-fluid-exit-left', 'view-fluid-exit-right');
     fromSection.style.position = '';
@@ -274,16 +325,53 @@ export function animateFluidSwap(fromSection, toSection, forward, onSettled) {
     host.style.transition = '';
     document.documentElement.style.overflowY = previousHtmlOverflowY;
     isTransitioning = false;
+    // Se nel frattempo è stata toccata un'altra sezione, si passa subito a
+    // quella (il refresh della vista intermedia sarebbe lavoro sprecato).
+    if (pendingSwitch) {
+      const { view, opts } = pendingSwitch;
+      pendingSwitch = null;
+      switchView(view, opts);
+      return;
+    }
     // Il lavoro pesante (fetch + ricostruzione DOM + icone) parte solo ora,
     // a thread principale libero dall'animazione appena conclusa.
     onSettled?.();
   };
-  // L'ingresso (160ms di ritardo + 480ms) termina dopo l'uscita (240ms): è
-  // il suo animationend a far scattare il cleanup.
-  toSection.addEventListener('animationend', cleanup, { once: true });
+  // L'ingresso (160ms di ritardo + 520ms) termina dopo l'uscita (260ms): è
+  // il suo animationend a far scattare il cleanup. Si considera solo
+  // l'evento della vista stessa: quelli degli elementi interni (righe della
+  // lista, badge, stati vuoti...) risalgono fino a qui e finiscono prima,
+  // chiudendo la transizione in anticipo.
+  toSection.addEventListener('animationend', onEnterEnd);
   setTimeout(cleanup, 720); // rete di sicurezza se l'evento non scattasse
 }
 
+/**
+ * Misura l'altezza reale della barra in basso (margine di sicurezza incluso)
+ * e la pubblica come variabile CSS --nav-h, da cui dipendono lo spazio in
+ * fondo al contenuto e la posizione dei toast. Si riaggiorna da sola se
+ * cambia (rotazione, dimensione del testo, margini del dispositivo).
+ */
+function initNavMetrics() {
+  const nav = document.querySelector('nav.nav-glass');
+  if (!nav) return;
+  const update = () => {
+    const h = nav.offsetHeight;
+    if (h > 0) document.documentElement.style.setProperty('--nav-h', `${h}px`); // 0 = ancora nascosta (login)
+  };
+  update();
+  if ('ResizeObserver' in window) {
+    try {
+      new ResizeObserver(update).observe(nav, { box: 'border-box' });
+    } catch (err) {
+      new ResizeObserver(update).observe(nav);
+    }
+  }
+  window.addEventListener('resize', update);
+  window.addEventListener('orientationchange', update);
+}
+
+initNavMetrics();
 initAuth(onAuthed, onSignedOut);
 
 // Registra il service worker per rendere l'app installabile (PWA).

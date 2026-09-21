@@ -15,14 +15,11 @@ import { toastSuccess, toastError, toastWarning } from './toast.js';
 import { startCamera, stopCamera, switchCamera as switchCameraShared, toggleTorch } from './camera.js';
 import feedback from './feedback.js';
 import { enqueueTransaction, onQueueChange, getQueueCount, isNetworkError } from './offline-queue.js';
-import { animateNumber, replayAnimation, emptyStateHtml, lockBodyScroll, unlockBodyScroll } from './ui-utils.js';
+import { animateNumber, replayAnimation, emptyStateHtml, openOverlay, closeOverlay, enableSheetDrag } from './ui-utils.js';
 import { CATEGORY_LABELS } from './products.js';
 
 let currentMode = null; // 'deposito' | 'prelievo'
 let currentProduct = null;
-let sheetDragStartY = 0;
-let sheetDragY = 0;
-let isDraggingSheet = false;
 
 const els = {};
 
@@ -31,7 +28,6 @@ export function initScanner() {
   els.modePrelievo = document.getElementById('mode-prelievo');
   els.scanModal = document.getElementById('scan-mode-modal');
   els.scanModalPanel = document.getElementById('scan-modal-panel');
-  els.dragHandle = document.getElementById('scan-modal-drag-handle');
   els.closeModalBtn = document.getElementById('scan-mode-close-btn');
   els.findMethods = document.getElementById('scan-find-methods');
   els.openCameraBtn = document.getElementById('scan-open-camera-btn');
@@ -73,10 +69,7 @@ export function initScanner() {
     feedback.cancelAction();
     closeScanModal();
   });
-  els.dragHandle.addEventListener('touchstart', onSheetDragStart, { passive: true });
-  els.dragHandle.addEventListener('touchmove', onSheetDragMove, { passive: false });
-  els.dragHandle.addEventListener('touchend', onSheetDragEnd);
-  els.dragHandle.addEventListener('touchcancel', onSheetDragEnd);
+  enableSheetDrag(els.scanModalPanel, closeScanModal); // trascinamento verso il basso per chiudere
   els.openCameraBtn.addEventListener('click', expandCamera);
   // Appena si tocca il campo di ricerca, il pulsante "scansiona" e il
   // separatore spariscono per fare spazio ai risultati (la modale è
@@ -137,59 +130,18 @@ function selectMode(mode) {
  *  codice" finché l'utente non lo preme (vedi expandCamera). */
 function openScanModal() {
   showFindMethods();
-  els.scanModal.classList.remove('hidden');
-  lockBodyScroll();
-  requestAnimationFrame(() => els.scanModal.classList.add('modal-visible'));
+  openOverlay(els.scanModal);
 }
 
 /** Chiude del tutto la finestra ed esce dalla modalità deposito/prelievo. */
 function closeScanModal() {
-  if (els.scanModal.classList.contains('hidden')) return; // già chiusa: evita di sballare lo scroll-lock
+  if (!els.scanModal.dataset.modalOpen) return; // già chiusa
   collapseCamera();
   currentMode = null;
   currentProduct = null;
   els.modeDeposito.classList.remove('mode-active-deposito');
   els.modePrelievo.classList.remove('mode-active-prelievo');
-  els.scanModal.classList.remove('modal-visible');
-  unlockBodyScroll();
-  setTimeout(() => els.scanModal.classList.add('hidden'), 340); // deve combaciare con la transizione del cassetto in CSS
-}
-
-/**
- * Maniglia in cima al cassetto: permette di accompagnare la chiusura
- * manualmente trascinando verso il basso, come un vero bottom sheet.
- * Segue il dito 1:1 (transizione disattivata durante il trascinamento,
- * stessa tecnica già usata per il pull-to-refresh), e solo al rilascio
- * decide se richiudersi del tutto o tornare aperta.
- */
-function onSheetDragStart(e) {
-  isDraggingSheet = true;
-  sheetDragStartY = e.touches[0].clientY;
-  sheetDragY = 0;
-  els.scanModalPanel.classList.add('sheet-dragging');
-}
-function onSheetDragMove(e) {
-  if (!isDraggingSheet) return;
-  const dy = e.touches[0].clientY - sheetDragStartY;
-  sheetDragY = Math.max(0, dy); // non si trascina oltre la posizione tutta aperta
-  e.preventDefault();
-  els.scanModalPanel.style.transform = `translateY(${sheetDragY}px)`;
-}
-function onSheetDragEnd() {
-  if (!isDraggingSheet) return;
-  isDraggingSheet = false;
-  els.scanModalPanel.classList.remove('sheet-dragging');
-  const panelHeight = els.scanModalPanel.getBoundingClientRect().height || 1;
-  const pastThreshold = sheetDragY > panelHeight * 0.28;
-  els.scanModalPanel.style.transform = '';
-  sheetDragY = 0;
-  if (pastThreshold) {
-    feedback.cancelAction();
-    closeScanModal();
-  }
-  // Sotto soglia: si rilascia lo stile inline e la transizione CSS
-  // (ora riattivata, .sheet-dragging appena rimossa) riporta da sola il
-  // pannello a translateY(0) — nessun altro codice necessario.
+  closeOverlay(els.scanModal);
 }
 
 /** Torna alla schermata "scansiona o cerca", pronta per il prossimo
@@ -232,7 +184,9 @@ function expandCamera() {
     focusHintEl: els.focusHint,
     switchBtnEl: els.switchCameraBtn,
     torchBtnEl: els.torchBtn,
+    errorHint: 'Usa la ricerca per codice.',
   }).then((started) => {
+    if (started === null) return; // richiesta superata da una chiusura: la sezione è già a posto
     if (started) els.stopCameraBtn.classList.remove('hidden');
     else collapseCamera(); // fotocamera non disponibile: torna al pulsante
   });
@@ -322,7 +276,7 @@ function renderCodeSearchResults(results, offline) {
 
   if (offline && results.length) {
     const notice = document.createElement('p');
-    notice.className = 'px-3.5 pt-2.5 text-[11px] text-amber-300';
+    notice.className = 'px-3.5 pt-2.5 ui-note text-amber-300';
     notice.textContent = 'Offline: risultati dall\'ultima sincronizzazione.';
     els.codeSearchResults.appendChild(notice);
   }
@@ -343,9 +297,9 @@ function renderCodeSearchResults(results, offline) {
     row.innerHTML = `
       <span class="min-w-0">
         <span class="block font-mono font-semibold text-graphite-100 truncate">${escapeHtml(product.codice_articolo)}</span>
-        ${subtitleParts.length ? `<span class="block text-[11px] text-graphite-500 truncate">${escapeHtml(subtitleParts.join(' · '))}</span>` : ''}
+        ${subtitleParts.length ? `<span class="block ui-note text-graphite-500 truncate">${escapeHtml(subtitleParts.join(' · '))}</span>` : ''}
       </span>
-      <span class="shrink-0 px-2 py-0.5 rounded-full text-[10px] font-display font-semibold uppercase tracking-wide ${badgeClass}">${escapeHtml(label)}</span>
+      <span class="shrink-0 whitespace-nowrap px-2 py-0.5 rounded-full ui-label font-display font-semibold uppercase tracking-wide ${badgeClass}">${escapeHtml(label)}</span>
     `;
     row.addEventListener('click', () => {
       resetCodeSearch();
@@ -498,7 +452,14 @@ async function runTransaction({ product, quantita, puntoUtilizzo }) {
     return { ok: true, nuovaGiacenza: result.nuova_giacenza };
   } catch (err) {
     if (isNetworkError(err)) {
-      enqueueTransaction({ productId: product.id, tipo, quantita, puntoUtilizzo, codice_articolo: product.codice_articolo });
+      const saved = enqueueTransaction({ productId: product.id, tipo, quantita, puntoUtilizzo, codice_articolo: product.codice_articolo });
+      if (!saved) {
+        // Senza rete e senza spazio sul dispositivo il movimento andrebbe perso:
+        // meglio dirlo chiaramente che far credere che sia stato salvato.
+        feedback.errorAction();
+        toastError('Movimento NON registrato: manca la connessione e la memoria del dispositivo è piena. Riprova con la rete attiva.');
+        return { ok: false };
+      }
       const delta = tipo === 'deposito' ? quantita : -quantita;
       adjustCachedProductQuantity(product.id, delta);
       feedback.offlineQueued();
@@ -590,7 +551,7 @@ function renderRecent(rows) {
     row.innerHTML = `
       <div class="min-w-0">
         <p class="text-sm text-graphite-100 truncate font-medium">${escapeHtml(r.products?.codice_articolo || '—')}</p>
-        <p class="text-[11px] text-graphite-500 mt-0.5">${date.toLocaleString('it-IT', {
+        <p class="ui-note text-graphite-500 mt-0.5">${date.toLocaleString('it-IT', {
           day: '2-digit',
           month: '2-digit',
           hour: '2-digit',

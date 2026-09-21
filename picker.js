@@ -5,7 +5,7 @@
 // Ritorna la stringa scelta, '' se l'utente svuota la selezione, o null se annulla.
 // =============================================================
 
-import { lockBodyScroll, unlockBodyScroll } from './ui-utils.js';
+import { openOverlay, closeOverlay, enableSheetDrag } from './ui-utils.js';
 
 const els = {};
 let resolveFn = null;
@@ -14,6 +14,7 @@ let allowCustomValue = false;
 
 export function initPicker() {
   els.modal = document.getElementById('field-picker-modal');
+  enableSheetDrag(els.modal.querySelector('.modal-panel'), () => closePicker(null));
   els.title = document.getElementById('field-picker-title');
   els.closeBtn = document.getElementById('field-picker-close');
   els.searchWrap = document.getElementById('field-picker-search-wrap');
@@ -25,6 +26,8 @@ export function initPicker() {
   els.modal.addEventListener('click', (e) => {
     if (e.target === els.modal) closePicker(null);
   });
+  // Chiusura forzata (es. disconnessione): la Promise si risolve come "annullato"
+  els.modal.addEventListener('overlay-cancel', () => closePicker(null));
   els.search.addEventListener('input', () => renderList(els.search.value));
   els.clearBtn.addEventListener('click', () => closePicker(''));
 }
@@ -46,13 +49,9 @@ export function openPicker({ title, options, allowCustom = false, currentValue =
     els.search.removeAttribute('placeholder'); // nessun placeholder, come richiesto
 
     renderList('', currentValue);
-    els.modal.classList.remove('hidden');
-    lockBodyScroll();
-    requestAnimationFrame(() => {
-      els.modal.classList.add('modal-visible');
-      // Niente autofocus: la tastiera deve restare chiusa finché l'utente
-      // non tocca esplicitamente il campo di ricerca.
-    });
+    // Niente autofocus: la tastiera deve restare chiusa finché l'utente
+    // non tocca esplicitamente il campo di ricerca.
+    openOverlay(els.modal);
   });
 }
 
@@ -99,9 +98,7 @@ function renderList(filterText, currentValue) {
 }
 
 function closePicker(value) {
-  els.modal.classList.remove('modal-visible');
-  unlockBodyScroll();
-  setTimeout(() => els.modal.classList.add('hidden'), 180);
+  closeOverlay(els.modal);
   const resolve = resolveFn;
   resolveFn = null;
   resolve?.(value);

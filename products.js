@@ -21,7 +21,7 @@ import { loadIdlePanel } from './scanner.js';
 import { confirmDialog } from './ui-modal.js';
 import { enhanceSelect } from './ui-select.js';
 import feedback from './feedback.js';
-import { lockBodyScroll, unlockBodyScroll, staggerIndex, replayAnimation } from './ui-utils.js';
+import { openOverlay, closeOverlay, enableSheetDrag, staggerIndex, replayAnimation } from './ui-utils.js';
 
 const els = {};
 let currentList = [];
@@ -146,6 +146,7 @@ export function initProducts() {
 
   // Modale form
   els.modal = document.getElementById('product-modal');
+  enableSheetDrag(els.modal.querySelector('.modal-panel'), () => closeModal());
   els.form = document.getElementById('product-form');
   els.modalTitle = document.getElementById('product-modal-title');
   els.closeModalBtn = document.getElementById('product-modal-close');
@@ -240,8 +241,10 @@ let searchScanLastAt = 0;
 /** Apre un piccolo lettore inline per cercare un articolo scansionandone il barcode */
 async function startSearchScan() {
   els.searchScannerWrap.classList.remove('hidden');
-  const started = await startCamera('product-search-scanner-reader', handleSearchScanDetected, {});
-  if (!started) els.searchScannerWrap.classList.add('hidden');
+  const started = await startCamera('product-search-scanner-reader', handleSearchScanDetected, {
+    errorHint: 'Usa il campo di ricerca.',
+  });
+  if (started === false) els.searchScannerWrap.classList.add('hidden');
 }
 
 async function stopSearchScan() {
@@ -462,7 +465,7 @@ function renderList() {
         <span class="inline-block px-2.5 py-1 rounded-full text-sm font-mono font-semibold ${
           lowStock ? 'bg-rose-500/15 text-rose-700' : 'bg-graphite-700 text-graphite-200'
         }">${p.quantita_disponibile}</span>
-        ${lowStock ? '<p class="text-[10px] uppercase tracking-wide text-rose-700 mt-1">sotto scorta</p>' : ''}
+        ${lowStock ? '<p class="ui-label whitespace-nowrap uppercase tracking-wide text-rose-700 mt-1">sotto scorta</p>' : ''}
       </div>
     `;
     row.addEventListener('click', () => openModal(p));
@@ -541,7 +544,7 @@ function renderGroupedCards({ wrapEl, openSet, groupKeyFn, subtitleFields, unass
             class="shelf-item w-full text-left flex items-center justify-between gap-3 px-4 py-2.5 border-t border-graphite-700 first:border-t-0">
             <div class="min-w-0">
               <p class="font-display font-bold text-graphite-100 truncate text-sm">${escapeHtml(p.codice_articolo)}</p>
-              ${subtitleParts.length ? `<p class="text-[11px] text-graphite-500 mt-0.5 truncate">${escapeHtml(subtitleParts.join(' · '))}</p>` : ''}
+              ${subtitleParts.length ? `<p class="ui-note text-graphite-500 mt-0.5 truncate">${escapeHtml(subtitleParts.join(' · '))}</p>` : ''}
             </div>
             <span class="shrink-0 inline-block px-2 py-0.5 rounded-full text-xs font-mono font-semibold ${
               lowStock ? 'bg-rose-500/15 text-rose-700' : 'bg-graphite-700 text-graphite-200'
@@ -562,9 +565,11 @@ function renderGroupedCards({ wrapEl, openSet, groupKeyFn, subtitleFields, unass
           </span>
           <div class="min-w-0">
             <p class="font-display font-bold uppercase tracking-wide truncate">${escapeHtml(key)}</p>
-            <p class="text-[11px] text-graphite-500 mt-0.5">${items.length} ${items.length === 1 ? 'articolo' : 'articoli'} · ${totQty} pz${
-      lowCount ? ` · <span class="text-rose-700">${lowCount} sotto scorta</span>` : ''
-    }</p>
+            <p class="ui-note text-graphite-500 mt-0.5 flex flex-wrap gap-x-2">
+              <span class="whitespace-nowrap">${items.length} ${items.length === 1 ? 'articolo' : 'articoli'} · ${totQty} pz</span>${
+      lowCount ? `<span class="whitespace-nowrap font-semibold text-rose-700">${lowCount} sotto scorta</span>` : ''
+    }
+            </p>
           </div>
         </div>
         <i data-lucide="chevron-down" class="shelf-chevron w-5 h-5 text-graphite-400 shrink-0" stroke-width="2"></i>
@@ -651,9 +656,7 @@ function openModal(product = null) {
   updateBarcodePreview();
   updateGenerateBarcodeVisibility();
   applyModalPermissions();
-  els.modal.classList.remove('hidden');
-  lockBodyScroll();
-  requestAnimationFrame(() => els.modal.classList.add('modal-visible'));
+  openOverlay(els.modal);
 }
 
 function updateLineaMacchinaVisibility() {
@@ -721,9 +724,7 @@ function updateFilterLabels() {
 
 function closeModal() {
   stopBarcodeScan();
-  els.modal.classList.remove('modal-visible');
-  unlockBodyScroll();
-  setTimeout(() => els.modal.classList.add('hidden'), 180);
+  closeOverlay(els.modal);
 }
 
 function updateBarcodePreview() {
@@ -766,8 +767,9 @@ async function startBarcodeScan() {
   const started = await startCamera('product-barcode-scanner-reader', handleBarcodeScanDetected, {
     switchBtnEl: els.scanSwitchBtn,
     torchBtnEl: els.scanTorchBtn,
+    errorHint: 'Inserisci il codice a mano.',
   });
-  if (!started) els.barcodeScannerWrap.classList.add('hidden');
+  if (started === false) els.barcodeScannerWrap.classList.add('hidden');
 }
 
 function stopBarcodeScan() {

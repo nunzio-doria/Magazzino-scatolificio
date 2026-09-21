@@ -4,6 +4,7 @@
 
 import { supabase, signIn, signOut, getSession, getMyProfile } from './supabase.js';
 import { toastError, toastSuccess, toastWarning } from './toast.js';
+import { isNetworkError } from './offline-queue.js';
 
 /** Stato applicativo dell'utente corrente, popolato dopo il login */
 export const authState = {
@@ -12,6 +13,64 @@ export const authState = {
 };
 
 const CACHED_PROFILE_KEY = 'magazzino-cached-profile';
+
+// --- TENTATIVI DI CONNESSIONE ------------------------------------------
+// Se al momento dell'accesso manca la linea (anche solo per un istante),
+// l'app non si arrende al primo errore né passa subito in modalità
+// offline: riprova fino a 5 volte, con pause crescenti, e ripartendo
+// subito se la rete torna prima della fine della pausa.
+const MAX_CONNECT_ATTEMPTS = 5;
+const RETRY_DELAYS_MS = [1000, 2000, 3000, 4000]; // pausa dopo il 1°, 2°, 3°, 4° tentativo fallito
+
+/** Tutti i tentativi sono falliti per mancanza di connessione (non per credenziali/permessi) */
+class ConnectionError extends Error {
+  constructor(cause) {
+    super('Connessione assente');
+    this.name = 'ConnectionError';
+    this.cause = cause;
+  }
+}
+
+/** Errore dovuto a rete assente o servizio momentaneamente irraggiungibile: vale la pena riprovare */
+function isRetryableConnectionError(err) {
+  if (isNetworkError(err)) return true;
+  return err?.name === 'AuthRetryableFetchError' || err?.status === 0 || err?.status >= 500;
+}
+
+/** Attende ms millisecondi, ma si sblocca subito se il dispositivo torna online */
+function waitOrOnline(ms) {
+  return new Promise((resolve) => {
+    const finish = () => {
+      clearTimeout(timer);
+      window.removeEventListener('online', finish);
+      resolve();
+    };
+    const timer = setTimeout(finish, ms);
+    window.addEventListener('online', finish, { once: true });
+  });
+}
+
+/**
+ * Esegue task() fino a MAX_CONNECT_ATTEMPTS volte finché fallisce per motivi
+ * di connessione. Altri errori (es. password errata) vengono rilanciati subito.
+ * Dopo l'ultimo tentativo fallito lancia ConnectionError.
+ * @param {() => Promise<any>} task
+ * @param {(attempt: number, max: number) => void} [onAttempt] chiamata prima di ogni tentativo
+ */
+async function withConnectionRetries(task, onAttempt) {
+  let lastErr;
+  for (let attempt = 1; attempt <= MAX_CONNECT_ATTEMPTS; attempt += 1) {
+    onAttempt?.(attempt, MAX_CONNECT_ATTEMPTS);
+    try {
+      return await task();
+    } catch (err) {
+      if (!isRetryableConnectionError(err)) throw err;
+      lastErr = err;
+      if (attempt < MAX_CONNECT_ATTEMPTS) await waitOrOnline(RETRY_DELAYS_MS[attempt - 1]);
+    }
+  }
+  throw new ConnectionError(lastErr);
+}
 
 // --- LOGOUT AUTOMATICO PER INATTIVITÀ --------------------------------
 // Su dispositivi condivisi (tablet/PC in reparto) una sessione rimasta
@@ -112,6 +171,23 @@ export function initAuth(onAuthed, onSignedOut) {
   const passInput = document.getElementById('login-password');
   const submitBtn = document.getElementById('login-submit');
   const errorBox = document.getElementById('login-error');
+  const statusBox = document.getElementById('login-status');
+  const submitLabel = submitBtn.querySelector('.btn-label');
+
+  const showStatus = (text) => {
+    if (!statusBox) return;
+    statusBox.textContent = text || '';
+    statusBox.classList.toggle('hidden', !text);
+  };
+  const setFormBusy = (busy) => {
+    submitBtn.disabled = busy;
+    submitBtn.classList.toggle('opacity-60', busy);
+    submitBtn.classList.toggle('cursor-not-allowed', busy);
+  };
+  const showLoginError = (text) => {
+    errorBox.textContent = text;
+    errorBox.classList.remove('hidden');
+  };
 
   const handleIdleTimeout = async () => {
     try {
@@ -130,31 +206,44 @@ export function initAuth(onAuthed, onSignedOut) {
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     errorBox.classList.add('hidden');
-    submitBtn.disabled = true;
-    submitBtn.classList.add('opacity-60', 'cursor-not-allowed');
-    submitBtn.querySelector('.btn-label').textContent = 'Accesso in corso…';
+    showStatus('');
+    setFormBusy(true);
 
     try {
-      await signIn(emailInput.value.trim(), passInput.value);
-      const session = await getSession();
-      const profile = await getMyProfile();
+      const { session, profile } = await withConnectionRetries(
+        async () => {
+          await signIn(emailInput.value.trim(), passInput.value);
+          const session = await getSession();
+          const profile = await getMyProfile();
+          return { session, profile };
+        },
+        (attempt, max) => {
+          if (attempt === 1) {
+            submitLabel.textContent = 'Accesso in corso…';
+          } else {
+            submitLabel.textContent = `Riprovo… (${attempt}/${max})`;
+            showStatus(`Connessione assente: nuovo tentativo ${attempt} di ${max}…`);
+          }
+        }
+      );
+      if (!profile) throw new Error('Profilo non trovato');
       authState.session = session;
       authState.profile = profile;
       cacheProfile(profile);
       resetIdleTimer(handleIdleTimeout);
+      showStatus('');
       toastSuccess(`Bentornato, ${profile.full_name || profile.email}`);
       onAuthed(profile);
     } catch (err) {
       console.error(err);
-      errorBox.textContent = mapAuthError(err);
-      errorBox.classList.remove('hidden');
+      showStatus('');
+      showLoginError(mapAuthError(err));
       form.classList.remove('shake-error');
       void form.offsetWidth; // forza il reflow per poter rilanciare l'animazione
       form.classList.add('shake-error');
     } finally {
-      submitBtn.disabled = false;
-      submitBtn.classList.remove('opacity-60', 'cursor-not-allowed');
-      submitBtn.querySelector('.btn-label').textContent = 'Accedi';
+      setFormBusy(false);
+      submitLabel.textContent = 'Accedi';
     }
   });
 
@@ -171,44 +260,61 @@ export function initAuth(onAuthed, onSignedOut) {
   });
 
   // Controlla sessione esistente al caricamento.
-  // getSession() legge il token in locale (nessuna rete richiesta), ma
-  // getMyProfile() al suo interno chiama supabase.auth.getUser(), che
-  // richiede SEMPRE una verifica di rete col server. Se in quel momento
-  // la rete è assente, questo NON significa "utente non loggato" — vuol
-  // dire solo che non possiamo riverificarlo in questo istante. Trattarlo
-  // come logout forzato l'utente sulla schermata di login, che a sua
-  // volta richiede rete per accedere: un vicolo cieco offline, con in più
-  // la perdita del contesto (ruolo admin/operatore) che aveva un attimo
-  // prima. Se la sessione locale è valida, si ripiega sull'ultimo profilo
-  // salvato in cache invece di buttare fuori l'utente.
-  getSession()
-    .then(async (session) => {
+  // getSession() legge il token in locale, ma se il token è scaduto tenta un
+  // rinnovo via rete, e getMyProfile() richiede SEMPRE una verifica col
+  // server. Se in quel momento la rete manca, questo NON significa "utente
+  // non loggato": prima si riprova fino a 5 volte (la linea spesso torna
+  // dopo pochi secondi), e solo se tutti i tentativi falliscono si ripiega
+  // sull'ultimo profilo salvato in cache (modalità offline), a patto che la
+  // sessione locale sia valida. Un errore diverso dalla connessione (sessione
+  // revocata, profilo mancante) porta invece al login: la cache non basta.
+  const onAttempt = (attempt, max) => {
+    if (attempt === 1) return;
+    showStatus(`Connessione assente: nuovo tentativo ${attempt} di ${max}…`);
+  };
+
+  (async () => {
+    setFormBusy(true); // durante la verifica automatica il form non serve
+    try {
+      const session = await withConnectionRetries(() => getSession(), onAttempt);
       if (!session) return onSignedOut(); // nessuna sessione: qui sí che è un vero logout
+
+      let profile;
       try {
-        const profile = await getMyProfile();
-        authState.session = session;
-        authState.profile = profile;
-        cacheProfile(profile);
-        resetIdleTimer(handleIdleTimeout);
-        onAuthed(profile);
+        profile = await withConnectionRetries(() => getMyProfile(), onAttempt);
       } catch (err) {
         console.error(err);
-        const cached = getCachedProfile(session);
-        if (cached) {
-          authState.session = session;
-          authState.profile = cached;
-          resetIdleTimer(handleIdleTimeout);
-          toastWarning('Connessione assente: accesso con gli ultimi dati salvati.');
-          onAuthed(cached);
-        } else {
-          // Nessun profilo in cache a cui appoggiarsi (es. primissimo
-          // accesso su questo dispositivo mai riuscito online): qui non
-          // c'è altra scelta che mostrare il login.
-          onSignedOut();
+        const cached = err instanceof ConnectionError ? getCachedProfile(session) : null;
+        if (!cached) {
+          // Nessun profilo in cache a cui appoggiarsi, oppure errore non di rete:
+          // qui non c'è altra scelta che mostrare il login.
+          if (err instanceof ConnectionError) showLoginError(mapAuthError(err));
+          return onSignedOut();
         }
+        authState.session = session;
+        authState.profile = cached;
+        resetIdleTimer(handleIdleTimeout);
+        showStatus('');
+        toastWarning('Connessione assente dopo 5 tentativi: accesso con gli ultimi dati salvati.');
+        return onAuthed(cached);
       }
-    })
-    .catch(() => onSignedOut());
+
+      if (!profile) return onSignedOut();
+      authState.session = session;
+      authState.profile = profile;
+      cacheProfile(profile);
+      resetIdleTimer(handleIdleTimeout);
+      showStatus('');
+      onAuthed(profile);
+    } catch (err) {
+      console.error(err);
+      if (err instanceof ConnectionError) showLoginError(mapAuthError(err));
+      onSignedOut();
+    } finally {
+      showStatus('');
+      setFormBusy(false);
+    }
+  })();
 
   supabase.auth.onAuthStateChange((event) => {
     if (event === 'SIGNED_OUT') {
@@ -219,6 +325,9 @@ export function initAuth(onAuthed, onSignedOut) {
 }
 
 function mapAuthError(err) {
+  if (err instanceof ConnectionError) {
+    return `Connessione assente: impossibile accedere dopo ${MAX_CONNECT_ATTEMPTS} tentativi. Controlla la rete e riprova.`;
+  }
   const msg = err?.message || '';
   if (msg.includes('Invalid login credentials')) return 'Email o password non corrette.';
   if (msg.includes('Email not confirmed')) return 'Email non ancora confermata. Controlla la posta.';

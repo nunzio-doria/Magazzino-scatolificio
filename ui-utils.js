@@ -1,3 +1,4 @@
+import feedback from './feedback.js';
 // =============================================================
 // ui-utils.js — Utility di interfaccia condivise tra le viste:
 // contatori numerici animati e anelli di progresso (KPI dashboard).
@@ -12,7 +13,7 @@ let savedScrollY = 0;
 
 /**
  * Blocca lo scroll della pagina sotto una modale aperta (product-modal,
- * field-picker-modal, article-history-modal, confirm-overlay...). Usa un
+ * field-picker-modal, article-history-modal, dialog di conferma...). Usa un
  * contatore cosí due modali aperte in sequenza (es. picker sopra il form
  * articolo) non sbloccano lo sfondo chiudendone solo una.
  * position:fixed invece del solo overflow:hidden, perché su iOS Safari
@@ -40,6 +41,107 @@ export function unlockBodyScroll() {
     document.body.style.right = '';
     window.scrollTo(0, savedScrollY);
   }
+}
+
+/** Durata (ms) della chiusura di tutte le modali: deve combaciare con la transizione CSS del pannello */
+export const MODAL_CLOSE_MS = 340;
+
+/**
+ * Apre una modale (overlay con classe .modal-overlay) con l'animazione
+ * standard dell'app. Sicura se richiamata due volte o durante una chiusura.
+ */
+export function openOverlay(el) {
+  if (!el || el.dataset.modalOpen) return;
+  el.dataset.modalOpen = '1';
+  clearTimeout(el._hideTimer); // annulla un'eventuale chiusura ancora in corso
+  el.classList.remove('hidden');
+  void el.offsetWidth; // reflow: la transizione parte sempre
+  lockBodyScroll();
+  el.classList.add('modal-visible');
+}
+
+/** Chiude una modale con l'animazione standard. Sicura se già chiusa. */
+export function closeOverlay(el) {
+  if (!el || !el.dataset.modalOpen) return;
+  delete el.dataset.modalOpen;
+  el.classList.remove('modal-visible');
+  unlockBodyScroll();
+  el._hideTimer = setTimeout(() => el.classList.add('hidden'), MODAL_CLOSE_MS);
+}
+
+/**
+ * Trascinamento verso il basso per chiudere un cassetto (bottom sheet), valido
+ * per tutte le modali. Zone che avviano il trascinamento: ogni elemento del
+ * pannello con l'attributo data-sheet-drag (la maniglia in cima e la riga del
+ * titolo): un'area ampia e a tutta larghezza, non solo la barretta.
+ * - Solo al tocco (dito/penna) e solo su schermi stretti, dove il pannello è
+ *   un cassetto: su desktop le modali sono finestre centrate e non si trascinano.
+ * - Un tocco su un pulsante o un campo dentro la zona resta un normale tocco.
+ * - Segue il dito 1:1; al rilascio chiude se si è superato il 28% dell'altezza
+ *   oppure se il gesto è stato una strisciata veloce, altrimenti torna su.
+ * @param {HTMLElement} panel il pannello (.modal-panel)
+ * @param {() => void} onClose funzione di chiusura della modale
+ */
+export function enableSheetDrag(panel, onClose) {
+  if (!panel || panel.dataset.sheetDragBound) return;
+  panel.dataset.sheetDragBound = '1';
+  const narrow = window.matchMedia('(max-width: 639px)');
+  let pointerId = null;
+  let startY = 0;
+  let startT = 0;
+  let dy = 0;
+
+  panel.querySelectorAll('[data-sheet-drag]').forEach((zone) => {
+    zone.addEventListener('pointerdown', (e) => {
+      if (pointerId !== null || e.pointerType === 'mouse' || !narrow.matches) return;
+      if (e.target.closest('button, a, input, select, textarea, label')) return;
+      pointerId = e.pointerId;
+      startY = e.clientY;
+      startT = performance.now();
+      dy = 0;
+      try {
+        zone.setPointerCapture(e.pointerId); // continua a ricevere il gesto anche se il dito esce dalla zona
+      } catch (err) {
+        /* puntatore non più attivo: si prosegue senza cattura */
+      }
+      panel.classList.add('sheet-dragging');
+    });
+    zone.addEventListener('pointermove', (e) => {
+      if (e.pointerId !== pointerId) return;
+      dy = Math.max(0, e.clientY - startY); // non si trascina oltre la posizione tutta aperta
+      panel.style.transform = `translateY(${dy}px)`;
+    });
+    const end = (e) => {
+      if (e.pointerId !== pointerId) return;
+      pointerId = null;
+      panel.classList.remove('sheet-dragging');
+      const height = panel.getBoundingClientRect().height || 1;
+      const fastSwipe = dy > 48 && performance.now() - startT < 260;
+      const shouldClose = e.type !== 'pointercancel' && (dy > height * 0.28 || fastSwipe);
+      panel.style.transform = '';
+      dy = 0;
+      // Sotto soglia: tolta la classe .sheet-dragging e lo stile inline, la
+      // transizione CSS riporta da sola il pannello in posizione.
+      if (shouldClose) {
+        feedback.cancelAction();
+        onClose();
+      }
+    };
+    zone.addEventListener('pointerup', end);
+    zone.addEventListener('pointercancel', end);
+  });
+}
+
+/**
+ * Chiude tutte le modali aperte (es. alla disconnessione). Alle modali che
+ * hanno una Promise in sospeso (picker, conferma) manda prima l'evento
+ * 'overlay-cancel', cosí si risolvono come "annullato" invece di restare appese.
+ */
+export function closeAllOverlays() {
+  document.querySelectorAll('.modal-overlay[data-modal-open]').forEach((el) => {
+    el.dispatchEvent(new CustomEvent('overlay-cancel'));
+    closeOverlay(el);
+  });
 }
 
 /**

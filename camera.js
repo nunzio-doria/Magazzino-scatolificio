@@ -17,30 +17,46 @@ let torchOn = false;
 let activeContainerId = null;
 let tapListenerEl = null;
 let tapListenerFn = null;
+let startToken = 0; // numero dell'ultima richiesta di avvio: chiudere o riavviare la rende obsoleta
 
 /**
  * Avvia la fotocamera in un dato contenitore e inizia a leggere barcode.
  * @param {string} containerId id dell'elemento DOM dove montare il reader
  * @param {(code: string) => void} onDetected callback ad ogni codice letto
- * @param {{ focusHintEl?: HTMLElement, switchBtnEl?: HTMLElement }} [ui] elementi opzionali da aggiornare in base alle capacità rilevate
+ * @param {{ focusHintEl?: HTMLElement, switchBtnEl?: HTMLElement, errorHint?: string }} [ui] elementi opzionali da aggiornare in base alle capacità rilevate; errorHint = suggerimento mostrato se la fotocamera non è accessibile
+ * @returns {Promise<boolean|null>} true = avviata, false = non disponibile,
+ *   null = richiesta superata (nel frattempo è stata chiusa o riavviata): non c'è nulla da fare
  */
 export async function startCamera(containerId, onDetected, ui = {}) {
   if (isCameraRunning) await stopCamera();
+  const myToken = ++startToken;
+  const isStale = () => myToken !== startToken;
+  let instance = null;
   try {
     // eslint-disable-next-line no-undef
-    html5Qrcode = new Html5Qrcode(containerId);
+    instance = new Html5Qrcode(containerId);
+    html5Qrcode = instance;
     activeContainerId = containerId;
     await ensureCameraList();
+    if (isStale()) return null;
 
     const chosen = availableCameras[activeCameraIndex];
     const cameraConfig = chosen ? { deviceId: { exact: chosen.id } } : { facingMode: 'environment' };
     const scanConfig = { fps: 12, qrbox: { width: 240, height: 80 }, aspectRatio: 1.6 };
 
     try {
-      await html5Qrcode.start(cameraConfig, scanConfig, (decodedText) => onDetected(decodedText), () => {});
+      await instance.start(cameraConfig, scanConfig, (decodedText) => onDetected(decodedText), () => {});
     } catch (startErr) {
+      if (isStale()) return null;
       console.warn('Avvio con deviceId fallito, riprovo con facingMode.', startErr);
-      await html5Qrcode.start({ facingMode: 'environment' }, scanConfig, (decodedText) => onDetected(decodedText), () => {});
+      await instance.start({ facingMode: 'environment' }, scanConfig, (decodedText) => onDetected(decodedText), () => {});
+    }
+
+    if (isStale()) {
+      // Nel frattempo è stata chiusa (o riavviata altrove): lo stream appena
+      // aperto va spento subito, altrimenti resterebbe acceso senza controllo.
+      await releaseStaleInstance(instance);
+      return null;
     }
 
     isCameraRunning = true;
@@ -50,13 +66,36 @@ export async function startCamera(containerId, onDetected, ui = {}) {
     attachTapToFocus(document.getElementById(containerId));
     return true;
   } catch (err) {
+    if (isStale()) {
+      await releaseStaleInstance(instance);
+      return null;
+    }
     console.error(err);
-    toastError('Impossibile accedere alla fotocamera. Usa l\'inserimento manuale.');
+    toastError(`Impossibile accedere alla fotocamera. ${ui.errorHint || 'Controlla che sia consentita nelle impostazioni del browser.'}`);
     return false;
   }
 }
 
+/** Ferma un'istanza di avvio ormai obsoleta senza toccare quella eventualmente più recente. */
+async function releaseStaleInstance(instance) {
+  if (!instance) return;
+  try {
+    await instance.stop();
+  } catch (err) {
+    /* non era ancora partita davvero: niente da fermare */
+  }
+  // clear() svuota il contenitore: solo se non è già in uso da un avvio più recente
+  if (html5Qrcode === instance) {
+    try {
+      await instance.clear();
+    } catch (err) {
+      /* già pulito */
+    }
+  }
+}
+
 export async function stopCamera() {
+  startToken++; // rende obsoleto un eventuale avvio ancora in corso
   detachTapToFocus();
   if (html5Qrcode && isCameraRunning) {
     try {
@@ -122,7 +161,8 @@ export async function switchCamera(onDetected, ui = {}) {
   const containerId = activeContainerId;
   activeCameraIndex = (activeCameraIndex + 1) % availableCameras.length;
   await stopCamera();
-  await startCamera(containerId, onDetected, ui);
+  const started = await startCamera(containerId, onDetected, ui);
+  if (!started) return; // chiusa nel frattempo o non disponibile: niente feedback né avviso
   feedback.cameraSwitch();
   const label = availableCameras[activeCameraIndex]?.label || `Fotocamera ${activeCameraIndex + 1}`;
   toastInfo(`Fotocamera attiva: ${label}`, 2500);
