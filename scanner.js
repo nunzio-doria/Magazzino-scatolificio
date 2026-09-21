@@ -133,6 +133,12 @@ function selectMode(mode) {
 function openScanModal() {
   showFindMethods();
   openOverlay(els.scanModal);
+  // Con mouse e tastiera (desktop) non c'è la fotocamera: la ricerca per codice è
+  // l'unico modo per trovare l'articolo, quindi il cursore parte già nel campo.
+  // Su telefono no: la tastiera resterebbe aperta senza che serva.
+  if (window.matchMedia('(hover: hover) and (pointer: fine)').matches) {
+    requestAnimationFrame(() => els.codeSearchInput.focus({ preventScroll: true }));
+  }
 }
 
 /** Chiude del tutto la finestra ed esce dalla modalità deposito/prelievo. */
@@ -425,7 +431,7 @@ function renderResult(product) {
 
   els.confirmBtn.textContent = currentMode === 'deposito' ? 'Conferma deposito' : 'Conferma prelievo';
   // Il colore del pulsante segue la modalità (variabili di data-mode sul pannello)
-  els.confirmBtn.className = 'btn-mode flex-1 rounded-lg py-3 font-display font-semibold uppercase tracking-wide active:scale-95';
+  els.confirmBtn.className = 'btn-mode press-spring flex-1 rounded-lg py-3 font-display font-semibold uppercase tracking-wide';
   updateAfterPreview();
 }
 
@@ -581,7 +587,7 @@ function renderRecent(rows) {
         })}</p>
       </div>
       <span class="shrink-0 font-mono text-xs font-semibold px-2 py-0.5 rounded-full ${
-        r.tipo === 'deposito' ? 'bg-emerald-500/15 text-emerald-700' : 'bg-amber-500/15 text-amber-700'
+        r.tipo === 'deposito' ? 'bg-emerald-500/15 text-emerald-700' : 'bg-amber-500/15 text-amber-300'
       }">${r.tipo === 'deposito' ? '+' : '−'}${r.quantita}</span>
     `;
     els.recentListEl.appendChild(row);

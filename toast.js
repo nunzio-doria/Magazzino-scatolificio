@@ -39,11 +39,15 @@ export function showToast(message, type = 'info', duration = 4200) {
   el.className = `pointer-events-auto flex items-start gap-3 w-full max-w-sm rounded-lg border bg-graphite-800/95 backdrop-blur px-4 py-3 shadow-lift toast-enter ${STYLES[type] || STYLES.info}`;
   el.innerHTML = `
     <span class="shrink-0 mt-0.5">${ICONS[type] || ICONS.info}</span>
-    <p class="text-sm text-graphite-100 leading-snug flex-1">${message}</p>
-    <button class="shrink-0 text-graphite-500 hover:text-graphite-200 transition-colors" aria-label="Chiudi">
+    <p data-toast-message class="text-sm text-graphite-100 leading-snug flex-1"></p>
+    <button class="hit-area-xs shrink-0 text-graphite-500 hover:text-graphite-200 transition-colors" aria-label="Chiudi">
       <i data-lucide="x" class="w-4 h-4" stroke-width="2"></i>
     </button>
   `;
+
+  // Il messaggio può contenere codici scansionati o nomi presi dai dati: si inserisce come
+  // semplice testo, così un valore con caratteri speciali non diventa mai HTML.
+  el.querySelector('[data-toast-message]').textContent = message;
 
   const close = () => {
     el.classList.add('toast-exit');

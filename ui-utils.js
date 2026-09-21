@@ -43,8 +43,12 @@ export function unlockBodyScroll() {
   }
 }
 
-/** Durata (ms) della chiusura di tutte le modali: deve combaciare con la transizione CSS del pannello */
-export const MODAL_CLOSE_MS = 340;
+/** Durata (ms) della chiusura di tutte le modali: la legge dal token CSS --dur-slow, così
+ *  resta sempre uguale alla transizione del pannello (340 solo come valore di riserva). */
+export function modalCloseMs() {
+  const v = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--dur-slow'));
+  return Number.isFinite(v) && v > 0 ? v : 340;
+}
 
 /**
  * Apre una modale (overlay con classe .modal-overlay) con l'animazione
@@ -66,7 +70,7 @@ export function closeOverlay(el) {
   delete el.dataset.modalOpen;
   el.classList.remove('modal-visible');
   unlockBodyScroll();
-  el._hideTimer = setTimeout(() => el.classList.add('hidden'), MODAL_CLOSE_MS);
+  el._hideTimer = setTimeout(() => el.classList.add('hidden'), modalCloseMs());
 }
 
 /**

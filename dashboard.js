@@ -177,7 +177,7 @@ function historyRow(h, i = 0) {
   )} · ${date.toLocaleString('it-IT', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' })}</p>
     </div>
     <span class="shrink-0 font-mono text-sm font-semibold px-2.5 py-1 rounded-full ${
-      h.tipo === 'deposito' ? 'bg-emerald-500/15 text-emerald-700' : 'bg-amber-500/15 text-amber-700'
+      h.tipo === 'deposito' ? 'bg-emerald-500/15 text-emerald-700' : 'bg-amber-500/15 text-amber-300'
     }">${h.tipo === 'deposito' ? '+' : '−'}${h.quantita}</span>
   `;
   return row;

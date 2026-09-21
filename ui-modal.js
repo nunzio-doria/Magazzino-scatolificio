@@ -6,7 +6,7 @@
 // =============================================================
 
 import feedback from './feedback.js';
-import { openOverlay, closeOverlay, enableSheetDrag, MODAL_CLOSE_MS } from './ui-utils.js';
+import { openOverlay, closeOverlay, enableSheetDrag, modalCloseMs } from './ui-utils.js';
 
 /**
  * @param {{ title?: string, message: string, confirmLabel?: string, cancelLabel?: string, danger?: boolean }} opts
@@ -62,7 +62,7 @@ export function confirmDialog({
       }
       document.removeEventListener('keydown', onKeyDown);
       closeOverlay(overlay);
-      setTimeout(() => overlay.remove(), MODAL_CLOSE_MS + 60);
+      setTimeout(() => overlay.remove(), modalCloseMs() + 60);
       resolve(result);
     }
     function onKeyDown(e) {

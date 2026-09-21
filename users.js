@@ -58,7 +58,7 @@ function renderUsers() {
       <span class="shrink-0 ui-label whitespace-nowrap font-display font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${
         p.role === 'admin' ? 'bg-amber-500/20 text-amber-400' : 'bg-sky-500/20 text-sky-700'
       }">${p.role === 'admin' ? 'Admin' : 'Operatore'}</span>
-      <button type="button" class="user-save-btn hit-area-sm shrink-0 w-9 h-9 rounded-lg border border-graphite-700 hover:border-amber-400 text-graphite-400 hover:text-amber-400 flex items-center justify-center transition-colors" aria-label="Salva nome" title="Salva">
+      <button type="button" class="user-save-btn shrink-0 w-11 h-11 rounded-lg border border-graphite-700 hover:border-amber-400 text-graphite-400 hover:text-amber-400 flex items-center justify-center transition-colors" aria-label="Salva nome" title="Salva">
         <i data-lucide="check" class="w-4 h-4" stroke-width="2.25"></i>
       </button>
     `;

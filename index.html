@@ -83,7 +83,7 @@
       <p id="login-error" class="hidden text-sm text-rose-700 bg-rose-500/10 border border-rose-500/30 rounded-lg px-3 py-2"></p>
 
       <button id="login-submit" type="submit"
-        class="w-full rounded-lg bg-amber-400 hover:bg-amber-300 text-white font-display font-bold uppercase tracking-wide py-3 transition-all active:scale-95">
+        class="press-spring w-full rounded-lg bg-amber-400 hover:bg-amber-300 text-white font-display font-bold uppercase tracking-wide py-3">
         <span class="btn-label">Accedi</span>
       </button>
     </form>
@@ -139,7 +139,7 @@
       <div id="scanner-idle-panel" class="space-y-3 mb-4">
         <div id="scanner-offline-badge" class="hidden card-plate rounded-xl p-3.5 flex items-center gap-3 border-sky-500/30">
           <span class="shrink-0 w-9 h-9 rounded-lg bg-sky-500/10 flex items-center justify-center">
-            <i data-lucide="cloud-off" class="w-[18px] h-[18px] text-sky-400" stroke-width="1.8"></i>
+            <i data-lucide="cloud-off" class="w-[18px] h-[18px] text-sky-600" stroke-width="1.8"></i>
           </span>
           <div class="min-w-0">
             <p class="text-sm text-graphite-100 font-medium"><span id="scanner-offline-badge-count">0</span> in attesa di sincronizzazione</p>
@@ -170,13 +170,13 @@
     </section>
 
     <!-- ============ MODALE SCANSIONE (Deposito/Prelievo) ============
-         Si apre sopra la vista Scanner quando si sceglie Deposito o
+         Si apre sopra la vista Movimenti quando si sceglie Deposito o
          Prelievo. Due modi per trovare l'articolo, alla pari: scansione
          (fotocamera avviata solo premendo il pulsante, mai in automatico)
          oppure ricerca per codice. Niente inserimento manuale del barcode:
          nessuno lo ricorderebbe a memoria. -->
     <div id="scan-mode-modal" class="modal-overlay hidden fixed inset-0 z-[90] flex items-stretch sm:items-center justify-center bg-black/60 backdrop-blur-sm px-0 sm:px-4 pt-10 sm:pt-0">
-      <div id="scan-modal-panel" class="modal-panel w-full sm:max-w-md bg-graphite-900 border border-graphite-700 rounded-t-2xl sm:rounded-2xl sm:h-auto sm:max-h-[92vh] flex flex-col overflow-hidden">
+      <div id="scan-modal-panel" class="modal-panel w-full sm:max-w-md bg-graphite-900 border border-graphite-700 rounded-t-2xl sm:rounded-2xl sm:h-auto sm:min-h-[min(30rem,92vh)] sm:max-h-[92vh] flex flex-col overflow-hidden">
         <!-- Testata a colore pieno: il colore (verde = deposito, blu = prelievo) arriva
              da data-mode sul pannello, impostato in scanner.js -->
         <div class="scan-head shrink-0">
@@ -186,14 +186,14 @@
             <i data-lucide="package-minus" class="mode-icon-prelievo" stroke-width="1.5"></i>
           </span>
           <div data-sheet-drag class="sheet-grabber sm:hidden"><span class="sheet-grabber-pill"></span></div>
-          <div data-sheet-drag class="scan-head-row flex items-center gap-3 px-5 pb-4 pt-1 sm:pt-4">
+          <div data-sheet-drag class="scan-head-row flex items-center gap-3 px-5 pb-3 pt-1 sm:pt-3">
             <span class="scan-mode-symbol shrink-0" aria-hidden="true">
               <i data-lucide="arrow-down-to-line" class="mode-icon-deposito w-8 h-8" stroke-width="2"></i>
               <i data-lucide="arrow-up-from-line" class="mode-icon-prelievo w-8 h-8" stroke-width="2"></i>
             </span>
             <p id="scan-mode-banner" class="flex-1 min-w-0 truncate font-display font-bold text-xl uppercase tracking-wide"></p>
-            <button id="scan-mode-close-btn" aria-label="Chiudi" class="hit-area shrink-0 w-8 h-8 rounded-lg flex items-center justify-center text-white hover:bg-white/15 transition-colors">
-              <i data-lucide="x" class="w-5 h-5" stroke-width="2"></i>
+            <button id="scan-mode-close-btn" aria-label="Chiudi" class="modal-close modal-close--on-color">
+              <i data-lucide="x" class="w-6 h-6" stroke-width="2.5"></i>
             </button>
           </div>
         </div>
@@ -204,7 +204,7 @@
                questo blocco non appena un articolo viene trovato. -->
           <div id="scan-find-methods">
             <button id="scan-open-camera-btn" type="button"
-              class="press-spring w-full rounded-xl bg-amber-400 hover:bg-amber-300 text-white py-5 flex flex-col items-center justify-center gap-2 font-display font-bold uppercase tracking-wide text-sm shadow-edge transition-colors">
+              class="camera-only press-spring w-full rounded-xl btn-mode py-5 flex flex-col items-center justify-center gap-2 font-display font-bold uppercase tracking-wide text-sm shadow-edge">
               <i data-lucide="camera" class="w-6 h-6" stroke-width="1.8"></i>
               Effettua scansione codice
             </button>
@@ -220,15 +220,15 @@
                     Tocca lo schermo sul codice per mettere a fuoco
                   </p>
                   <div class="flex items-center justify-center gap-4 mt-1">
-                    <button id="scanner-switch-btn" type="button" class="hidden inline-flex items-center gap-1.5 text-xs text-graphite-500 hover:text-amber-300 py-1.5 transition-colors">
+                    <button id="scanner-switch-btn" type="button" class="hidden inline-flex items-center gap-1.5 text-xs text-graphite-500 hover:text-amber-300 py-1.5 transition-colors min-h-[44px]">
                       <i data-lucide="switch-camera" class="w-3.5 h-3.5" stroke-width="2"></i>
                       Cambia fotocamera
                     </button>
-                    <button id="scanner-torch-btn" type="button" aria-label="Torcia" class="hidden inline-flex items-center gap-1.5 text-xs text-graphite-500 hover:text-amber-300 py-1.5 transition-colors">
+                    <button id="scanner-torch-btn" type="button" aria-label="Torcia" class="hidden inline-flex items-center gap-1.5 text-xs text-graphite-500 hover:text-amber-300 py-1.5 transition-colors min-h-[44px]">
                       <i data-lucide="flashlight" class="w-3.5 h-3.5" stroke-width="2"></i>
                       Torcia
                     </button>
-                    <button id="scanner-stop-btn" class="hidden text-xs text-graphite-500 hover:text-graphite-300 py-1.5 transition-colors">
+                    <button id="scanner-stop-btn" class="hidden text-xs text-graphite-500 hover:text-graphite-300 py-1.5 transition-colors min-h-[44px]">
                       Spegni fotocamera
                     </button>
                   </div>
@@ -236,7 +236,7 @@
               </div>
             </div>
 
-            <div id="scan-find-divider" class="flex items-center gap-3 my-4">
+            <div id="scan-find-divider" class="camera-only flex items-center gap-3 my-4">
               <span class="flex-1 h-px bg-graphite-600"></span>
               <span class="ui-note font-display font-semibold uppercase tracking-wide text-graphite-500">oppure</span>
               <span class="flex-1 h-px bg-graphite-600"></span>
@@ -283,10 +283,10 @@
                 <label class="block text-xs font-display font-semibold uppercase tracking-wide text-graphite-400 mb-1.5">Quantità</label>
                 <div class="flex items-center gap-1.5">
                   <button id="scan-qty-minus" type="button" aria-label="Diminuisci quantità"
-                    class="press-spring shrink-0 w-11 h-11 rounded-lg bg-graphite-900 border border-graphite-700 qty-btn active:bg-graphite-800 flex items-center justify-center text-2xl font-display font-bold leading-none transition-colors">−</button>
+                    class="press-spring shrink-0 w-11 h-11 rounded-lg bg-graphite-900 border border-graphite-700 qty-btn active:bg-graphite-800 flex items-center justify-center text-2xl font-display font-bold leading-none">−</button>
                   <span id="scan-qty-value" class="flex-1 min-w-0 h-11 rounded-lg bg-graphite-900 border border-graphite-700 flex items-center justify-center text-lg font-mono font-bold select-none">1</span>
                   <button id="scan-qty-plus" type="button" aria-label="Aumenta quantità"
-                    class="press-spring shrink-0 w-11 h-11 rounded-lg bg-graphite-900 border border-graphite-700 qty-btn active:bg-graphite-800 flex items-center justify-center text-2xl font-display font-bold leading-none transition-colors">+</button>
+                    class="press-spring shrink-0 w-11 h-11 rounded-lg bg-graphite-900 border border-graphite-700 qty-btn active:bg-graphite-800 flex items-center justify-center text-2xl font-display font-bold leading-none">+</button>
                 </div>
                 <input id="scan-qty-input" type="hidden" value="1">
               </div>
@@ -318,14 +318,14 @@
         <h2 class="font-display font-bold text-xl uppercase tracking-wide">Magazzino</h2>
         <div class="flex items-center gap-1.5">
           <button id="product-undo-btn" data-admin-only type="button" disabled aria-label="Annulla ultima modifica" title="Annulla"
-            class="hidden history-btn w-8 h-8 rounded-lg border border-graphite-700 text-graphite-400 hover:text-amber-400 hover:border-amber-400 flex items-center justify-center">
-            <i data-lucide="undo-2" class="w-4 h-4" stroke-width="2"></i>
+            class="hidden history-btn w-11 h-11 rounded-lg border border-graphite-700 text-graphite-400 hover:text-amber-400 hover:border-amber-400 flex items-center justify-center">
+            <i data-lucide="undo-2" class="w-5 h-5" stroke-width="2"></i>
           </button>
           <button id="product-redo-btn" data-admin-only type="button" disabled aria-label="Ripeti modifica annullata" title="Ripeti"
-            class="hidden history-btn w-8 h-8 rounded-lg border border-graphite-700 text-graphite-400 hover:text-amber-400 hover:border-amber-400 flex items-center justify-center">
-            <i data-lucide="redo-2" class="w-4 h-4" stroke-width="2"></i>
+            class="hidden history-btn w-11 h-11 rounded-lg border border-graphite-700 text-graphite-400 hover:text-amber-400 hover:border-amber-400 flex items-center justify-center">
+            <i data-lucide="redo-2" class="w-5 h-5" stroke-width="2"></i>
           </button>
-          <button id="product-new-btn" data-admin-only class="press-spring hidden rounded-lg bg-amber-400 hover:bg-amber-300 text-white font-display font-semibold uppercase text-xs tracking-wide px-3 py-2 shadow-edge transition-colors">
+          <button id="product-new-btn" data-admin-only class="press-spring hidden rounded-lg bg-amber-400 hover:bg-amber-300 text-white font-display font-semibold uppercase text-xs tracking-wide px-3 py-2 shadow-edge min-h-[44px]">
             + Nuovo
           </button>
         </div>
@@ -342,13 +342,13 @@
            locazione, o riordino per macchina (quest'ultimo solo per le
            categorie che hanno senso — mostrato/nascosto via JS in base alla categoria) -->
       <div class="inline-flex max-w-full overflow-x-auto rounded-lg border border-graphite-700 bg-graphite-800 p-0.5 mb-4">
-        <button type="button" data-view-mode-tab="list" class="view-mode-tab view-mode-tab-active flex items-center justify-center gap-1.5 rounded-md px-2.5 sm:px-3 py-1.5 whitespace-nowrap text-xs font-display font-semibold uppercase tracking-wide">
+        <button type="button" data-view-mode-tab="list" class="view-mode-tab view-mode-tab-active flex items-center justify-center gap-1.5 rounded-md px-2.5 sm:px-3 py-1.5 whitespace-nowrap text-xs font-display font-semibold uppercase tracking-wide min-h-[44px]">
           <i data-lucide="list" class="w-3.5 h-3.5" stroke-width="2"></i>Elenco
         </button>
-        <button type="button" data-view-mode-tab="shelf" class="view-mode-tab flex items-center justify-center gap-1.5 rounded-md px-2.5 sm:px-3 py-1.5 whitespace-nowrap text-xs font-display font-semibold uppercase tracking-wide">
+        <button type="button" data-view-mode-tab="shelf" class="view-mode-tab flex items-center justify-center gap-1.5 rounded-md px-2.5 sm:px-3 py-1.5 whitespace-nowrap text-xs font-display font-semibold uppercase tracking-wide min-h-[44px]">
           <i data-lucide="layout-grid" class="w-3.5 h-3.5" stroke-width="2"></i>Scaffalatura
         </button>
-        <button type="button" data-view-mode-tab="machine" class="view-mode-tab hidden flex items-center justify-center gap-1.5 rounded-md px-2.5 sm:px-3 py-1.5 whitespace-nowrap text-xs font-display font-semibold uppercase tracking-wide">
+        <button type="button" data-view-mode-tab="machine" class="view-mode-tab hidden flex items-center justify-center gap-1.5 rounded-md px-2.5 sm:px-3 py-1.5 whitespace-nowrap text-xs font-display font-semibold uppercase tracking-wide min-h-[44px]">
           <i data-lucide="wrench" class="w-3.5 h-3.5" stroke-width="2"></i>Macchina
         </button>
       </div>
@@ -360,7 +360,7 @@
             class="w-full rounded-lg bg-graphite-800 border border-graphite-700 pl-9 pr-3.5 py-2.5 text-sm focus:border-amber-400 outline-none transition-colors">
         </div>
         <button id="product-scan-search-btn" type="button" aria-label="Cerca scansionando un codice a barre" title="Cerca da barcode"
-          class="shrink-0 rounded-lg bg-graphite-800 border border-graphite-700 hover:border-amber-400 w-11 flex items-center justify-center transition-colors">
+          class="camera-only shrink-0 rounded-lg bg-graphite-800 border border-graphite-700 hover:border-amber-400 w-11 flex items-center justify-center transition-colors min-h-[44px]">
           <i data-lucide="barcode" class="w-4 h-4 text-graphite-400" stroke-width="1.8"></i>
         </button>
       </div>
@@ -368,25 +368,34 @@
       <!-- Mini-lettore per la ricerca da barcode: nascosto finché non richiesto -->
       <div id="product-search-scanner-wrap" class="hidden mb-3 card-plate rounded-xl p-3">
         <div id="product-search-scanner-reader" class="w-full relative rounded-lg overflow-hidden"></div>
-        <button id="product-search-scanner-close" type="button" class="w-full mt-2 text-xs text-graphite-500 hover:text-graphite-300 py-1.5 transition-colors">
+        <button id="product-search-scanner-close" type="button" class="w-full mt-2 text-xs text-graphite-500 hover:text-graphite-300 py-1.5 transition-colors min-h-[44px]">
           Annulla ricerca
         </button>
       </div>
 
       <div id="product-linea-filter-wrap" class="hidden mb-3 grid grid-cols-2 gap-2">
-        <button type="button" id="product-linea-filter-btn" class="w-full flex items-center justify-between rounded-lg bg-graphite-800 border border-graphite-700 px-3.5 py-2.5 text-sm text-left hover:border-amber-400 transition-colors">
+        <button type="button" id="product-linea-filter-btn" class="w-full flex items-center justify-between rounded-lg bg-graphite-800 border border-graphite-700 px-3.5 py-2.5 text-sm text-left hover:border-amber-400 transition-colors min-h-[44px]">
           <span id="product-linea-filter-value" class="text-graphite-400 truncate">Tutte le linee</span>
           <i data-lucide="chevrons-up-down" class="w-4 h-4 text-graphite-400 shrink-0" stroke-width="2"></i>
         </button>
-        <button type="button" id="product-macchina-filter-btn" class="w-full flex items-center justify-between rounded-lg bg-graphite-800 border border-graphite-700 px-3.5 py-2.5 text-sm text-left hover:border-amber-400 transition-colors">
+        <button type="button" id="product-macchina-filter-btn" class="w-full flex items-center justify-between rounded-lg bg-graphite-800 border border-graphite-700 px-3.5 py-2.5 text-sm text-left hover:border-amber-400 transition-colors min-h-[44px]">
           <span id="product-macchina-filter-value" class="text-graphite-400 truncate">Tutte le macchine</span>
           <i data-lucide="chevrons-up-down" class="w-4 h-4 text-graphite-400 shrink-0" stroke-width="2"></i>
         </button>
       </div>
 
-      <label class="flex items-center gap-2 mb-4 text-sm text-graphite-400 select-none">
-        <input id="product-lowstock-toggle" type="checkbox" class="rounded border-graphite-600 bg-graphite-800 text-amber-400 focus:ring-amber-400">
-        Mostra solo articoli sotto scorta minima
+      <!-- Filtro "sotto scorta": lo stesso interruttore usato nelle Impostazioni. La casella
+           vera (peer sr-only) resta nel DOM, quindi products.js la legge come prima. -->
+      <label class="flex items-center justify-between gap-3 min-h-[44px] mb-4 rounded-lg bg-graphite-800 border border-graphite-700 px-3.5 cursor-pointer select-none">
+        <span class="flex items-center gap-2.5 min-w-0 text-sm text-graphite-200">
+          <i data-lucide="alert-triangle" class="w-4 h-4 text-graphite-500 shrink-0"></i>
+          Solo articoli sotto scorta minima
+        </span>
+        <span class="relative inline-block w-11 h-6 shrink-0">
+          <input id="product-lowstock-toggle" type="checkbox" class="peer sr-only">
+          <span class="absolute inset-0 rounded-full bg-graphite-700 peer-checked:bg-amber-400 transition-colors"></span>
+          <span class="absolute left-0.5 top-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform peer-checked:translate-x-5"></span>
+        </span>
       </label>
 
       <div id="product-list-skeleton" class="space-y-2">
@@ -411,15 +420,15 @@
       <div class="flex items-center justify-between mb-3 gap-2">
         <h2 class="font-display font-bold text-xl uppercase tracking-wide">Report consumi</h2>
         <div class="flex items-center gap-1.5">
-          <select id="dash-period-select" class="rounded-lg bg-graphite-800 border border-graphite-700 text-sm px-2.5 py-1.5 focus:border-amber-400 outline-none">
+          <select id="dash-period-select" class="rounded-lg bg-graphite-800 border border-graphite-700 text-sm px-2.5 py-1.5 focus:border-amber-400 outline-none min-h-[44px]">
             <option value="7d">Ultimi 7 giorni</option>
             <option value="30d" selected>Ultimi 30 giorni</option>
             <option value="90d">Ultimi 90 giorni</option>
             <option value="all">Tutto lo storico</option>
           </select>
           <button id="dash-export-btn" type="button" aria-label="Esporta report" title="Esporta in Excel"
-            class="shrink-0 w-9 h-9 rounded-lg border border-graphite-700 text-graphite-400 hover:text-amber-400 hover:border-amber-400 flex items-center justify-center transition-colors">
-            <i data-lucide="download" class="w-4 h-4" stroke-width="2"></i>
+            class="shrink-0 w-11 h-11 rounded-lg border border-graphite-700 text-graphite-400 hover:text-amber-400 hover:border-amber-400 flex items-center justify-center transition-colors">
+            <i data-lucide="download" class="w-5 h-5" stroke-width="2"></i>
           </button>
         </div>
       </div>
@@ -429,7 +438,7 @@
           <div class="relative w-14 h-14 mx-auto mb-1">
             <svg viewBox="0 0 44 44" class="w-14 h-14 -rotate-90">
               <circle cx="22" cy="22" r="18" fill="none" stroke="#dde1e7" stroke-width="4"></circle>
-              <circle id="dash-ring-depositi" cx="22" cy="22" r="18" fill="none" stroke="#059669" stroke-width="4" stroke-linecap="round" stroke-dasharray="113.1" stroke-dashoffset="113.1"></circle>
+              <circle id="dash-ring-depositi" cx="22" cy="22" r="18" fill="none" stroke="#047857" stroke-width="4" stroke-linecap="round" stroke-dasharray="113.1" stroke-dashoffset="113.1"></circle>
             </svg>
             <span id="dash-kpi-depositi" class="absolute inset-0 flex items-center justify-center font-mono text-sm font-bold text-emerald-700">0</span>
           </div>
@@ -483,7 +492,7 @@
           <p id="settings-user-name" class="font-medium text-graphite-100 truncate">—</p>
           <p id="settings-user-role" class="text-xs text-graphite-500 mt-0.5">—</p>
         </div>
-        <button id="logout-btn" type="button" class="shrink-0 rounded-lg border border-rose-500/40 text-rose-700 hover:bg-rose-500/10 px-3.5 py-2 text-xs font-display font-semibold uppercase tracking-wide transition-colors">
+        <button id="logout-btn" type="button" class="shrink-0 rounded-lg border border-rose-500/40 text-rose-700 hover:bg-rose-500/10 px-3.5 py-2 text-xs font-display font-semibold uppercase tracking-wide transition-colors min-h-[44px]">
           Esci
         </button>
       </div>
@@ -491,7 +500,7 @@
       <div class="card-plate rounded-xl p-4 mb-5">
         <h3 class="font-display font-semibold uppercase tracking-wide text-sm text-graphite-400 mb-1">Aggiornamenti</h3>
         <p class="text-xs text-graphite-500 mb-3">Ricarica i dati e controlla se è disponibile una nuova versione dell'app.</p>
-        <button id="settings-refresh-btn" type="button" class="w-full flex items-center justify-center gap-2 rounded-lg border border-graphite-700 hover:bg-graphite-800 px-3.5 py-2.5 text-sm font-display font-semibold uppercase tracking-wide transition-colors">
+        <button id="settings-refresh-btn" type="button" class="w-full flex items-center justify-center gap-2 rounded-lg border border-graphite-700 hover:bg-graphite-800 px-3.5 py-2.5 text-sm font-display font-semibold uppercase tracking-wide transition-colors min-h-[44px]">
           <i data-lucide="refresh-cw" class="w-4 h-4"></i>
           Aggiorna
         </button>
@@ -568,7 +577,7 @@
             Cancella per sempre TUTTI i depositi e prelievi registrati, di tutti gli articoli. La giacenza attuale non cambia: viene rimosso solo lo storico. Utile per ripulire i report senza toccare gli articoli (eliminare un articolo elimina già in automatico i suoi movimenti collegati).
           </p>
           <button id="settings-delete-all-history-btn" type="button"
-            class="w-full flex items-center justify-center gap-2 rounded-lg border border-rose-500/40 text-rose-700 hover:bg-rose-500/10 px-4 py-2.5 text-sm font-display font-semibold uppercase tracking-wide transition-colors">
+            class="w-full flex items-center justify-center gap-2 rounded-lg border border-rose-500/40 text-rose-700 hover:bg-rose-500/10 px-4 py-2.5 text-sm font-display font-semibold uppercase tracking-wide transition-colors min-h-[44px]">
             <i data-lucide="history" class="w-4 h-4" stroke-width="2"></i>
             Elimina tutta la cronologia
           </button>
@@ -580,16 +589,16 @@
     <div id="article-history-modal" class="modal-overlay hidden fixed inset-0 z-[92] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm px-0 sm:px-4">
       <div class="modal-panel w-full sm:max-w-md bg-graphite-900 border border-graphite-700 rounded-t-2xl sm:rounded-2xl max-h-[85vh] flex flex-col">
         <div data-sheet-drag class="sheet-grabber sm:hidden"><span class="sheet-grabber-pill"></span></div>
-        <div data-sheet-drag class="flex items-center justify-between px-5 pb-4 pt-1 sm:pt-4 border-b border-graphite-800 shrink-0">
+        <div data-sheet-drag class="flex items-center justify-between px-5 pb-3 pt-1 sm:pt-3 border-b border-graphite-800 shrink-0">
           <h3 id="article-history-title" class="font-display font-bold text-lg uppercase tracking-wide">—</h3>
-          <button id="article-history-close" aria-label="Chiudi" class="hit-area w-8 h-8 rounded-lg flex items-center justify-center text-graphite-500 hover:text-graphite-200 hover:bg-graphite-800 transition-colors">
-            <i data-lucide="x" class="w-5 h-5" stroke-width="2"></i>
+          <button id="article-history-close" aria-label="Chiudi" class="modal-close modal-close--on-light">
+            <i data-lucide="x" class="w-6 h-6" stroke-width="2.5"></i>
           </button>
         </div>
         <div class="flex gap-2 px-4 pt-3 shrink-0">
-          <button type="button" data-history-tab="tutti" class="history-tab history-tab-active flex-1 rounded-lg py-2 px-1 whitespace-nowrap text-xs font-display font-semibold uppercase tracking-wide border border-graphite-700">Tutti</button>
-          <button type="button" data-history-tab="deposito" class="history-tab flex-1 rounded-lg py-2 px-1 whitespace-nowrap text-xs font-display font-semibold uppercase tracking-wide border border-graphite-700">Depositi</button>
-          <button type="button" data-history-tab="prelievo" class="history-tab flex-1 rounded-lg py-2 px-1 whitespace-nowrap text-xs font-display font-semibold uppercase tracking-wide border border-graphite-700">Prelievi</button>
+          <button type="button" data-history-tab="tutti" class="history-tab history-tab-active flex-1 rounded-lg py-2 px-1 whitespace-nowrap text-xs font-display font-semibold uppercase tracking-wide border border-graphite-700 min-h-[44px]">Tutti</button>
+          <button type="button" data-history-tab="deposito" class="history-tab flex-1 rounded-lg py-2 px-1 whitespace-nowrap text-xs font-display font-semibold uppercase tracking-wide border border-graphite-700 min-h-[44px]">Depositi</button>
+          <button type="button" data-history-tab="prelievo" class="history-tab flex-1 rounded-lg py-2 px-1 whitespace-nowrap text-xs font-display font-semibold uppercase tracking-wide border border-graphite-700 min-h-[44px]">Prelievi</button>
         </div>
         <div id="article-history-list" class="flex-1 overflow-y-auto px-4 py-3"></div>
       </div>
@@ -602,9 +611,9 @@
     <div class="max-w-2xl mx-auto flex">
       <button data-nav-target="scanner" class="nav-item nav-active flex-1 flex flex-col items-center gap-1 py-3 text-graphite-500">
         <span class="nav-icon-wrap transition-transform">
-          <i data-lucide="scan-line" class="w-6 h-6" stroke-width="1.8"></i>
+          <i data-lucide="arrow-left-right" class="w-6 h-6" stroke-width="1.8"></i>
         </span>
-        <span class="ui-label whitespace-nowrap font-display font-semibold uppercase tracking-wide">Scanner</span>
+        <span class="ui-label whitespace-nowrap font-display font-semibold uppercase tracking-wide">Movimenti</span>
         <span class="nav-dot w-1 h-1 rounded-full bg-amber-400"></span>
       </button>
       <button data-nav-target="products" class="nav-item flex-1 flex flex-col items-center gap-1 py-3 text-graphite-500">
@@ -629,10 +638,10 @@
 <div id="product-modal" class="modal-overlay hidden fixed inset-0 z-[90] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm px-0 sm:px-4">
   <div class="modal-panel w-full sm:max-w-md bg-graphite-900 border border-graphite-700 rounded-t-2xl sm:rounded-2xl max-h-[92vh] flex flex-col">
     <div data-sheet-drag class="sheet-grabber sm:hidden"><span class="sheet-grabber-pill"></span></div>
-    <div data-sheet-drag class="flex items-center justify-between px-5 pb-4 pt-1 sm:pt-4 border-b border-graphite-800 shrink-0">
+    <div data-sheet-drag class="flex items-center justify-between px-5 pb-3 pt-1 sm:pt-3 border-b border-graphite-800 shrink-0">
       <h3 id="product-modal-title" class="font-display font-bold text-lg uppercase tracking-wide">Nuovo articolo</h3>
-      <button id="product-modal-close" aria-label="Chiudi" class="hit-area w-8 h-8 rounded-lg flex items-center justify-center text-graphite-500 hover:text-graphite-200 hover:bg-graphite-800 transition-colors">
-        <i data-lucide="x" class="w-5 h-5" stroke-width="2"></i>
+      <button id="product-modal-close" aria-label="Chiudi" class="modal-close modal-close--on-light">
+        <i data-lucide="x" class="w-6 h-6" stroke-width="2.5"></i>
       </button>
     </div>
 
@@ -640,7 +649,7 @@
       <form id="product-form" class="p-5 space-y-4">
       <div>
         <label class="block text-xs font-display font-semibold uppercase tracking-wide text-graphite-400 mb-1.5">Categoria *</label>
-        <select id="product-categoria" required class="w-full rounded-lg bg-graphite-800 border border-graphite-700 px-3.5 py-2.5 text-sm focus:border-amber-400 outline-none transition-colors">
+        <select id="product-categoria" required class="w-full rounded-lg bg-graphite-800 border border-graphite-700 px-3.5 py-2.5 text-sm focus:border-amber-400 outline-none transition-colors min-h-[44px]">
           <option value="cuscinetti">Cuscinetti</option>
           <option value="cinghie">Cinghie</option>
           <option value="pezzi_ricambio">Ricambi tecnici</option>
@@ -653,7 +662,7 @@
       <div id="product-linea-macchina-wrap" class="hidden grid grid-cols-2 gap-3">
         <div>
           <label class="block text-xs font-display font-semibold uppercase tracking-wide text-graphite-400 mb-1.5">Linea</label>
-          <button type="button" id="product-linea-btn" class="w-full flex items-center justify-between rounded-lg bg-graphite-800 border border-graphite-700 px-3.5 py-2.5 text-sm text-left hover:border-amber-400 transition-colors">
+          <button type="button" id="product-linea-btn" class="w-full flex items-center justify-between rounded-lg bg-graphite-800 border border-graphite-700 px-3.5 py-2.5 text-sm text-left hover:border-amber-400 transition-colors min-h-[44px]">
             <span id="product-linea-value" class="text-graphite-400">Seleziona…</span>
             <i data-lucide="chevrons-up-down" class="w-4 h-4 text-graphite-400 shrink-0" stroke-width="2"></i>
           </button>
@@ -661,7 +670,7 @@
         </div>
         <div>
           <label class="block text-xs font-display font-semibold uppercase tracking-wide text-graphite-400 mb-1.5">Macchina</label>
-          <button type="button" id="product-macchina-btn" class="w-full flex items-center justify-between rounded-lg bg-graphite-800 border border-graphite-700 px-3.5 py-2.5 text-sm text-left hover:border-amber-400 transition-colors">
+          <button type="button" id="product-macchina-btn" class="w-full flex items-center justify-between rounded-lg bg-graphite-800 border border-graphite-700 px-3.5 py-2.5 text-sm text-left hover:border-amber-400 transition-colors min-h-[44px]">
             <span id="product-macchina-value" class="text-graphite-400">Seleziona…</span>
             <i data-lucide="chevrons-up-down" class="w-4 h-4 text-graphite-400 shrink-0" stroke-width="2"></i>
           </button>
@@ -692,10 +701,10 @@
         <label class="block text-xs font-display font-semibold uppercase tracking-wide text-graphite-400 mb-1.5">Codice a barre</label>
         <div class="flex gap-2">
           <input id="product-codice-barre" type="text" placeholder="Scansiona o genera" class="flex-1 rounded-lg bg-graphite-800 border border-graphite-700 px-3.5 py-2.5 font-mono text-sm focus:border-amber-400 outline-none transition-colors">
-          <button id="product-scan-barcode-btn" type="button" aria-label="Scansiona codice a barre" title="Scansiona (cuscinetti)" class="shrink-0 w-11 rounded-lg border border-graphite-700 hover:border-amber-400 text-graphite-300 hover:text-amber-400 flex items-center justify-center transition-colors">
+          <button id="product-scan-barcode-btn" type="button" aria-label="Scansiona codice a barre" title="Scansiona (cuscinetti)" class="camera-only shrink-0 w-11 rounded-lg border border-graphite-700 hover:border-amber-400 text-graphite-300 hover:text-amber-400 flex items-center justify-center transition-colors min-h-[44px]">
             <i data-lucide="scan-barcode" class="w-5 h-5" stroke-width="1.6"></i>
           </button>
-          <button id="product-generate-barcode-btn" type="button" aria-label="Genera codice a barre" title="Genera (cinghie)" class="hidden shrink-0 w-11 rounded-lg border border-graphite-700 hover:border-amber-400 text-graphite-300 hover:text-amber-400 flex items-center justify-center transition-colors">
+          <button id="product-generate-barcode-btn" type="button" aria-label="Genera codice a barre" title="Genera (cinghie)" class="hidden shrink-0 w-11 rounded-lg border border-graphite-700 hover:border-amber-400 text-graphite-300 hover:text-amber-400 flex items-center justify-center transition-colors min-h-[44px]">
             <i data-lucide="plus" class="w-5 h-5" stroke-width="1.8"></i>
           </button>
         </div>
@@ -705,16 +714,16 @@
       <div id="product-barcode-scanner-wrap" class="hidden">
         <div id="product-barcode-scanner-reader" class="w-full relative"></div>
         <div class="flex items-center justify-center gap-4 mt-1">
-          <button id="product-scan-switch-btn" type="button" class="hidden inline-flex items-center gap-1.5 text-xs text-graphite-500 hover:text-amber-300 py-1.5 transition-colors">
+          <button id="product-scan-switch-btn" type="button" class="hidden inline-flex items-center gap-1.5 text-xs text-graphite-500 hover:text-amber-300 py-1.5 transition-colors min-h-[44px]">
             <i data-lucide="switch-camera" class="w-3.5 h-3.5" stroke-width="2"></i>
             Cambia fotocamera
           </button>
-          <button id="product-scan-torch-btn" type="button" aria-label="Torcia" class="hidden inline-flex items-center gap-1.5 text-xs text-graphite-500 hover:text-amber-300 py-1.5 transition-colors">
+          <button id="product-scan-torch-btn" type="button" aria-label="Torcia" class="hidden inline-flex items-center gap-1.5 text-xs text-graphite-500 hover:text-amber-300 py-1.5 transition-colors min-h-[44px]">
             <i data-lucide="flashlight" class="w-3.5 h-3.5" stroke-width="2"></i>
             Torcia
           </button>
         </div>
-        <button id="product-scan-barcode-stop" type="button" class="w-full mt-2 text-xs text-graphite-500 hover:text-graphite-300 py-1.5 transition-colors">Annulla scansione</button>
+        <button id="product-scan-barcode-stop" type="button" class="w-full mt-2 text-xs text-graphite-500 hover:text-graphite-300 py-1.5 transition-colors min-h-[44px]">Annulla scansione</button>
       </div>
 
       <div id="product-barcode-preview-wrap" class="hidden bg-white rounded-lg p-3 flex justify-center">
@@ -725,12 +734,12 @@
         <button id="product-print-label-btn" type="button" aria-label="Stampa etichetta PDF" title="Stampa etichetta PDF" class="shrink-0 w-11 h-11 rounded-lg border border-graphite-700 hover:border-amber-400 text-graphite-300 hover:text-amber-400 flex items-center justify-center transition-colors">
           <i data-lucide="printer" class="w-5 h-5" stroke-width="1.6"></i>
         </button>
-        <button id="product-delete-btn" type="button" class="hidden flex-1 rounded-lg border border-rose-500/40 text-rose-700 hover:bg-rose-500/10 px-4 py-2.5 text-sm font-display font-semibold uppercase tracking-wide transition-colors">
+        <button id="product-delete-btn" type="button" class="hidden flex-1 rounded-lg border border-rose-500/40 text-rose-700 hover:bg-rose-500/10 px-4 py-2.5 text-sm font-display font-semibold uppercase tracking-wide transition-colors min-h-[44px]">
           Elimina
         </button>
       </div>
 
-      <button type="submit" class="press-spring w-full rounded-lg bg-amber-400 hover:bg-amber-300 text-white font-display font-bold uppercase tracking-wide py-3 shadow-edge transition-colors active:scale-95">
+      <button type="submit" class="press-spring w-full rounded-lg bg-amber-400 hover:bg-amber-300 text-white font-display font-bold uppercase tracking-wide py-3 shadow-edge">
         Salva articolo
       </button>
     </form>
@@ -742,17 +751,17 @@
 <div id="field-picker-modal" class="modal-overlay hidden fixed inset-0 z-[95] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm px-0 sm:px-4">
   <div class="modal-panel w-full sm:max-w-sm bg-graphite-900 border border-graphite-700 rounded-t-2xl sm:rounded-2xl max-h-[80vh] flex flex-col">
     <div data-sheet-drag class="sheet-grabber sm:hidden"><span class="sheet-grabber-pill"></span></div>
-    <div data-sheet-drag class="flex items-center justify-between px-5 pb-4 pt-1 sm:pt-4 border-b border-graphite-800 shrink-0">
+    <div data-sheet-drag class="flex items-center justify-between px-5 pb-3 pt-1 sm:pt-3 border-b border-graphite-800 shrink-0">
       <h3 id="field-picker-title" class="font-display font-bold text-lg uppercase tracking-wide">Seleziona</h3>
-      <button id="field-picker-close" aria-label="Chiudi" class="hit-area w-8 h-8 rounded-lg flex items-center justify-center text-graphite-500 hover:text-graphite-200 hover:bg-graphite-800 transition-colors">
-        <i data-lucide="x" class="w-5 h-5" stroke-width="2"></i>
+      <button id="field-picker-close" aria-label="Chiudi" class="modal-close modal-close--on-light">
+        <i data-lucide="x" class="w-6 h-6" stroke-width="2.5"></i>
       </button>
     </div>
     <div id="field-picker-search-wrap" class="px-4 pt-3 shrink-0">
       <input id="field-picker-search" type="text" class="w-full rounded-lg bg-graphite-800 border border-graphite-700 px-3.5 py-2.5 text-sm focus:border-amber-400 outline-none transition-colors">
     </div>
     <div id="field-picker-list" class="flex-1 overflow-y-auto px-2 py-2"></div>
-    <button id="field-picker-clear" type="button" class="shrink-0 text-xs text-graphite-500 hover:text-rose-700 py-3 border-t border-graphite-800 transition-colors">
+    <button id="field-picker-clear" type="button" class="shrink-0 text-xs text-graphite-500 hover:text-rose-700 py-3 border-t border-graphite-800 transition-colors min-h-[44px]">
       Svuota selezione
     </button>
   </div>
