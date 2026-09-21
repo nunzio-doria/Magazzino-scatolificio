@@ -52,6 +52,9 @@ export function initScanner() {
   els.confirmBtn = document.getElementById('scan-confirm-btn');
   els.cancelBtn = document.getElementById('scan-cancel-btn');
   els.modeBanner = document.getElementById('scan-mode-banner');
+  els.afterBox = document.getElementById('scan-after');
+  els.afterValue = document.getElementById('scan-after-value');
+  els.afterLabel = document.getElementById('scan-after-label');
   els.stopCameraBtn = document.getElementById('scanner-stop-btn');
   els.switchCameraBtn = document.getElementById('scanner-switch-btn');
   els.torchBtn = document.getElementById('scanner-torch-btn');
@@ -117,10 +120,9 @@ function selectMode(mode) {
   els.modeDeposito.classList.toggle('mode-active-deposito', mode === 'deposito');
   els.modePrelievo.classList.toggle('mode-active-prelievo', mode === 'prelievo');
 
-  els.modeBanner.textContent = mode === 'deposito' ? 'Modalità Deposito' : 'Modalità Prelievo';
-  els.modeBanner.className = `font-display font-bold text-base uppercase tracking-wide ${
-    mode === 'deposito' ? 'text-emerald-700' : 'text-amber-300'
-  }`;
+  // Il colore di testata, bordo, conferma e anteprima dipende da questo attributo (vedi style.css)
+  els.scanModalPanel.dataset.mode = mode;
+  els.modeBanner.textContent = mode === 'deposito' ? 'Deposito' : 'Prelievo';
 
   openScanModal();
 }
@@ -384,6 +386,26 @@ function setQty(value) {
   const qty = Math.max(1, Math.round(value) || 1);
   els.qtyInput.value = qty;
   els.qtyValue.textContent = qty;
+  updateAfterPreview();
+}
+
+/** Anteprima "Giacenza dopo": mostra subito l'effetto dell'operazione sulla
+ *  giacenza (freccia su/giù) e avvisa in rosso se un prelievo supera quanto c'è. */
+function updateAfterPreview() {
+  if (!els.afterBox || !currentProduct) return;
+  const stock = Number(currentProduct.quantita_disponibile) || 0;
+  const qty = parseInt(els.qtyInput.value, 10) || 1;
+  const isDeposit = currentMode === 'deposito';
+  const after = isDeposit ? stock + qty : stock - qty;
+  const insufficient = !isDeposit && after < 0;
+  els.afterBox.classList.toggle('scan-after-warn', insufficient);
+  if (insufficient) {
+    els.afterLabel.textContent = 'Non basta la giacenza';
+    els.afterValue.textContent = `disponibili ${stock}`;
+  } else {
+    els.afterLabel.textContent = 'Giacenza dopo';
+    els.afterValue.textContent = `${isDeposit ? '↑' : '↓'} ${after} (${isDeposit ? '+' : '−'}${qty})`;
+  }
 }
 function stepQty(delta) {
   feedback.focusTap();
@@ -402,9 +424,9 @@ function renderResult(product) {
   setQty(1);
 
   els.confirmBtn.textContent = currentMode === 'deposito' ? 'Conferma deposito' : 'Conferma prelievo';
-  els.confirmBtn.className = `flex-1 rounded-lg py-3 font-display font-semibold uppercase tracking-wide text-white transition-transform active:scale-95 ${
-    currentMode === 'deposito' ? 'bg-emerald-400 hover:bg-emerald-300' : 'bg-amber-400 hover:bg-amber-300'
-  }`;
+  // Il colore del pulsante segue la modalità (variabili di data-mode sul pannello)
+  els.confirmBtn.className = 'btn-mode flex-1 rounded-lg py-3 font-display font-semibold uppercase tracking-wide active:scale-95';
+  updateAfterPreview();
 }
 
 function resetResult() {
