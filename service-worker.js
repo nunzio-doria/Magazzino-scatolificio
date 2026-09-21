@@ -11,13 +11,14 @@
 // manualmente i dati del sito da Chrome.
 //
 // Librerie esterne (CDN): l'app le carica da fuori (Supabase, Tailwind,
-// lettore codici, icone...). Per poter partire anche senza rete vengono
-// salvate in cache alla prima volta che si caricano online. Quelle con
-// versione fissa nell'URL si servono direttamente dalla cache; le altre
-// (Tailwind, Supabase "@2", CSS dei font) restano rete-prima.
+// lettore codici, icone...). Finché c'è rete il service worker NON le
+// tocca: le richiede il browser, come sempre. Ne salva solo una copia in
+// background, per poterle servire quando il dispositivo è offline. Se il
+// salvataggio non riesce (es. la CSP non consente al SW di scaricarle),
+// non succede nulla di grave: semplicemente niente copia offline.
 // =============================================================
 
-const CACHE_NAME = 'magazzino-shell-v12';
+const CACHE_NAME = 'magazzino-shell-v13';
 const APP_SHELL = [
   './',
   './index.html',
@@ -58,11 +59,6 @@ const CDN_HOSTS = [
   'fonts.googleapis.com',
   'fonts.gstatic.com',
 ];
-
-/** URL con versione esatta (es. lib@2.5.2) o file font: contenuto immutabile, si può servire dalla cache. */
-function isImmutableCdnUrl(url) {
-  return url.hostname === 'fonts.gstatic.com' || /@\d+\.\d+\.\d+/.test(url.pathname);
-}
 
 /** Salva in cache solo risposte utili (anche "opaque" dei tag <script> cross-origin), mai i contenuti parziali (206). */
 function isCacheable(response) {
@@ -105,11 +101,15 @@ self.addEventListener('fetch', (event) => {
   // Tutto il resto (Supabase, POST/RPC, altri domini) va sempre in rete, mai intercettato.
   if (!isSameOrigin && !isCdn) return;
 
-  // Librerie con versione fissa: cache-first (non cambiano mai), rete solo se mancano.
-  if (isCdn && isImmutableCdnUrl(url)) {
-    event.respondWith(
-      caches.match(request).then((cached) => cached || fetchAndCache(request))
-    );
+  if (isCdn) {
+    if (self.navigator.onLine === false) {
+      // Offline: si serve la copia salvata, se c'è
+      event.respondWith(caches.match(request).then((cached) => cached || Response.error()));
+    } else {
+      // Online: nessuna intercettazione, la richiesta la fa il browser. Il SW
+      // si limita a salvare una copia in background (solo la prima volta).
+      event.waitUntil(saveCdnCopy(request));
+    }
     return;
   }
 
@@ -131,6 +131,18 @@ self.addEventListener('fetch', (event) => {
     )
   );
 });
+
+/** Salva in background una copia di una risorsa CDN per l'uso offline; non fa mai danni se fallisce. */
+async function saveCdnCopy(request) {
+  try {
+    const cache = await caches.open(CACHE_NAME);
+    if (await cache.match(request)) return; // già salvata
+    const response = await fetch(request);
+    if (isCacheable(response)) await cache.put(request, response);
+  } catch (err) {
+    /* copia offline non disponibile: la pagina funziona comunque */
+  }
+}
 
 function fetchAndCache(request) {
   return fetch(request).then((response) => {
