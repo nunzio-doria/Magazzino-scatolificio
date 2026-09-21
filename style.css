@@ -771,7 +771,7 @@ html { touch-action: manipulation; } /* niente ritardo/zoom col doppio tocco; pi
    zona più chiara o più scura. */
 .scan-watermark {
   position: absolute;
-  right: 36px;
+  right: 136px; /* distanza dal bordo destro: aumentare per spostare a sinistra */
   top: 50%;
   transform: translateY(-50%);
   width: 88px;
