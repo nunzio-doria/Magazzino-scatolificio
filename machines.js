@@ -8,7 +8,7 @@
 import { listMachinesWithCounts, createMachine, deleteMachine, bumpProductsVersion } from './supabase.js';
 import { toastSuccess, toastError } from './toast.js';
 import { isAdmin } from './auth.js';
-import { staggerIndex, setButtonBusy } from './ui-utils.js';
+import { staggerIndex, setButtonBusy, openOverlay, closeOverlay, enableSheetDrag } from './ui-utils.js';
 import { confirmDialog } from './ui-modal.js';
 import feedback from './feedback.js';
 
@@ -23,6 +23,19 @@ export function initMachines() {
   els.list = document.getElementById('machines-list');
   els.skeleton = document.getElementById('machines-list-skeleton');
   els.form?.addEventListener('submit', handleAdd);
+
+  els.modal = document.getElementById('machines-modal');
+  els.manageBtn = document.getElementById('machines-manage-btn');
+  els.closeBtn = document.getElementById('machines-modal-close');
+  els.manageBtn?.addEventListener('click', () => {
+    openOverlay(els.modal);
+    refreshMachines();
+  });
+  els.closeBtn?.addEventListener('click', () => closeOverlay(els.modal));
+  els.modal?.addEventListener('click', (e) => {
+    if (e.target === els.modal) closeOverlay(els.modal);
+  });
+  enableSheetDrag(els.modal?.querySelector('.modal-panel'), () => closeOverlay(els.modal));
 }
 
 export async function refreshMachines() {

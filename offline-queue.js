@@ -119,7 +119,10 @@ export async function flushQueue(processFn, { onDiscard } = {}) {
   let synced = 0;
   let discarded = 0;
   try {
-    const queue = loadQueue();
+    // Rileggiamo la coda da localStorage a ogni giro (non uno snapshot fisso):
+    // nel frattempo l'operatore può aver accodato un nuovo movimento (es. durante
+    // l'attesa della risposta del server) e non va perso quando risalviamo.
+    let queue = loadQueue();
     while (queue.length) {
       const item = queue[0];
       let rejected = null;
@@ -132,7 +135,9 @@ export async function flushQueue(processFn, { onDiscard } = {}) {
         }
         rejected = err;
       }
-      queue.shift();
+      // Rimuoviamo per id dalla coda più aggiornata possibile, non da quella
+      // caricata all'inizio del flush.
+      queue = loadQueue().filter((q) => q.id !== item.id);
       saveQueue(queue);
       if (rejected) {
         addFailedTransaction(item, rejected.message || 'Rifiutato dal server');

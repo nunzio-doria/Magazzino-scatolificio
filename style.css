@@ -9,7 +9,7 @@
 :root {
   color-scheme: light;
   --ink: #0d1117;
-  --paper: #eef0f3;
+  --paper: #f4f5f8;
   --line: #dde1e7;
   --accent: #2f4f92;
   --accent-rgb: 47, 79, 146;
@@ -161,7 +161,9 @@ input, textarea {
   border: 1px solid #c3c9d1;
   box-shadow:
     inset 0 2px 0 #ffffff,
-    0 1px 2px rgba(13, 17, 23, 0.12);
+    0 1px 2px rgba(13, 17, 23, 0.10),
+    0 8px 18px -8px rgba(13, 17, 23, 0.22),
+    0 3px 7px -3px rgba(13, 17, 23, 0.14);
 }
 
 /* ---- Skeleton loading -------------------------------------- */
@@ -376,7 +378,8 @@ button.press-spring:not(:disabled):active {
     box-shadow:
       inset 0 2px 0 #ffffff,
       0 1px 2px rgba(13, 17, 23, 0.12),
-      0 14px 26px -14px rgba(13, 17, 23, 0.26);
+      0 18px 32px -12px rgba(13, 17, 23, 0.30),
+      0 6px 12px -4px rgba(13, 17, 23, 0.18);
   }
 }
 
@@ -760,8 +763,16 @@ button.shelf-item:not(:disabled):active {
   opacity: 1;
 }
 .modal-overlay .modal-panel {
-  transition: transform var(--dur-slow) var(--ease-sheet);
+  transition: transform var(--dur-slow) var(--ease-sheet), box-shadow var(--dur-slow) var(--ease-sheet);
   transform: translateY(100%);
+  box-shadow:
+    0 -4px 14px -6px rgba(13, 17, 23, 0.16),
+    0 24px 60px -16px rgba(13, 17, 23, 0.40);
+}
+@media (min-width: 640px) {
+  .modal-overlay .modal-panel {
+    box-shadow: 0 24px 60px -12px rgba(13, 17, 23, 0.45);
+  }
 }
 .modal-overlay.modal-visible .modal-panel {
   transform: translateY(0);

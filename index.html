@@ -100,9 +100,6 @@
   <header class="app-header fixed top-0 inset-x-0 z-40">
     <div class="flex items-center justify-between px-4 py-3 max-w-2xl mx-auto">
       <div class="flex items-center gap-2 min-w-0">
-        <div class="w-9 h-9 rounded-lg overflow-hidden shrink-0 ring-1 ring-white/30">
-          <img src="./icons/icon-192.png" alt="Scatolificio Sarno" class="w-full h-full object-cover">
-        </div>
         <div class="min-w-0">
           <p class="font-display font-bold uppercase tracking-wide text-sm leading-none truncate text-white">Magazzino Scatolificio</p>
         </div>
@@ -427,7 +424,7 @@
             <option value="all">Tutto lo storico</option>
           </select>
           <button id="dash-export-btn" type="button" aria-label="Esporta report" title="Esporta in Excel"
-            class="shrink-0 w-11 h-11 rounded-lg border border-graphite-700 text-graphite-400 hover:text-amber-400 hover:border-amber-400 flex items-center justify-center transition-colors">
+            class="shrink-0 w-11 h-11 rounded-lg bg-graphite-800 border border-graphite-700 text-graphite-400 hover:text-amber-400 hover:border-amber-400 flex items-center justify-center transition-colors">
             <i data-lucide="download" class="w-5 h-5" stroke-width="2"></i>
           </button>
         </div>
@@ -547,19 +544,13 @@
         </div>
         <div id="users-list" class="hidden space-y-2 mb-5"></div>
 
-        <h3 class="font-display font-semibold uppercase tracking-wide text-sm text-graphite-400 mb-2">Macchine</h3>
-        <p class="text-xs text-graphite-500 mb-2">Le macchine registrate qui compaiono nel form articolo e nel filtro "per macchina".</p>
-        <p id="machines-notice" class="hidden text-xs rounded-lg px-3 py-2 mb-2 bg-rose-500/10 text-rose-700">La tabella delle macchine non è ancora stata creata sul database: finché non viene creata non si possono aggiungere macchine.</p>
-        <form id="machine-form" class="flex gap-2 mb-3">
-          <input id="machine-name-input" type="text" maxlength="60" autocomplete="off" placeholder="Nome della nuova macchina"
-            class="flex-1 min-w-0 rounded-lg bg-graphite-800 border border-graphite-700 px-3.5 py-2.5 text-sm focus:border-amber-400 outline-none transition-colors">
-          <button id="machine-add-btn" type="submit" class="press-spring shrink-0 rounded-lg bg-amber-400 hover:bg-amber-300 text-white font-display font-semibold uppercase tracking-wide text-xs px-4 min-h-[44px]">Aggiungi</button>
-        </form>
-        <div id="machines-list-skeleton" class="space-y-2 mb-5">
-          <div class="skeleton h-12 w-full"></div>
-          <div class="skeleton h-12 w-full"></div>
-        </div>
-        <div id="machines-list" class="hidden space-y-2 mb-5"></div>
+        <button id="machines-manage-btn" type="button" class="w-full flex items-center justify-between gap-2 rounded-lg border border-graphite-700 hover:bg-graphite-800 px-3.5 py-2.5 text-sm font-display font-semibold uppercase tracking-wide transition-colors min-h-[44px] mb-5">
+          <span class="flex items-center gap-2">
+            <i data-lucide="cog" class="w-4 h-4"></i>
+            Gestione macchine
+          </span>
+          <i data-lucide="chevron-right" class="w-4 h-4 text-graphite-500"></i>
+        </button>
 
         <h3 class="font-display font-semibold uppercase tracking-wide text-sm text-graphite-400 mb-2">Carica da Excel</h3>
 
@@ -615,6 +606,33 @@
           <button type="button" data-history-tab="prelievo" class="history-tab flex-1 rounded-lg py-2 px-1 whitespace-nowrap text-xs font-display font-semibold uppercase tracking-wide border border-graphite-700 min-h-[44px]">Prelievi</button>
         </div>
         <div id="article-history-list" class="flex-1 overflow-y-auto px-4 py-3"></div>
+      </div>
+    </div>
+
+    <!-- =================== MODALE GESTIONE MACCHINE (Admin) =================== -->
+    <div id="machines-modal" class="modal-overlay hidden fixed inset-0 z-[92] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm px-0 sm:px-4">
+      <div class="modal-panel w-full sm:max-w-md bg-graphite-900 border border-graphite-700 rounded-t-2xl sm:rounded-2xl max-h-[85vh] flex flex-col">
+        <div data-sheet-drag class="sheet-grabber sm:hidden"><span class="sheet-grabber-pill"></span></div>
+        <div data-sheet-drag class="flex items-center justify-between px-5 pb-3 pt-1 sm:pt-3 border-b border-graphite-800 shrink-0">
+          <h3 class="font-display font-bold text-lg uppercase tracking-wide">Gestione macchine</h3>
+          <button id="machines-modal-close" aria-label="Chiudi" class="modal-close modal-close--on-light">
+            <i data-lucide="x" class="w-6 h-6" stroke-width="2.5"></i>
+          </button>
+        </div>
+        <div class="flex-1 overflow-y-auto px-5 py-4">
+          <p class="text-xs text-graphite-500 mb-2">Le macchine registrate qui compaiono nel form articolo e nel filtro "per macchina".</p>
+          <p id="machines-notice" class="hidden text-xs rounded-lg px-3 py-2 mb-2 bg-rose-500/10 text-rose-700">La tabella delle macchine non è ancora stata creata sul database: finché non viene creata non si possono aggiungere macchine.</p>
+          <form id="machine-form" class="flex gap-2 mb-3">
+            <input id="machine-name-input" type="text" maxlength="60" autocomplete="off" placeholder="Nome della nuova macchina"
+              class="flex-1 min-w-0 rounded-lg bg-graphite-800 border border-graphite-700 px-3.5 py-2.5 text-sm focus:border-amber-400 outline-none transition-colors">
+            <button id="machine-add-btn" type="submit" class="press-spring shrink-0 rounded-lg bg-amber-400 hover:bg-amber-300 text-white font-display font-semibold uppercase tracking-wide text-xs px-4 min-h-[44px]">Aggiungi</button>
+          </form>
+          <div id="machines-list-skeleton" class="space-y-2">
+            <div class="skeleton h-12 w-full"></div>
+            <div class="skeleton h-12 w-full"></div>
+          </div>
+          <div id="machines-list" class="hidden space-y-2"></div>
+        </div>
       </div>
     </div>
 
@@ -715,10 +733,10 @@
         <label class="block text-xs font-display font-semibold uppercase tracking-wide text-graphite-400 mb-1.5">Codice a barre</label>
         <div class="flex gap-2">
           <input id="product-codice-barre" type="text" placeholder="Scansiona o genera" class="flex-1 rounded-lg bg-graphite-800 border border-graphite-700 px-3.5 py-2.5 font-mono text-sm focus:border-amber-400 outline-none transition-colors">
-          <button id="product-scan-barcode-btn" type="button" aria-label="Scansiona codice a barre" title="Scansiona (cuscinetti)" class="camera-only shrink-0 w-11 rounded-lg border border-graphite-700 hover:border-amber-400 text-graphite-300 hover:text-amber-400 flex items-center justify-center transition-colors min-h-[44px]">
+          <button id="product-scan-barcode-btn" type="button" aria-label="Scansiona codice a barre" title="Scansiona (cuscinetti)" class="camera-only shrink-0 w-11 rounded-lg bg-graphite-800 border border-graphite-700 hover:border-amber-400 text-graphite-300 hover:text-amber-400 flex items-center justify-center transition-colors min-h-[44px]">
             <i data-lucide="scan-barcode" class="w-5 h-5" stroke-width="1.6"></i>
           </button>
-          <button id="product-generate-barcode-btn" type="button" aria-label="Genera codice a barre" title="Genera (cinghie)" class="hidden shrink-0 w-11 rounded-lg border border-graphite-700 hover:border-amber-400 text-graphite-300 hover:text-amber-400 flex items-center justify-center transition-colors min-h-[44px]">
+          <button id="product-generate-barcode-btn" type="button" aria-label="Genera codice a barre" title="Genera (cinghie)" class="hidden shrink-0 w-11 rounded-lg bg-graphite-800 border border-graphite-700 hover:border-amber-400 text-graphite-300 hover:text-amber-400 flex items-center justify-center transition-colors min-h-[44px]">
             <i data-lucide="plus" class="w-5 h-5" stroke-width="1.8"></i>
           </button>
         </div>
@@ -745,7 +763,7 @@
       </div>
 
       <div class="flex gap-2">
-        <button id="product-print-label-btn" type="button" aria-label="Stampa etichetta PDF" title="Stampa etichetta PDF" class="shrink-0 w-11 h-11 rounded-lg border border-graphite-700 hover:border-amber-400 text-graphite-300 hover:text-amber-400 flex items-center justify-center transition-colors">
+        <button id="product-print-label-btn" type="button" aria-label="Stampa etichetta PDF" title="Stampa etichetta PDF" class="shrink-0 w-11 h-11 rounded-lg bg-graphite-800 border border-graphite-700 hover:border-amber-400 text-graphite-300 hover:text-amber-400 flex items-center justify-center transition-colors">
           <i data-lucide="printer" class="w-5 h-5" stroke-width="1.6"></i>
         </button>
         <button id="product-delete-btn" type="button" class="hidden flex-1 rounded-lg border border-rose-500/40 text-rose-700 hover:bg-rose-50 px-4 py-2.5 text-sm font-display font-semibold uppercase tracking-wide transition-colors min-h-[44px]">

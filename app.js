@@ -7,7 +7,7 @@ import { initScanner, teardownScanner, activateMode } from './scanner.js';
 import { initProducts, refresh as refreshProducts, enterProducts, resetProducts, teardownProducts } from './products.js';
 import { initDashboard, enterDashboard, resetDashboard, refresh as refreshDashboard } from './dashboard.js';
 import { initUsers, refreshUsers } from './users.js';
-import { initMachines, refreshMachines } from './machines.js';
+import { initMachines } from './machines.js';
 import { initPicker } from './picker.js';
 import feedback, { initFeedbackSettings } from './feedback.js';
 import { initOfflineSync } from './offline-queue.js';
@@ -232,7 +232,6 @@ export function switchView(view, { animate = true, onStart } = {}) {
     if (view === 'dashboard') enterDashboard();
     if (view === 'settings' && isAdmin()) {
       refreshUsers();
-      refreshMachines();
     }
   };
 

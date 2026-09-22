@@ -343,7 +343,7 @@ function setCategory(category) {
   currentCategory = category;
   els.categoryTabs.forEach((btn) => btn.classList.toggle('category-tab-active', btn.dataset.categoryTab === category));
 
-  const showLineaFilter = category === 'cinghie';
+  const showLineaFilter = category === 'cinghie' || category === 'pezzi_ricambio';
   els.lineaFilterWrap.classList.toggle('hidden', !showLineaFilter);
   if (!showLineaFilter) {
     lineaFilterValue = '';
@@ -438,7 +438,7 @@ async function fetchCurrentList() {
     onlyLowStock: els.lowStockToggle.checked,
     categoria: currentCategory,
   });
-  if (currentCategory === 'cinghie') {
+  if (currentCategory === 'cinghie' || currentCategory === 'pezzi_ricambio') {
     if (lineaFilterValue) list = list.filter((p) => matchesLineaFilter(p.linea, lineaFilterValue));
     if (macchinaFilterValue) list = list.filter((p) => p.macchina === macchinaFilterValue);
   }
