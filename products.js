@@ -121,9 +121,19 @@ const CATEGORY_IMPORT_CONFIG = {
   },
 };
 
+/**
+ * Converte una cella dell'Excel in intero per l'importazione. Una cella VUOTA o non
+ * numerica diventa `null`, non `0`: la funzione del database che importa le righe
+ * (bulk_upsert_products) lascia invariato un valore esistente quando riceve null, e usa
+ * 0 solo per un articolo nuovo. Restituire 0 qui, invece di null, azzererebbe in silenzio
+ * la giacenza (o la scorta minima) di un articolo già presente ogni volta che, in un
+ * successivo reimport, quella colonna viene lasciata vuota per quella riga.
+ */
 function toInt(v) {
-  const n = parseInt(v, 10);
-  return Number.isFinite(n) ? n : 0;
+  const s = String(v ?? '').trim();
+  if (s === '') return null;
+  const n = parseInt(s, 10);
+  return Number.isFinite(n) ? n : null;
 }
 
 export function initProducts() {
