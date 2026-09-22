@@ -2,7 +2,7 @@
 // dashboard.js — Reportistica consumi (vista Admin)
 // =============================================================
 
-import { getConsumptionStats, listTransactions } from './supabase.js';
+import { getConsumptionStats, listTransactions, getProductsVersion } from './supabase.js';
 import { toastError, toastSuccess, toastWarning } from './toast.js';
 import { enhanceSelect } from './ui-select.js';
 import { animateNumber, animateRing, emptyStateHtml, openOverlay, closeOverlay, enableSheetDrag, staggerIndex } from './ui-utils.js';
@@ -14,6 +14,16 @@ let currentPeriodLabel = '30d';
 let lastStats = [];
 let lastHistory = [];
 let hasLoadedOnce = false; // true dopo il primo caricamento riuscito, per distinguere "dati vuoti" da "mai caricato"
+
+// --- Caricamento: completo solo una volta per accesso, come il Magazzino ---
+// Un deposito/prelievo (anche offline, sincronizzato più tardi) fa scattare la stessa
+// "versione" del Magazzino: se cambia, o se il periodo selezionato è diverso da quello
+// mostrato, al rientro nel Report si aggiorna in silenzio, senza caricamento animato.
+const REVALIDATE_MS = 10 * 60 * 1000;
+let reportLoadedOnce = false;
+let seenProductsVersion = 0;
+let lastLoadedAt = 0;
+let refreshSeq = 0;
 let articleHistoryCache = [];
 let articleHistoryFilter = 'tutti'; // 'tutti' | 'deposito' | 'prelievo'
 
@@ -56,6 +66,62 @@ export function initDashboard() {
   refresh();
 }
 
+/** Con `list-static` sulla vista i numeri/anelli/barre/righe compaiono già al valore finale (niente animazione). */
+function setReportStatic(on) {
+  document.getElementById('view-dashboard')?.classList.toggle('list-static', on);
+}
+
+function markReportLoaded() {
+  reportLoadedOnce = true;
+  seenProductsVersion = getProductsVersion();
+  lastLoadedAt = Date.now();
+}
+
+/** Chiamata da app.js ogni volta che si entra nel Report. */
+export function enterDashboard() {
+  if (!reportLoadedOnce) return refresh(); // primo ingresso: caricamento completo
+  const periodChanged = els.periodSelect.value !== currentPeriodLabel;
+  const changed = getProductsVersion() !== seenProductsVersion;
+  const old = Date.now() - lastLoadedAt > REVALIDATE_MS;
+  if (periodChanged || changed || old) return silentRefresh();
+  return Promise.resolve();
+}
+
+/** Dopo il logout: la prossima volta si riparte da zero. */
+export function resetDashboard() {
+  reportLoadedOnce = false;
+  seenProductsVersion = 0;
+  lastLoadedAt = 0;
+  lastStats = [];
+  lastHistory = [];
+  hasLoadedOnce = false;
+  refreshSeq += 1;
+}
+
+/** Aggiorna Report senza caricamento e senza animazioni; se la rete non c'è restano i dati attuali. */
+async function silentRefresh() {
+  const seq = ++refreshSeq;
+  currentFrom = periodToFromDate(els.periodSelect.value);
+  currentPeriodLabel = els.periodSelect.value;
+  try {
+    const [stats, history] = await Promise.all([
+      getConsumptionStats({ from: currentFrom }),
+      listTransactions({ from: currentFrom, limit: 100 }),
+    ]);
+    if (seq !== refreshSeq) return;
+    lastStats = stats;
+    lastHistory = history;
+    hasLoadedOnce = true;
+    setReportStatic(true);
+    renderKpis(history);
+    renderStats(stats);
+    renderHistory(history);
+    markReportLoaded();
+  } catch (err) {
+    console.warn("Aggiornamento silenzioso del Report non riuscito, resta l'ultimo caricato.", err);
+  }
+}
+
 function periodToFromDate(period) {
   const now = new Date();
   const d = new Date(now);
@@ -67,8 +133,10 @@ function periodToFromDate(period) {
 }
 
 export async function refresh() {
+  const seq = ++refreshSeq;
   currentFrom = periodToFromDate(els.periodSelect.value);
   currentPeriodLabel = els.periodSelect.value;
+  setReportStatic(false); // caricamento "vero": numeri, anelli e barre animano da zero
 
   els.statsSkeleton.classList.remove('hidden');
   els.statsWrap.classList.add('hidden');
@@ -80,6 +148,7 @@ export async function refresh() {
       getConsumptionStats({ from: currentFrom }),
       listTransactions({ from: currentFrom, limit: 100 }),
     ]);
+    if (seq !== refreshSeq) return;
     lastStats = stats;
     lastHistory = history;
     hasLoadedOnce = true;
@@ -87,7 +156,9 @@ export async function refresh() {
     renderKpis(history);
     renderStats(stats);
     renderHistory(history);
+    markReportLoaded();
   } catch (err) {
+    if (seq !== refreshSeq) return;
     console.error(err);
     // Se avevamo già dati da un caricamento precedente (lastStats/lastHistory
     // non sono più il valore iniziale), meglio ri-mostrare quelli con un
@@ -104,6 +175,7 @@ export async function refresh() {
       toastError('Errore nel caricamento della reportistica.');
     }
   } finally {
+    if (seq !== refreshSeq) return;
     els.statsSkeleton.classList.add('hidden');
     els.statsWrap.classList.remove('hidden');
     els.historySkeleton.classList.add('hidden');

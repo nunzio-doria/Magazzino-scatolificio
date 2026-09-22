@@ -306,6 +306,26 @@ button:not(:disabled):active {
   transform: scale(0.97);
 }
 button:disabled { cursor: not-allowed; }
+/* Attenuazione uniforme di QUALSIASI pulsante disabilitato: un solo valore in un solo
+   punto, al posto delle classi opacity-50/opacity-60 sparse nei singoli file. */
+button:disabled:not(.no-dim) { opacity: 0.55; }
+.btn-spinner {
+  display: inline-block;
+  width: 15px;
+  height: 15px;
+  margin-right: 7px;
+  vertical-align: -3px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  border-top-color: #fff;
+  animation: btn-spin 700ms linear infinite;
+}
+/* Sui pulsanti a sfondo chiaro (Impostazioni, Magazzino) lo spinner ha bisogno di un colore scuro */
+.btn-spinner--dark { border-color: rgba(13, 17, 23, 0.18); border-top-color: var(--accent); }
+@keyframes btn-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .btn-spinner { animation: none; border-top-color: rgba(255, 255, 255, 0.35); }
+}
 
 /* Versione "forte" per le call-to-action principali (conferma scanner,
    salva articolo, nuovo articolo, accedi...): scende un po' di più (95%
@@ -915,6 +935,8 @@ html { touch-action: manipulation; } /* niente ritardo/zoom col doppio tocco; pi
   animation: bar-grow 700ms var(--ease-out) forwards;
   animation-delay: calc(var(--i, 0) * 40ms);
 }
+/* Aggiornamento silenzioso del Report: le barre del consumo compaiono già alla larghezza finale */
+.list-static .bar-grow { animation: none; width: var(--target-width); }
 @keyframes bar-grow {
   to { width: var(--target-width); }
 }

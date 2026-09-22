@@ -5,7 +5,7 @@
 import { initAuth, authState, isAdmin } from './auth.js';
 import { initScanner, teardownScanner, activateMode } from './scanner.js';
 import { initProducts, refresh as refreshProducts, enterProducts, resetProducts, teardownProducts } from './products.js';
-import { initDashboard, refresh as refreshDashboard } from './dashboard.js';
+import { initDashboard, enterDashboard, resetDashboard, refresh as refreshDashboard } from './dashboard.js';
 import { initUsers, refreshUsers } from './users.js';
 import { initMachines, refreshMachines } from './machines.js';
 import { initPicker } from './picker.js';
@@ -100,6 +100,7 @@ function onSignedOut() {
     teardownScanner();
     teardownProducts();
     resetProducts(); // al prossimo accesso la lista si ricarica da capo (e non resta quella di un altro utente)
+    resetDashboard();
     for (const v of VIEWS) {
       document.getElementById(`view-${v}`)?.classList.add('hidden');
       document.querySelector(`[data-nav-target="${v}"]`)?.classList.remove('nav-active');
@@ -147,8 +148,7 @@ function initSettingsRefreshButton() {
   btn.addEventListener('click', async () => {
     if (running) return;
     running = true;
-    btn.disabled = true;
-    btn.classList.add('opacity-60', 'pointer-events-none');
+    btn.disabled = true; // il grigiore uniforme arriva dalla regola globale su :disabled
     if (status) status.textContent = 'Aggiornamento in corso…';
 
     const results = await Promise.allSettled([
@@ -159,7 +159,6 @@ function initSettingsRefreshButton() {
     const failed = results.some((r) => r.status === 'rejected');
 
     btn.disabled = false;
-    btn.classList.remove('opacity-60', 'pointer-events-none');
     running = false;
 
     if (failed) {
@@ -230,7 +229,7 @@ export function switchView(view, { animate = true, onStart } = {}) {
     // Magazzino: caricamento completo solo al primo ingresso dopo l'accesso; ai rientri la
     // lista già in memoria compare subito (se qualcosa è cambiato si aggiorna in silenzio).
     if (view === 'products') enterProducts();
-    if (view === 'dashboard') refreshDashboard();
+    if (view === 'dashboard') enterDashboard();
     if (view === 'settings' && isAdmin()) {
       refreshUsers();
       refreshMachines();

@@ -8,7 +8,7 @@
 import { listMachinesWithCounts, createMachine, deleteMachine, bumpProductsVersion } from './supabase.js';
 import { toastSuccess, toastError } from './toast.js';
 import { isAdmin } from './auth.js';
-import { staggerIndex } from './ui-utils.js';
+import { staggerIndex, setButtonBusy } from './ui-utils.js';
 import { confirmDialog } from './ui-modal.js';
 import feedback from './feedback.js';
 
@@ -45,8 +45,8 @@ function render(machines) {
   // Se la tabella non esiste ancora si avvisa e si blocca il modulo: aggiungere non potrebbe funzionare
   els.notice.classList.toggle('hidden', !tableMissing);
   els.input.disabled = tableMissing;
+  // Il grigiore arriva dalla regola globale su :disabled, non serve una classe manuale qui.
   els.addBtn.disabled = tableMissing;
-  els.addBtn.classList.toggle('opacity-60', tableMissing);
 
   els.list.innerHTML = '';
   if (machines.length === 0) {
@@ -89,8 +89,7 @@ async function handleRemove(machine, btn) {
     danger: true,
   });
   if (!ok) return;
-  btn.disabled = true;
-  btn.classList.add('opacity-60');
+  setButtonBusy(btn, true);
   try {
     const { articoliSvuotati } = await deleteMachine(machine);
     feedback.deleteAction();
@@ -107,16 +106,14 @@ async function handleRemove(machine, btn) {
     console.error(err);
     feedback.errorAction();
     toastError(err.message || 'Impossibile rimuovere la macchina.');
-    btn.disabled = false;
-    btn.classList.remove('opacity-60');
+    setButtonBusy(btn, false);
   }
 }
 
 async function handleAdd(e) {
   e.preventDefault();
   const nome = els.input.value;
-  els.addBtn.disabled = true;
-  els.addBtn.classList.add('opacity-60');
+  setButtonBusy(els.addBtn, true, 'Aggiunta…');
   try {
     const row = await createMachine(nome);
     els.input.value = '';
@@ -127,9 +124,6 @@ async function handleAdd(e) {
     feedback.errorAction();
     toastError(err.message || 'Impossibile aggiungere la macchina.');
   } finally {
-    if (!tableMissing) {
-      els.addBtn.disabled = false;
-      els.addBtn.classList.remove('opacity-60');
-    }
+    if (!tableMissing) setButtonBusy(els.addBtn, false);
   }
 }

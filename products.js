@@ -23,7 +23,7 @@ import { loadIdlePanel } from './scanner.js';
 import { confirmDialog } from './ui-modal.js';
 import { enhanceSelect } from './ui-select.js';
 import feedback from './feedback.js';
-import { openOverlay, closeOverlay, enableSheetDrag, staggerIndex, replayAnimation } from './ui-utils.js';
+import { openOverlay, closeOverlay, enableSheetDrag, staggerIndex, replayAnimation, setButtonBusy } from './ui-utils.js';
 
 const els = {};
 let currentList = [];
@@ -908,8 +908,7 @@ async function handleSubmit(e) {
   };
 
   const submitBtn = els.form.querySelector('button[type="submit"]');
-  submitBtn.disabled = true;
-  submitBtn.classList.add('opacity-60');
+  setButtonBusy(submitBtn, true, 'Salvataggio…');
   try {
     if (editingId) {
       const before = editingSnapshot;
@@ -930,8 +929,7 @@ async function handleSubmit(e) {
     feedback.errorAction();
     toastError(err.message?.includes('duplicate') ? 'Codice articolo già esistente in questa categoria, oppure barcode già usato.' : 'Errore nel salvataggio.');
   } finally {
-    submitBtn.disabled = false;
-    submitBtn.classList.remove('opacity-60');
+    setButtonBusy(submitBtn, false);
   }
 }
 

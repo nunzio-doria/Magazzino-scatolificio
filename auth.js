@@ -180,8 +180,10 @@ export function initAuth(onAuthed, onSignedOut) {
     statusBox.classList.toggle('hidden', !text);
   };
   const setFormBusy = (busy) => {
+    // Il grigiore uniforme arriva dalla regola globale su :disabled (style.css); qui resta
+    // solo cursor-not-allowed perché il pulsante Accedi, essendo w-full, va oltre le regole
+    // pensate per i pulsanti normali.
     submitBtn.disabled = busy;
-    submitBtn.classList.toggle('opacity-60', busy);
     submitBtn.classList.toggle('cursor-not-allowed', busy);
   };
   const showLoginError = (text) => {

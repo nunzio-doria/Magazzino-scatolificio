@@ -6,7 +6,7 @@
 
 import { listProfiles, updateProfileName, deleteAllTransactions } from './supabase.js';
 import { toastSuccess, toastError, toastWarning } from './toast.js';
-import { staggerIndex, replayAnimation, emptyStateHtml } from './ui-utils.js';
+import { staggerIndex, replayAnimation, emptyStateHtml, setButtonBusy } from './ui-utils.js';
 import { confirmDialog } from './ui-modal.js';
 import feedback from './feedback.js';
 import { loadIdlePanel } from './scanner.js';
@@ -78,8 +78,7 @@ async function saveName(id, name, btn) {
     toastError('Il nome non può essere vuoto.');
     return;
   }
-  btn.disabled = true;
-  btn.classList.add('opacity-50');
+  setButtonBusy(btn, true);
   try {
     await updateProfileName(id, name);
     toastSuccess('Nome aggiornato.');
@@ -90,8 +89,7 @@ async function saveName(id, name, btn) {
     console.error(err);
     toastError('Errore nel salvataggio del nome.');
   } finally {
-    btn.disabled = false;
-    btn.classList.remove('opacity-50');
+    setButtonBusy(btn, false);
   }
 }
 
@@ -111,8 +109,7 @@ async function handleDeleteAllHistory() {
   if (!ok) return;
 
   const btn = els.deleteAllHistoryBtn;
-  btn.disabled = true;
-  btn.classList.add('opacity-50');
+  setButtonBusy(btn, true, 'Eliminazione…');
   try {
     await deleteAllTransactions();
     feedback.confirmAction();
@@ -123,8 +120,7 @@ async function handleDeleteAllHistory() {
     feedback.errorAction();
     toastError('Errore durante l\'eliminazione della cronologia.');
   } finally {
-    btn.disabled = false;
-    btn.classList.remove('opacity-50');
+    setButtonBusy(btn, false);
   }
 }
 

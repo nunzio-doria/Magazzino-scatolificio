@@ -16,7 +16,7 @@ import { toastSuccess, toastError, toastWarning } from './toast.js';
 import { startCamera, stopCamera, switchCamera as switchCameraShared, toggleTorch } from './camera.js';
 import feedback from './feedback.js';
 import { enqueueTransaction, onQueueChange, getQueueCount, isNetworkError } from './offline-queue.js';
-import { animateNumber, replayAnimation, emptyStateHtml, openOverlay, closeOverlay, enableSheetDrag } from './ui-utils.js';
+import { animateNumber, replayAnimation, emptyStateHtml, openOverlay, closeOverlay, enableSheetDrag, setButtonBusy } from './ui-utils.js';
 import { CATEGORY_LABELS } from './products.js';
 
 let currentMode = null; // 'deposito' | 'prelievo'
@@ -514,12 +514,10 @@ async function confirmTransaction() {
     return;
   }
 
-  els.confirmBtn.disabled = true;
-  els.confirmBtn.classList.add('opacity-60');
+  setButtonBusy(els.confirmBtn, true, 'Registrazione…');
   const product = currentProduct;
   const outcome = await runTransaction({ product, quantita, puntoUtilizzo: els.puntoInput.value.trim() });
-  els.confirmBtn.disabled = false;
-  els.confirmBtn.classList.remove('opacity-60');
+  setButtonBusy(els.confirmBtn, false);
 
   if (outcome.ok) {
     bumpProductsVersion(); // la lista del Magazzino verrà aggiornata in silenzio al rientro

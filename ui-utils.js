@@ -137,6 +137,36 @@ export function enableSheetDrag(panel, onClose) {
 }
 
 /**
+ * Segna un pulsante come "in corso" (richiesta al server in volo): lo disabilita, lo attenua
+ * in modo uniforme (regola CSS su :disabled, non più una classe opacity- diversa per ogni
+ * file) e, se richiesto, sostituisce la sua scritta con un'icona che gira più una nuova scritta.
+ * Prima di questo helper c'erano tre livelli di attenuazione diversi (opacity-50, opacity-60,
+ * nessuna) sparsi tra i file, e solo il login mostrava un testo di stato.
+ * @param {HTMLButtonElement} btn
+ * @param {boolean} busy
+ * @param {string} [busyLabel] testo mostrato mentre è in corso (se omesso, resta il testo del pulsante)
+ */
+export function setButtonBusy(btn, busy, busyLabel) {
+  if (!btn) return;
+  if (busy) {
+    if (btn.dataset.busy) return; // già in corso: non sovrascrivere il testo originale salvato
+    btn.dataset.busy = '1';
+    btn.disabled = true;
+    if (busyLabel) {
+      btn.dataset.originalHtml = btn.innerHTML;
+      btn.innerHTML = `<span class="btn-spinner" aria-hidden="true"></span><span>${busyLabel}</span>`;
+    }
+  } else {
+    delete btn.dataset.busy;
+    btn.disabled = false;
+    if (btn.dataset.originalHtml != null) {
+      btn.innerHTML = btn.dataset.originalHtml;
+      delete btn.dataset.originalHtml;
+    }
+  }
+}
+
+/**
  * Chiude tutte le modali aperte (es. alla disconnessione). Alle modali che
  * hanno una Promise in sospeso (picker, conferma) manda prima l'evento
  * 'overlay-cancel', cosí si risolvono come "annullato" invece di restare appese.
@@ -157,11 +187,12 @@ export function closeAllOverlays() {
  */
 export function animateNumber(el, to, { from = null, duration = 650, formatter } = {}) {
   if (!el) return;
+  if (el.closest('.list-static')) duration = 0; // aggiornamento silenzioso: niente conteggio animato
   const start = from != null ? from : Number(el.textContent.replace(/[^\d.-]/g, '')) || 0;
   const end = Number(to) || 0;
   const fmt = formatter || ((n) => String(Math.round(n)));
 
-  if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches || start === end) {
+  if (duration === 0 || window.matchMedia?.('(prefers-reduced-motion: reduce)').matches || start === end) {
     el.textContent = fmt(end);
     return;
   }
@@ -184,12 +215,13 @@ export function animateNumber(el, to, { from = null, duration = 650, formatter }
  */
 export function animateRing(circleEl, percent, { duration = 700 } = {}) {
   if (!circleEl) return;
+  if (circleEl.closest('.list-static')) duration = 0; // aggiornamento silenzioso: nessuna animazione dell'anello
   const circumference = parseFloat(circleEl.getAttribute('stroke-dasharray')) || 0;
   const clamped = Math.max(0, Math.min(100, percent || 0));
   const targetOffset = circumference * (1 - clamped / 100);
   const startOffset = parseFloat(circleEl.style.strokeDashoffset || circleEl.getAttribute('stroke-dashoffset')) || circumference;
 
-  if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
+  if (duration === 0 || window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
     circleEl.style.strokeDashoffset = String(targetOffset);
     return;
   }
