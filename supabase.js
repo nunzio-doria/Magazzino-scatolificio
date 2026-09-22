@@ -321,6 +321,112 @@ export async function deleteMachine({ id, nome }) {
   return { articoliSvuotati: ids.length };
 }
 
+// --- MANUALI RICAMBI (PDF allegati alle macchine) -----------------
+// Un solo manuale per macchina (tabella `machine_manuals`, vincolo UNIQUE
+// su machine_id): un nuovo upload sostituisce il precedente. Il file vero
+// e proprio vive nel bucket privato `manuali-macchine` dello Storage;
+// l'apertura in app passa sempre da un URL firmato a tempo (mai pubblico).
+const MANUALS_BUCKET = 'manuali-macchine';
+
+/** True se l'errore indica che la tabella `machine_manuals` non esiste (ancora) sul database */
+function isMissingManualsTable(error) {
+  const msg = `${error?.message || ''} ${error?.details || ''}`;
+  return error?.code === 'PGRST205' || error?.code === '42P01' || (/machine_manuals/.test(msg) && /schema cache|does not exist/i.test(msg));
+}
+
+/**
+ * Elenco di tutti i manuali caricati, indicizzati per machine_id, per
+ * sapere a colpo d'occhio quali macchine hanno già un manuale (Impostazioni
+ * e scheda articolo in Ricambi tecnici).
+ * @returns {Promise<{ manuals: Map<string, {id:string, file_name:string, storage_path:string, created_at:string}>, tableMissing: boolean }>}
+ */
+export async function listMachineManuals() {
+  const { data, error } = await supabase
+    .from('machine_manuals')
+    .select('id, machine_id, file_name, storage_path, file_size, created_at, machines(nome)');
+  if (error) {
+    if (isMissingManualsTable(error)) return { manuals: new Map(), tableMissing: true };
+    throw error;
+  }
+  const manuals = new Map();
+  (data || []).forEach((m) => manuals.set(m.machine_id, m));
+  return { manuals, tableMissing: false };
+}
+
+/**
+ * Carica (o sostituisce) il manuale PDF di una macchina: rimuove prima
+ * l'eventuale file/riga precedente, poi carica il nuovo file nello Storage
+ * e registra la riga in `machine_manuals`. Solo admin (RLS + policy Storage).
+ * @param {string} machineId
+ * @param {File} file
+ */
+export async function uploadMachineManual(machineId, file) {
+  if (!file) throw new Error('Nessun file selezionato.');
+  if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {
+    throw new Error('Il manuale deve essere un file PDF.');
+  }
+
+  // Rimuove l'eventuale manuale precedente della stessa macchina (vincolo 1:1)
+  const { data: existing } = await supabase.from('machine_manuals').select('id, storage_path').eq('machine_id', machineId).maybeSingle();
+  if (existing) {
+    await supabase.storage.from(MANUALS_BUCKET).remove([existing.storage_path]);
+    await supabase.from('machine_manuals').delete().eq('id', existing.id);
+  }
+
+  const safeName = file.name.replace(/[^\w.\-]+/g, '_');
+  const storagePath = `${machineId}/${Date.now()}_${safeName}`;
+  const { error: uploadErr } = await supabase.storage.from(MANUALS_BUCKET).upload(storagePath, file, {
+    contentType: 'application/pdf',
+    upsert: false,
+  });
+  if (uploadErr) {
+    if (/row-level security|not allowed|permission/i.test(uploadErr.message || '')) {
+      throw new Error('Solo un amministratore può caricare i manuali.');
+    }
+    throw uploadErr;
+  }
+
+  const { data: userData } = await supabase.auth.getUser();
+  const { data, error } = await supabase
+    .from('machine_manuals')
+    .insert({
+      machine_id: machineId,
+      file_name: file.name,
+      storage_path: storagePath,
+      file_size: file.size,
+      uploaded_by: userData?.user?.id || null,
+    })
+    .select()
+    .single();
+  if (error) {
+    // Se la riga non si registra, il file resta orfano: lo si toglie subito dallo Storage.
+    await supabase.storage.from(MANUALS_BUCKET).remove([storagePath]);
+    if (isMissingManualsTable(error)) {
+      throw new Error('La tabella dei manuali non è ancora stata creata sul database.');
+    }
+    throw error;
+  }
+  return data;
+}
+
+/** Elimina il manuale di una macchina (file + riga). Solo admin. */
+export async function deleteMachineManual(manual) {
+  const { error: storageErr } = await supabase.storage.from(MANUALS_BUCKET).remove([manual.storage_path]);
+  if (storageErr) throw storageErr;
+  const { error } = await supabase.from('machine_manuals').delete().eq('id', manual.id);
+  if (error) throw error;
+}
+
+/**
+ * URL firmato temporaneo (1 ora) per aprire/scaricare il PDF dal bucket
+ * privato — mai un URL pubblico permanente.
+ */
+export async function getManualSignedUrl(storagePath) {
+  const { data, error } = await supabase.storage.from(MANUALS_BUCKET).createSignedUrl(storagePath, 3600);
+  if (error) throw error;
+  return data.signedUrl;
+}
+
 // --- TRANSAZIONI (deposito/prelievo) ------------------------------
 /**
  * Esegue in modo atomico deposito o prelievo tramite la funzione SQL

@@ -46,6 +46,10 @@
 <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://unpkg.com/lucide@1.11.0"></script>
+<!-- pdf.js: apertura interna dei manuali ricambi PDF (canvas + ricerca testo).
+     Caricata qui staticamente come le altre librerie; il worker viene puntato
+     alla stessa versione da manuals.js dopo il caricamento. -->
+<script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
 
 <link rel="stylesheet" href="./style.css">
 </head>
@@ -709,6 +713,16 @@
           <input type="hidden" id="product-macchina">
         </div>
       </div>
+
+      <!-- Manuale ricambi della macchina selezionata: solo per la categoria "Ricambi tecnici",
+           e solo se la macchina scelta ha un manuale PDF caricato (vedi Impostazioni → Gestione macchine) -->
+      <button type="button" id="product-open-manual-btn" class="hidden w-full flex items-center justify-between gap-2 rounded-lg border border-amber-500/30 bg-amber-400/10 hover:bg-amber-400/15 px-3.5 py-2.5 text-sm font-display font-semibold uppercase tracking-wide text-amber-300 transition-colors min-h-[44px]">
+        <span class="flex items-center gap-2 truncate">
+          <i data-lucide="book-open" class="w-4 h-4 shrink-0"></i>
+          <span class="truncate">Apri manuale ricambi e cerca il codice</span>
+        </span>
+        <i data-lucide="chevron-right" class="w-4 h-4 shrink-0"></i>
+      </button>
       <div class="grid grid-cols-2 gap-3">
         <div>
           <label class="block text-xs font-display font-semibold uppercase tracking-wide text-graphite-400 mb-1.5">Punto utilizzo standard</label>
@@ -796,6 +810,75 @@
     <button id="field-picker-clear" type="button" class="shrink-0 text-xs text-graphite-500 hover:text-rose-700 py-3 border-t border-graphite-800 transition-colors min-h-[44px]">
       Svuota selezione
     </button>
+  </div>
+</div>
+
+<!-- =================== MODALE VISUALIZZATORE MANUALE PDF =================== -->
+<div id="manual-viewer-modal" class="modal-overlay hidden fixed inset-0 z-[97] flex flex-col bg-graphite-900">
+  <div data-sheet-drag class="flex items-center justify-between px-4 py-3 border-b border-graphite-800 shrink-0 bg-graphite-900">
+    <h3 id="manual-viewer-title" class="min-w-0 truncate font-display font-bold text-sm sm:text-base uppercase tracking-wide">Manuale</h3>
+    <button id="manual-viewer-close" aria-label="Chiudi" class="modal-close modal-close--on-light shrink-0">
+      <i data-lucide="x" class="w-6 h-6" stroke-width="2.5"></i>
+    </button>
+  </div>
+
+  <!-- Barra risultati ricerca codice: visibile solo quando c'è un termine cercato -->
+  <div id="manual-viewer-results-bar" class="hidden flex items-center justify-between gap-2 px-4 py-2 bg-amber-400/10 border-b border-amber-500/20 shrink-0">
+    <span id="manual-viewer-results-label" class="min-w-0 truncate text-xs font-medium text-amber-300">—</span>
+    <div class="shrink-0 flex items-center gap-1">
+      <button id="manual-viewer-prev-result" type="button" aria-label="Occorrenza precedente" class="w-9 h-9 rounded-lg flex items-center justify-center text-amber-300 hover:bg-amber-400/15 transition-colors">
+        <i data-lucide="chevron-up" class="w-4 h-4" stroke-width="2.4"></i>
+      </button>
+      <button id="manual-viewer-next-result" type="button" aria-label="Occorrenza successiva" class="w-9 h-9 rounded-lg flex items-center justify-center text-amber-300 hover:bg-amber-400/15 transition-colors">
+        <i data-lucide="chevron-down" class="w-4 h-4" stroke-width="2.4"></i>
+      </button>
+    </div>
+  </div>
+
+  <!-- Ricerca manuale di un altro codice all'interno dello stesso PDF -->
+  <form id="manual-viewer-search-form" class="flex gap-2 px-4 py-2 border-b border-graphite-800 shrink-0">
+    <input id="manual-viewer-search-input" type="text" placeholder="Cerca un codice nel manuale…" autocomplete="off"
+      class="flex-1 min-w-0 rounded-lg bg-graphite-800 border border-graphite-700 px-3.5 py-2 text-sm focus:border-amber-400 outline-none transition-colors">
+    <button type="submit" aria-label="Cerca" class="shrink-0 w-10 rounded-lg bg-graphite-800 border border-graphite-700 hover:border-amber-400 text-graphite-300 hover:text-amber-400 flex items-center justify-center transition-colors">
+      <i data-lucide="search" class="w-4 h-4" stroke-width="2"></i>
+    </button>
+  </form>
+
+  <!-- Area di lettura: canvas della pagina + overlay evidenziazioni -->
+  <div id="manual-viewer-canvas-wrap" class="relative flex-1 overflow-auto flex items-start justify-center bg-graphite-950 px-2 py-3">
+    <div class="relative">
+      <canvas id="manual-viewer-canvas" class="bg-white shadow-lift rounded"></canvas>
+      <div id="manual-viewer-highlights" class="absolute inset-0 pointer-events-none"></div>
+    </div>
+    <div id="manual-viewer-loading" class="hidden absolute inset-0 flex flex-col items-center justify-center gap-2 bg-graphite-950">
+      <i data-lucide="loader-circle" class="w-7 h-7 text-amber-400 animate-spin" stroke-width="2"></i>
+      <p class="text-xs text-graphite-500">Apertura manuale…</p>
+    </div>
+    <div id="manual-viewer-error" class="hidden absolute inset-0 flex flex-col items-center justify-center gap-2 px-6 text-center bg-graphite-950">
+      <i data-lucide="file-warning" class="w-7 h-7 text-rose-600" stroke-width="1.8"></i>
+      <p id="manual-viewer-error-text" class="text-sm text-graphite-300">—</p>
+    </div>
+  </div>
+
+  <!-- Navigazione pagine + zoom, sempre a portata di pollice in basso -->
+  <div class="flex items-center justify-between gap-2 px-3 py-2.5 border-t border-graphite-800 shrink-0 bg-graphite-900">
+    <div class="flex items-center gap-1">
+      <button id="manual-viewer-zoom-out" type="button" aria-label="Riduci zoom" class="w-10 h-10 rounded-lg flex items-center justify-center text-graphite-400 hover:text-amber-300 hover:bg-graphite-800 transition-colors">
+        <i data-lucide="zoom-out" class="w-4 h-4" stroke-width="2"></i>
+      </button>
+      <button id="manual-viewer-zoom-in" type="button" aria-label="Aumenta zoom" class="w-10 h-10 rounded-lg flex items-center justify-center text-graphite-400 hover:text-amber-300 hover:bg-graphite-800 transition-colors">
+        <i data-lucide="zoom-in" class="w-4 h-4" stroke-width="2"></i>
+      </button>
+    </div>
+    <div class="flex items-center gap-2">
+      <button id="manual-viewer-prev-page" type="button" aria-label="Pagina precedente" class="w-10 h-10 rounded-lg flex items-center justify-center text-graphite-300 hover:text-amber-300 hover:bg-graphite-800 disabled:opacity-30 disabled:pointer-events-none transition-colors">
+        <i data-lucide="chevron-left" class="w-5 h-5" stroke-width="2.2"></i>
+      </button>
+      <span id="manual-viewer-page-indicator" class="ui-note whitespace-nowrap text-graphite-400 min-w-[92px] text-center">Pagina — di —</span>
+      <button id="manual-viewer-next-page" type="button" aria-label="Pagina successiva" class="w-10 h-10 rounded-lg flex items-center justify-center text-graphite-300 hover:text-amber-300 hover:bg-graphite-800 disabled:opacity-30 disabled:pointer-events-none transition-colors">
+        <i data-lucide="chevron-right" class="w-5 h-5" stroke-width="2.2"></i>
+      </button>
+    </div>
   </div>
 </div>
 

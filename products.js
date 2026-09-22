@@ -14,6 +14,7 @@ import {
   getProductsVersion,
   createMachine,
 } from './supabase.js';
+import { getManualForMachineName, openManualForMachineName, refreshManualsCache } from './manuals.js';
 import { toastSuccess, toastError, toastWarning } from './toast.js';
 import { isAdmin } from './auth.js';
 import { startCamera, stopCamera, switchCamera as switchCameraShared, toggleTorch } from './camera.js';
@@ -137,6 +138,10 @@ function toInt(v) {
 }
 
 export function initProducts() {
+  // Cache dei manuali ricambi (macchina → PDF): caricata subito, non solo da Admin,
+  // perché il pulsante "Apri manuale" in Ricambi tecnici serve anche agli operatori.
+  refreshManualsCache();
+
   els.searchInput = document.getElementById('product-search-input');
   els.scanSearchBtn = document.getElementById('product-scan-search-btn');
   els.searchScannerWrap = document.getElementById('product-search-scanner-wrap');
@@ -183,6 +188,7 @@ export function initProducts() {
   els.macchinaBtn = document.getElementById('product-macchina-btn');
   els.macchinaValue = document.getElementById('product-macchina-value');
   els.macchinaHidden = document.getElementById('product-macchina');
+  els.openManualBtn = document.getElementById('product-open-manual-btn');
   els.barcodePreviewWrap = document.getElementById('product-barcode-preview-wrap');
   els.barcodeSvg = document.getElementById('product-barcode-svg');
   els.printLabelBtn = document.getElementById('product-print-label-btn');
@@ -219,6 +225,12 @@ export function initProducts() {
   els.printLabelBtn.addEventListener('click', printCurrentLabel);
   els.generateBarcodeBtn.addEventListener('click', generateBarcodeForCurrentArticle);
   els.categoriaSelect.addEventListener('change', updateLineaMacchinaVisibility);
+  els.openManualBtn?.addEventListener('click', () => {
+    const codice = document.getElementById('product-codice-articolo').value.trim();
+    const macchina = els.macchinaHidden.value;
+    if (!macchina) return;
+    openManualForMachineName(macchina, codice);
+  });
   els.scanBarcodeBtn.addEventListener('click', startBarcodeScan);
   els.scanBarcodeStopBtn.addEventListener('click', stopBarcodeScan);
   els.scanSwitchBtn?.addEventListener('click', () =>
@@ -249,6 +261,7 @@ export function initProducts() {
     // tabella delle macchine (solo admin, come tutto il form articolo) e selezionata.
     allowCustom: true,
     hideSearch: false,
+    onChange: updateManualButtonVisibility,
     onCreate: async (nome) => {
       try {
         const row = await createMachine(nome);
@@ -760,12 +773,34 @@ function openModal(product = null) {
   updateGenerateBarcodeVisibility();
   applyModalPermissions();
   openOverlay(els.modal);
+
+  // Aggiorna in background la cache dei manuali (potrebbe essere stato caricato/rimosso
+  // da poco in Impostazioni) e ricalcola la visibilità del pulsante, solo se la scheda
+  // aperta è ancora la stessa nel frattempo.
+  const openedId = editingId;
+  refreshManualsCache().then(() => {
+    if (editingId === openedId) updateManualButtonVisibility();
+  });
 }
 
 function updateLineaMacchinaVisibility() {
   const categoria = els.categoriaSelect.value;
   els.lineaMacchinaWrap.classList.toggle('hidden', categoria !== 'cinghie' && categoria !== 'pezzi_ricambio');
   updateGenerateBarcodeVisibility();
+  updateManualButtonVisibility();
+}
+
+/**
+ * Mostra il pulsante "Apri manuale ricambi" solo per la categoria Ricambi
+ * tecnici, quando è selezionata una macchina e quella macchina ha già un
+ * manuale PDF caricato (vedi Impostazioni → Gestione macchine).
+ */
+function updateManualButtonVisibility() {
+  if (!els.openManualBtn) return;
+  const categoria = els.categoriaSelect.value;
+  const macchina = els.macchinaHidden.value;
+  const hasManual = categoria === 'pezzi_ricambio' && !!macchina && !!getManualForMachineName(macchina);
+  els.openManualBtn.classList.toggle('hidden', !hasManual);
 }
 
 /** Il pulsante "genera barcode" ha senso solo per le cinghie, che non hanno un codice a barre fisico sulla confezione */

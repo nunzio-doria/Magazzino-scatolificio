@@ -17,8 +17,12 @@
 # Passare a una build Tailwind reale (CLI/PostCSS) permetterebbe di
 # togliere anche questo 'unsafe-inline' e avere una CSP più stretta.
 
+# Nota su worker-src: pdf.js (visualizzatore manuali PDF) carica il proprio
+# web worker da cdn.jsdelivr.net — va incluso qui, non solo in script-src,
+# perché i browser applicano a "new Worker(url)" la direttiva worker-src.
+
 /*
-  Content-Security-Policy: default-src 'self'; script-src 'self' https://cdn.tailwindcss.com https://cdn.jsdelivr.net https://unpkg.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' https://ffbwazuikbqkikuybcyp.supabase.co https://cdn.jsdelivr.net https://unpkg.com https://cdn.tailwindcss.com https://fonts.googleapis.com https://fonts.gstatic.com; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests
+  Content-Security-Policy: default-src 'self'; script-src 'self' https://cdn.tailwindcss.com https://cdn.jsdelivr.net https://unpkg.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' https://ffbwazuikbqkikuybcyp.supabase.co https://cdn.jsdelivr.net https://unpkg.com https://cdn.tailwindcss.com https://fonts.googleapis.com https://fonts.gstatic.com; worker-src 'self' https://cdn.jsdelivr.net; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests
   Strict-Transport-Security: max-age=31536000; includeSubDomains
   X-Content-Type-Options: nosniff
   X-Frame-Options: DENY

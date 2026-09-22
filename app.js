@@ -8,6 +8,7 @@ import { initProducts, refresh as refreshProducts, enterProducts, resetProducts,
 import { initDashboard, enterDashboard, resetDashboard, refresh as refreshDashboard } from './dashboard.js';
 import { initUsers, refreshUsers } from './users.js';
 import { initMachines } from './machines.js';
+import { initManuals } from './manuals.js';
 import { initPicker } from './picker.js';
 import feedback, { initFeedbackSettings } from './feedback.js';
 import { initOfflineSync } from './offline-queue.js';
@@ -52,6 +53,7 @@ function onAuthed(profile) {
     initDashboard();
     initUsers();
     initMachines();
+    initManuals();
     initNav();
     initFeedbackSettings();
     initSettingsRefreshButton();

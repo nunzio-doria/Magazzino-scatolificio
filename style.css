@@ -1107,3 +1107,12 @@ button.custom-select-option:not(:disabled):active {
 .shake-error {
   animation: shake-error 480ms cubic-bezier(0.36, 0.07, 0.19, 0.97);
 }
+
+/* ---- Visualizzatore manuale PDF: evidenziazione delle occorrenze del codice cercato ---- */
+.manual-highlight {
+  position: absolute;
+  background: rgba(251, 191, 36, 0.38); /* amber-400 semitrasparente */
+  border: 1.5px solid rgba(217, 119, 6, 0.85);
+  border-radius: 2px;
+  pointer-events: none;
+}
