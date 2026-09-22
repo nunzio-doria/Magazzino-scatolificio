@@ -679,7 +679,8 @@ button.shelf-item:not(:disabled):active {
   transition: border-color var(--dur-fast) ease, box-shadow var(--dur-fast) ease;
 }
 #scanner-reader,
-#product-barcode-scanner-reader {
+#product-barcode-scanner-reader,
+#product-search-scanner-reader {
   cursor: crosshair;
   position: relative;
   aspect-ratio: 8 / 5; /* stessa proporzione dello scanConfig (1.6): niente più allungamenti a dismisura */
@@ -698,7 +699,9 @@ button.shelf-item:not(:disabled):active {
 #scanner-reader video,
 #scanner-reader canvas,
 #product-barcode-scanner-reader video,
-#product-barcode-scanner-reader canvas {
+#product-barcode-scanner-reader canvas,
+#product-search-scanner-reader video,
+#product-search-scanner-reader canvas {
   position: absolute !important;
   inset: 0 !important;
   width: 100% !important;

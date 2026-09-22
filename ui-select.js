@@ -120,7 +120,6 @@ export function enhanceSelect(selectEl) {
     setDisabled(disabled) {
       selectEl.disabled = disabled;
       trigger.disabled = disabled;
-      trigger.classList.toggle('opacity-60', disabled);
       trigger.classList.toggle('pointer-events-none', disabled);
       if (disabled) close();
     },

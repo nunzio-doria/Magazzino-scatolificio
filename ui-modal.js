@@ -25,7 +25,7 @@ export function confirmDialog({
       'modal-overlay hidden fixed inset-0 z-[95] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm px-0 sm:px-4';
 
     const card = document.createElement('div');
-    card.className = 'modal-panel modal-panel-card w-full sm:max-w-sm card-plate rounded-t-2xl sm:rounded-2xl p-5';
+    card.className = 'modal-panel modal-panel-card w-full sm:max-w-sm bg-graphite-900 border border-graphite-700 rounded-t-2xl sm:rounded-2xl p-5';
     card.innerHTML = `
       <div data-sheet-drag class="sheet-grabber sm:hidden -mt-5 mb-1"><span class="sheet-grabber-pill"></span></div>
       <p data-sheet-drag data-role="title" class="font-display font-bold text-lg leading-snug"></p>

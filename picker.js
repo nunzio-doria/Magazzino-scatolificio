@@ -230,12 +230,10 @@ export function attachFieldDropdown({ triggerBtn, valueEl, hiddenInput, getOptio
         const typed = filterText.trim();
         if (!onCreate) return selectValue(typed);
         addRow.disabled = true;
-        addRow.classList.add('opacity-60');
         const created = await onCreate(typed);
         if (created) selectValue(created);
         else {
           addRow.disabled = false;
-          addRow.classList.remove('opacity-60');
         }
       });
       listEl.appendChild(addRow);
