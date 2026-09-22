@@ -26,6 +26,7 @@
   /* Altezza reale della barra in basso (margine incluso): la aggiorna
      app.js misurandola; 64px è solo il valore di partenza. */
   --nav-h: 64px;
+  --header-h: 56px;
 
   /* Verde del Deposito: definito una sola volta (testata del cassetto, riquadro
      attivo, bagliore di scansione riuscita, anello del Report usa lo stesso valore). */
@@ -60,11 +61,21 @@
 /* Contenuto, toast e barra si dispongono in base ai margini sopra e
    all'altezza misurata della barra: niente numeri fissi per dispositivo. */
 #app-shell { padding-bottom: calc(var(--nav-h) + 1rem); }
+/* La testata è "fixed" (come la barra in basso), non più "sticky": con
+   "sticky" Chrome, su alcuni dispositivi, dopo un cambio di sezione a volte
+   ricalcola la larghezza della testata con un fotogramma di ritardo,
+   lasciando per un istante uno spiraglio sul lato destro che scopre lo
+   sfondo sottostante — il difetto della "banner blu tagliato" segnalato.
+   "fixed" con inset-x-0 è ancorata ai bordi dello schermo a ogni fotogramma,
+   quindi non può succedere. Serve però lo spazio sopra al contenuto, esatto
+   come per --nav-h: JS misura l'altezza reale della testata (con il suo
+   margine di sicurezza) in --header-h, e main la usa come padding. */
 #app-shell > header {
   padding-top: var(--sat);
   padding-left: var(--sal);
   padding-right: var(--sar);
 }
+#app-shell > main { padding-top: calc(var(--header-h, 56px) + 1rem); }
 #toast-container { bottom: calc(var(--nav-h) + 0.75rem); }
 /* Con la barra di stato trasparente (iPhone installato come app) il contenuto
    arriva fino in cima: anche la schermata di accesso rispetta il margine alto. */
@@ -539,6 +550,15 @@ input.peer:checked ~ span:first-of-type {
 
 /* ---- Tab storico (modale drill-down consumi) ------------------------ */
 .history-tab { color: #5c6672; transition: var(--tr-colors); }
+/* .card-plate aggiunge un filo di luce bianco in alto (per le SCHEDE bianche):
+   sulle varianti "attive" qui sotto, tinte di colore, quel filo bianco
+   resterebbe visibile sopra il bordo colorato come una riga bianca fuori
+   posto — lo si sostituisce con un'ombra pulita, senza il filo di luce. */
+.history-tab-active,
+.category-tab-active,
+.import-category-tab-active {
+  box-shadow: 0 1px 2px rgba(13, 17, 23, 0.12) !important;
+}
 .history-tab-active {
   background: var(--accent-tint) !important;
   border-color: rgba(var(--accent-rgb), 0.5) !important;

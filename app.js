@@ -363,18 +363,27 @@ export function animateFluidSwap(fromSection, toSection, forward, onSettled) {
  */
 function initNavMetrics() {
   const nav = document.querySelector('nav.nav-glass');
-  if (!nav) return;
+  const header = document.querySelector('header.app-header');
+  if (!nav && !header) return;
   const update = () => {
-    const h = nav.offsetHeight;
-    if (h > 0) document.documentElement.style.setProperty('--nav-h', `${h}px`); // 0 = ancora nascosta (login)
+    if (nav) {
+      const h = nav.offsetHeight;
+      if (h > 0) document.documentElement.style.setProperty('--nav-h', `${h}px`); // 0 = ancora nascosta (login)
+    }
+    if (header) {
+      const h = header.offsetHeight;
+      if (h > 0) document.documentElement.style.setProperty('--header-h', `${h}px`);
+    }
   };
   update();
   if ('ResizeObserver' in window) {
-    try {
-      new ResizeObserver(update).observe(nav, { box: 'border-box' });
-    } catch (err) {
-      new ResizeObserver(update).observe(nav);
-    }
+    [nav, header].filter(Boolean).forEach((el) => {
+      try {
+        new ResizeObserver(update).observe(el, { box: 'border-box' });
+      } catch (err) {
+        new ResizeObserver(update).observe(el);
+      }
+    });
   }
   window.addEventListener('resize', update);
   window.addEventListener('orientationchange', update);
