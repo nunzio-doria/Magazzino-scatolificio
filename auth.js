@@ -200,7 +200,6 @@ export function initAuth(onAuthed, onSignedOut) {
     authState.session = null;
     authState.profile = null;
     stopIdleTimer();
-    onSignedOut();
     toastWarning('Sessione terminata automaticamente per inattività.');
   };
   attachActivityListeners(() => !!authState.session, handleIdleTimeout);
@@ -258,7 +257,6 @@ export function initAuth(onAuthed, onSignedOut) {
     authState.session = null;
     authState.profile = null;
     stopIdleTimer();
-    onSignedOut();
   });
 
   // Controlla sessione esistente al caricamento.

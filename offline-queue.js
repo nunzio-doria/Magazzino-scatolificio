@@ -163,8 +163,12 @@ export async function flushQueue(processFn, { onDiscard } = {}) {
  * se già online, subito all'avvio.
  */
 export function initOfflineSync(processFn, opts = {}) {
-  window.addEventListener('online', () => flushQueue(processFn, opts));
-  if (navigator.onLine) flushQueue(processFn, opts);
+  const run = () =>
+    flushQueue(processFn, opts).then((result) => {
+      if (result.synced > 0) opts.onSynced?.(result);
+    });
+  window.addEventListener('online', run);
+  if (navigator.onLine) run();
 }
 
 /** Un errore è "di rete" (quindi da mettere in coda) se siamo offline o se la chiamata è proprio fallita per assenza di connessione */

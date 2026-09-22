@@ -75,6 +75,7 @@ function onAuthed(profile) {
             9000
           );
         },
+        onSynced: () => feedback.syncComplete(),
       }
     );
     modulesInitialized = true;

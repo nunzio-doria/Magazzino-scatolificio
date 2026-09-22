@@ -81,12 +81,14 @@ async function saveName(id, name, btn) {
   setButtonBusy(btn, true);
   try {
     await updateProfileName(id, name);
+    feedback.confirmAction();
     toastSuccess('Nome aggiornato.');
     replayAnimation(btn, 'stock-pulse');
     const p = profiles.find((x) => x.id === id);
     if (p) p.full_name = name;
   } catch (err) {
     console.error(err);
+    feedback.errorAction();
     toastError('Errore nel salvataggio del nome.');
   } finally {
     setButtonBusy(btn, false);
