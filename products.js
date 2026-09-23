@@ -164,13 +164,21 @@ export function initProducts() {
   els.macchinaFilterBtn = document.getElementById('product-macchina-filter-btn');
   els.macchinaFilterValue = document.getElementById('product-macchina-filter-value');
 
-  // Import Excel (vista Impostazioni)
+  // Import Excel (ora dentro un modale a cassetto, aperto da Impostazioni)
+  els.excelModal = document.getElementById('excel-import-modal');
+  els.excelOpenBtn = document.getElementById('excel-import-manage-btn');
+  els.excelCloseBtn = document.getElementById('excel-import-modal-close');
   els.importCategoryTabs = document.querySelectorAll('[data-import-category-tab]');
   els.importWrap = document.getElementById('product-import-wrap');
   els.importPending = document.getElementById('product-import-pending');
   els.importInput = document.getElementById('product-import-input');
   els.importHint = document.getElementById('product-import-hint');
   els.importResult = document.getElementById('product-import-result');
+  els.excelOpenBtn?.addEventListener('click', () => openOverlay(els.excelModal));
+  els.excelCloseBtn?.addEventListener('click', () => closeOverlay(els.excelModal));
+  els.excelModal?.addEventListener('click', (e) => {
+    if (e.target === els.excelModal) closeOverlay(els.excelModal);
+  });
 
   // Modale form
   els.modal = document.getElementById('product-modal');
@@ -228,8 +236,9 @@ export function initProducts() {
   els.openManualBtn?.addEventListener('click', () => {
     const codice = document.getElementById('product-codice-articolo').value.trim();
     const macchina = els.macchinaHidden.value;
+    const linea = els.lineaHidden.value;
     if (!macchina) return;
-    openManualForMachineName(macchina, codice);
+    openManualForMachineName(macchina, linea, codice);
   });
   els.scanBarcodeBtn.addEventListener('click', startBarcodeScan);
   els.scanBarcodeStopBtn.addEventListener('click', stopBarcodeScan);
@@ -244,6 +253,7 @@ export function initProducts() {
     hiddenInput: els.lineaHidden,
     getOptions: LINEA_OPTIONS,
     allowCustom: false,
+    onChange: updateManualButtonVisibility,
   });
   attachFieldDropdown({
     triggerBtn: els.macchinaBtn,
@@ -799,7 +809,8 @@ function updateManualButtonVisibility() {
   if (!els.openManualBtn) return;
   const categoria = els.categoriaSelect.value;
   const macchina = els.macchinaHidden.value;
-  const hasManual = categoria === 'pezzi_ricambio' && !!macchina && !!getManualForMachineName(macchina);
+  const linea = els.lineaHidden.value;
+  const hasManual = categoria === 'pezzi_ricambio' && !!macchina && !!getManualForMachineName(macchina, linea);
   els.openManualBtn.classList.toggle('hidden', !hasManual);
 }
 

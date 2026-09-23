@@ -10,8 +10,18 @@ import { toastSuccess, toastError } from './toast.js';
 import { isAdmin } from './auth.js';
 import { staggerIndex, setButtonBusy, openOverlay, closeOverlay, enableSheetDrag } from './ui-utils.js';
 import { confirmDialog } from './ui-modal.js';
-import { refreshManualsCache, getManualForMachine, openManualViewer } from './manuals.js';
+import { refreshManualsCache, getManualsForMachine, openManualViewer } from './manuals.js';
 import feedback from './feedback.js';
+
+// Stesse opzioni del campo "Linea" nel form articolo (products.js): un
+// manuale può essere caricato per ognuna, oppure come "Generale" (vale per
+// la macchina a prescindere dalla linea del pezzo).
+const LINEA_SLOTS = [
+  { value: '', label: 'Generale' },
+  { value: 'L1', label: 'Linea 1' },
+  { value: 'L2', label: 'Linea 2' },
+  { value: 'L1-L2', label: 'Linea 1-2' },
+];
 
 const els = {};
 let tableMissing = false;
@@ -98,32 +108,49 @@ function render(machines) {
   window.lucide?.createIcons();
 }
 
-/** Riga secondaria con lo stato del manuale ricambi PDF di una macchina e i controlli per gestirlo (solo Admin). */
+/** Riga secondaria con lo stato dei manuali ricambi PDF di una macchina (uno per linea, o "Generale") e i relativi controlli (solo Admin). */
 function buildManualRow(machine) {
   const wrap = document.createElement('div');
-  wrap.className = 'flex items-center justify-between gap-2 mt-1 pt-1.5 border-t border-graphite-800/70';
+  wrap.className = 'mt-1 pt-1.5 border-t border-graphite-800/70 space-y-1';
 
   if (!machine.id) {
     // Macchina "storica" (solo testo su qualche articolo, mai registrata in tabella): non
     // può avere un manuale finché non viene registrata con lo stesso nome tramite il form sopra.
-    const note = document.createElement('span');
+    const note = document.createElement('p');
     note.className = 'ui-note text-graphite-600 italic';
     note.textContent = 'Registrala per allegare un manuale';
     wrap.appendChild(note);
     return wrap;
   }
 
-  const manual = getManualForMachine(machine.id);
+  const manuals = getManualsForMachine(machine.id); // Map<linea, riga>
+  LINEA_SLOTS.forEach((slot) => {
+    wrap.appendChild(buildManualSlotRow(machine, slot, manuals.get(slot.value) || null));
+  });
+  return wrap;
+}
+
+function buildManualSlotRow(machine, slot, manual) {
+  const row = document.createElement('div');
+  row.className = 'flex items-center justify-between gap-2';
+
   const info = document.createElement('span');
-  info.className = 'min-w-0 flex items-center gap-1.5 ui-note text-graphite-500 truncate';
+  info.className = 'min-w-0 flex-1 flex items-center gap-1.5 ui-note text-graphite-500 truncate';
+  const label = document.createElement('span');
+  label.className = 'shrink-0 font-semibold text-graphite-400';
+  label.textContent = `${slot.label}:`;
+  info.appendChild(label);
   if (manual) {
-    info.innerHTML = '<i data-lucide="file-text" class="w-3.5 h-3.5 shrink-0 text-graphite-500"></i>';
+    info.insertAdjacentHTML('beforeend', '<i data-lucide="file-text" class="w-3.5 h-3.5 shrink-0 text-graphite-500"></i>');
     const fname = document.createElement('span');
     fname.className = 'truncate';
     fname.textContent = manual.file_name;
     info.appendChild(fname);
   } else {
-    info.textContent = 'Nessun manuale caricato';
+    const none = document.createElement('span');
+    none.className = 'truncate italic';
+    none.textContent = 'nessun manuale';
+    info.appendChild(none);
   }
 
   const actions = document.createElement('div');
@@ -132,7 +159,7 @@ function buildManualRow(machine) {
   if (manual) {
     const viewBtn = document.createElement('button');
     viewBtn.type = 'button';
-    viewBtn.setAttribute('aria-label', `Apri manuale ${manual.file_name}`);
+    viewBtn.setAttribute('aria-label', `Apri manuale ${slot.label} di ${machine.nome}`);
     viewBtn.className = 'w-9 h-9 rounded-lg flex items-center justify-center text-graphite-400 hover:text-amber-300 hover:bg-graphite-800 transition-colors';
     viewBtn.innerHTML = '<i data-lucide="eye" class="w-4 h-4" stroke-width="2"></i>';
     viewBtn.addEventListener('click', () => openManualViewer(manual));
@@ -141,7 +168,7 @@ function buildManualRow(machine) {
 
   const uploadBtn = document.createElement('button');
   uploadBtn.type = 'button';
-  uploadBtn.setAttribute('aria-label', manual ? `Sostituisci manuale di ${machine.nome}` : `Carica manuale per ${machine.nome}`);
+  uploadBtn.setAttribute('aria-label', manual ? `Sostituisci manuale ${slot.label} di ${machine.nome}` : `Carica manuale ${slot.label} per ${machine.nome}`);
   uploadBtn.title = manual ? 'Sostituisci manuale' : 'Carica manuale PDF';
   uploadBtn.className = 'w-9 h-9 rounded-lg flex items-center justify-center text-graphite-400 hover:text-amber-300 hover:bg-graphite-800 transition-colors';
   uploadBtn.innerHTML = `<i data-lucide="${manual ? 'replace' : 'upload'}" class="w-4 h-4" stroke-width="2"></i>`;
@@ -152,7 +179,7 @@ function buildManualRow(machine) {
   fileInput.addEventListener('change', () => {
     const file = fileInput.files?.[0];
     fileInput.value = '';
-    if (file) handleUploadManual(machine, file, uploadBtn);
+    if (file) handleUploadManual(machine, slot, file, uploadBtn);
   });
   uploadBtn.addEventListener('click', () => fileInput.click());
   actions.append(uploadBtn, fileInput);
@@ -160,24 +187,24 @@ function buildManualRow(machine) {
   if (manual) {
     const removeManualBtn = document.createElement('button');
     removeManualBtn.type = 'button';
-    removeManualBtn.setAttribute('aria-label', `Elimina manuale di ${machine.nome}`);
+    removeManualBtn.setAttribute('aria-label', `Elimina manuale ${slot.label} di ${machine.nome}`);
     removeManualBtn.title = 'Elimina manuale';
     removeManualBtn.className = 'w-9 h-9 rounded-lg flex items-center justify-center text-rose-700 hover:bg-rose-50 transition-colors';
     removeManualBtn.innerHTML = '<i data-lucide="trash-2" class="w-4 h-4" stroke-width="2"></i>';
-    removeManualBtn.addEventListener('click', () => handleRemoveManual(machine, manual, removeManualBtn));
+    removeManualBtn.addEventListener('click', () => handleRemoveManual(machine, slot, manual, removeManualBtn));
     actions.appendChild(removeManualBtn);
   }
 
-  wrap.append(info, actions);
-  return wrap;
+  row.append(info, actions);
+  return row;
 }
 
-async function handleUploadManual(machine, file, btn) {
+async function handleUploadManual(machine, slot, file, btn) {
   setButtonBusy(btn, true);
   try {
-    await uploadMachineManual(machine.id, file);
+    await uploadMachineManual(machine.id, slot.value, file);
     feedback.confirmAction();
-    toastSuccess(`Manuale caricato per "${machine.nome}".`);
+    toastSuccess(`Manuale "${slot.label}" caricato per "${machine.nome}".`);
     await refreshMachines();
   } catch (err) {
     console.error(err);
@@ -187,10 +214,10 @@ async function handleUploadManual(machine, file, btn) {
   }
 }
 
-async function handleRemoveManual(machine, manual, btn) {
+async function handleRemoveManual(machine, slot, manual, btn) {
   const ok = await confirmDialog({
     title: 'Eliminare il manuale?',
-    message: `Il manuale "${manual.file_name}" collegato a "${machine.nome}" verrà eliminato. L'operazione non si può annullare.`,
+    message: `Il manuale "${slot.label}" (${manual.file_name}) collegato a "${machine.nome}" verrà eliminato. L'operazione non si può annullare.`,
     confirmLabel: 'Elimina',
     danger: true,
   });
@@ -199,7 +226,7 @@ async function handleRemoveManual(machine, manual, btn) {
   try {
     await deleteMachineManual(manual);
     feedback.deleteAction();
-    toastSuccess(`Manuale di "${machine.nome}" eliminato.`);
+    toastSuccess(`Manuale "${slot.label}" di "${machine.nome}" eliminato.`);
     await refreshMachines();
   } catch (err) {
     console.error(err);
