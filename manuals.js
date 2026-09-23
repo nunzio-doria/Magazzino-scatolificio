@@ -21,6 +21,14 @@ const MAX_ZOOM = 3;
 // soglia, soprattutto con più pagine ad alta risoluzione tenute in memoria insieme, iOS/Safari
 // può svuotare silenziosamente il canvas (appare tutto nero): meglio restare ben al di sotto.
 const MAX_CANVAS_PIXELS = 4_000_000;
+// Su manuali da centinaia di pagine, creare un segnaposto per OGNI pagina (con relativa
+// chiamata a getPage) bloccava l'interfaccia per secondi prima di mostrare qualsiasi cosa.
+// Ora si carica solo una "finestra" di pagine attorno al punto di interesse (il risultato
+// della ricerca, o l'inizio del manuale), che si allarga da sola scorrendo verso i bordi.
+const WINDOW_RADIUS = 5; // pagine prima/dopo il centro alla prima apertura
+const WINDOW_EXTEND = 10; // pagine aggiunte quando si scorre vicino a un bordo della finestra
+const WINDOW_MAX = 40; // oltre questa dimensione, si liberano le pagine dal lato opposto
+const SEARCH_BATCH = 8; // pagine analizzate in parallelo per blocco durante la ricerca del codice
 
 const els = {};
 let manualsByMachineId = new Map(); // machine_id -> Map<linea, riga machine_manuals> (linea '' = generale)
@@ -30,15 +38,22 @@ let manualsTableMissing = false;
 const state = {
   pdfDoc: null,
   manual: null,
+  numPages: 0,
   zoom: 1, // moltiplicatore sopra la scala "adatta alla larghezza", cambia risoluzione di rendering
   fitScale: 1,
   searchTerm: '',
   matches: [], // numeri di pagina (in ordine) che contengono il termine cercato
   matchIndex: -1,
-  pages: [], // { pageNum, page, wrapper, canvas, textLayerEl, highlightEl, rendered, renderToken }
+  searchToken: 0, // invalida una ricerca in corso se ne parte un'altra prima che finisca
+  pages: [], // SOLO le pagine attualmente nella finestra caricata: { pageNum, page, wrapper, canvas, textLayerEl, highlightEl, rendered, renderToken }
+  windowStart: 0, // primo numero di pagina attualmente caricato
+  windowEnd: 0, // ultimo numero di pagina attualmente caricato
+  extending: false, // true mentre extendWindow() sta aggiungendo pagine (evita richieste doppie)
   loadToken: 0, // invalida i render in corso quando si apre un altro manuale prima che il precedente finisca
   visiblePage: 1,
   observer: null,
+  freeObserver: null,
+  edgeObserver: null, // osserva le due "sentinelle" ai bordi della finestra per allargarla scorrendo
   pinch: null, // { startDist, startZoom } durante un gesto a due dita
 };
 
@@ -176,9 +191,15 @@ function teardownPages() {
   state.observer = null;
   state.freeObserver?.disconnect();
   state.freeObserver = null;
+  state.edgeObserver?.disconnect();
+  state.edgeObserver = null;
   els.pagesWrap.innerHTML = '';
   els.pagesWrap.style.transform = 'none';
+  els.topSentinel = null;
+  els.bottomSentinel = null;
   state.pages = [];
+  state.windowStart = 0;
+  state.windowEnd = 0;
 }
 
 // --- API PUBBLICA: apertura del visualizzatore --------------------------
@@ -205,20 +226,28 @@ export async function openManualViewer(manual, opts = {}) {
     if (token !== state.loadToken) return; // l'utente ha già aperto un altro manuale nel frattempo
 
     state.pdfDoc = pdfDoc;
+    state.numPages = pdfDoc.numPages;
     state.manual = manual;
     state.zoom = 1;
     state.searchTerm = '';
     state.matches = [];
     state.matchIndex = -1;
 
-    await buildPageShells(token);
+    await computeFitScale(token);
     if (token !== state.loadToken) return;
 
     if (opts.searchTerm) {
+      // La ricerca scandisce l'intero documento (indipendentemente dalla finestra di
+      // pagine caricate) e, se trova un risultato, costruisce da sola la finestra
+      // giusta tramite scrollToPage → buildWindow.
       await runSearch(opts.searchTerm, { silent: true });
+      if (token !== state.loadToken) return;
       if (!state.matches.length) {
         toastWarning(`Codice "${opts.searchTerm}" non trovato nel manuale — apro comunque il manuale.`);
+        await buildWindow(1, token);
       }
+    } else {
+      await buildWindow(1, token);
     }
   } catch (err) {
     console.error(err);
@@ -260,45 +289,75 @@ function showError(message) {
   els.canvasWrap?.classList.add('invisible');
 }
 
-/** Crea un div segnaposto per ogni pagina (dimensioni corrette da subito, per uno scroll stabile) e osserva quali entrano in vista. */
-async function buildPageShells(token) {
+/** Trova la pagina, tra quelle attualmente caricate, con questo numero. */
+function findPageEntry(pageNum) {
+  return state.pages.find((entry) => entry.pageNum === pageNum);
+}
+
+/** Calcola la scala "adatta alla larghezza" leggendo solo la pagina 1 (veloce, non l'intero documento). */
+async function computeFitScale(token) {
   const containerWidth = Math.max(els.canvasWrap.clientWidth - 16, 240);
-  const numPages = state.pdfDoc.numPages;
-  state.pages = [];
+  const page1 = await state.pdfDoc.getPage(1);
+  if (token !== state.loadToken) return;
+  const base = page1.getViewport({ scale: 1 });
+  state.fitScale = containerWidth / base.width;
+}
 
-  for (let p = 1; p <= numPages; p++) {
-    const page = await state.pdfDoc.getPage(p);
+function updatePageIndicator() {
+  if (els.pageIndicator) els.pageIndicator.textContent = `Pagina ${state.visiblePage} di ${state.numPages}`;
+}
+
+/**
+ * Ricostruisce da zero la finestra di pagine caricate, centrata su `centerPage`
+ * (5 pagine prima, 5 dopo — WINDOW_RADIUS). Con manuali da centinaia di pagine è
+ * questo, e non l'intero documento, a restare sempre leggero e immediato.
+ */
+async function buildWindow(centerPage, token) {
+  teardownPages(); // pulisce le pagine/observer della finestra precedente (non tocca il documento)
+  setupSentinels();
+  setupWindowObservers();
+
+  const start = Math.max(1, centerPage - WINDOW_RADIUS);
+  const end = Math.min(state.numPages, centerPage + WINDOW_RADIUS);
+  for (let p = start; p <= end; p++) {
     if (token !== state.loadToken) return;
-    const base = page.getViewport({ scale: 1 });
-    if (p === 1) state.fitScale = containerWidth / base.width;
-
-    const wrapper = document.createElement('div');
-    wrapper.className = 'manual-page relative bg-white shadow-lift rounded';
-    wrapper.dataset.page = String(p);
-    wrapper.style.width = `${Math.round(base.width * state.fitScale)}px`;
-    wrapper.style.height = `${Math.round(base.height * state.fitScale)}px`;
-    els.pagesWrap.appendChild(wrapper);
-
-    // Spinner segnaposto: visibile finché la pagina non è stata renderizzata almeno
-    // una volta (o dopo essere stata liberata dalla memoria), così si capisce sempre
-    // se una pagina sta ancora caricando invece di sembrare "bloccata".
-    const spinner = document.createElement('div');
-    spinner.className = 'manual-page-spinner absolute inset-0 flex items-center justify-center pointer-events-none';
-    spinner.innerHTML = '<i data-lucide="loader-circle" class="w-6 h-6 text-amber-400/70 animate-spin" stroke-width="2"></i>';
-    wrapper.appendChild(spinner);
-
-    state.pages.push({ pageNum: p, page, wrapper, spinner, rendered: false });
+    await addPageEntry(p);
   }
+  state.windowStart = start;
+  state.windowEnd = end;
+  state.visiblePage = centerPage >= start && centerPage <= end ? centerPage : start;
+  updatePageIndicator();
+}
 
-  els.pageIndicator.textContent = `Pagina 1 di ${numPages}`;
-  window.lucide?.createIcons();
+/** Due segnaposto invisibili ai bordi della finestra: quando entrano in vista, la allargano. */
+function setupSentinels() {
+  els.topSentinel = document.createElement('div');
+  els.topSentinel.className = 'w-full h-px';
+  els.bottomSentinel = document.createElement('div');
+  els.bottomSentinel.className = 'w-full h-px';
+  els.pagesWrap.appendChild(els.topSentinel);
+  els.pagesWrap.appendChild(els.bottomSentinel);
 
+  state.edgeObserver = new IntersectionObserver(
+    (entries) => {
+      entries.forEach((entry) => {
+        if (!entry.isIntersecting) return;
+        if (entry.target === els.topSentinel) extendWindow('up');
+        else if (entry.target === els.bottomSentinel) extendWindow('down');
+      });
+    },
+    { root: els.canvasWrap, rootMargin: '800px 0px 800px 0px' }
+  );
+  state.edgeObserver.observe(els.topSentinel);
+  state.edgeObserver.observe(els.bottomSentinel);
+}
+
+function setupWindowObservers() {
   state.observer = new IntersectionObserver(onPagesIntersect, {
     root: els.canvasWrap,
     rootMargin: '600px 0px 600px 0px', // pre-carica circa uno schermo prima/dopo
     threshold: [0, 0.5],
   });
-  state.pages.forEach((entry) => state.observer.observe(entry.wrapper));
 
   // Observer separato, con un margine molto più ampio, dedicato SOLO a liberare la
   // memoria delle pagine ormai lontane. Deve essere più largo di quello sopra: se
@@ -310,23 +369,124 @@ async function buildPageShells(token) {
     rootMargin: '2400px 0px 2400px 0px',
     threshold: [0],
   });
-  state.pages.forEach((entry) => state.freeObserver.observe(entry.wrapper));
+}
+
+/** Crea il segnaposto di una pagina (dimensioni corrette da subito) e la inserisce in coda o in testa alla finestra. */
+async function addPageEntry(p, { prepend = false } = {}) {
+  const page = await state.pdfDoc.getPage(p);
+  const vp = page.getViewport({ scale: state.fitScale * state.zoom });
+
+  const wrapper = document.createElement('div');
+  wrapper.className = 'manual-page relative bg-white shadow-lift rounded';
+  wrapper.dataset.page = String(p);
+  wrapper.style.width = `${Math.round(vp.width)}px`;
+  wrapper.style.height = `${Math.round(vp.height)}px`;
+
+  // Spinner segnaposto: visibile finché la pagina non è stata renderizzata almeno
+  // una volta (o dopo essere stata liberata dalla memoria), così si capisce sempre
+  // se una pagina sta ancora caricando invece di sembrare "bloccata".
+  const spinner = document.createElement('div');
+  spinner.className = 'manual-page-spinner absolute inset-0 flex items-center justify-center pointer-events-none';
+  spinner.innerHTML = '<i data-lucide="loader-circle" class="w-6 h-6 text-amber-400/70 animate-spin" stroke-width="2"></i>';
+  wrapper.appendChild(spinner);
+
+  const entry = { pageNum: p, page, wrapper, spinner, rendered: false };
+  if (prepend) {
+    els.pagesWrap.insertBefore(wrapper, els.topSentinel.nextSibling);
+    state.pages.unshift(entry);
+  } else {
+    els.pagesWrap.insertBefore(wrapper, els.bottomSentinel);
+    state.pages.push(entry);
+  }
+
+  state.observer?.observe(wrapper);
+  state.freeObserver?.observe(wrapper);
+  window.lucide?.createIcons();
+  return entry;
+}
+
+/** Allarga la finestra di WINDOW_EXTEND pagine verso l'alto o il basso, quando l'utente scorre vicino a un bordo. */
+async function extendWindow(direction) {
+  if (state.extending) return;
+  if (direction === 'up' && state.windowStart <= 1) return;
+  if (direction === 'down' && state.windowEnd >= state.numPages) return;
+
+  state.extending = true;
+  const token = state.loadToken;
+  try {
+    if (direction === 'up') {
+      const newStart = Math.max(1, state.windowStart - WINDOW_EXTEND);
+      const prevScrollHeight = els.canvasWrap.scrollHeight;
+      const prevScrollTop = els.canvasWrap.scrollTop;
+      for (let p = state.windowStart - 1; p >= newStart; p--) {
+        if (token !== state.loadToken) return;
+        await addPageEntry(p, { prepend: true });
+      }
+      state.windowStart = newStart;
+      // Compensa lo scroll: aggiungere pagine SOPRA a quelle già a schermo non deve
+      // far "saltare" la vista di quanto è alto ciò che è stato appena inserito.
+      els.canvasWrap.scrollTop = prevScrollTop + (els.canvasWrap.scrollHeight - prevScrollHeight);
+    } else {
+      const newEnd = Math.min(state.numPages, state.windowEnd + WINDOW_EXTEND);
+      for (let p = state.windowEnd + 1; p <= newEnd; p++) {
+        if (token !== state.loadToken) return;
+        await addPageEntry(p);
+      }
+      state.windowEnd = newEnd;
+    }
+    trimWindowIfNeeded();
+  } finally {
+    state.extending = false;
+  }
+}
+
+/** Oltre WINDOW_MAX pagine caricate insieme, libera quelle dal lato più lontano dalla pagina visibile. */
+function trimWindowIfNeeded() {
+  while (state.windowEnd - state.windowStart + 1 > WINDOW_MAX) {
+    const distStart = state.visiblePage - state.windowStart;
+    const distEnd = state.windowEnd - state.visiblePage;
+    if (distStart > distEnd) removeFirstPageEntry();
+    else removeLastPageEntry();
+  }
+}
+
+function removeFirstPageEntry() {
+  const entry = state.pages.shift();
+  if (!entry) return;
+  state.observer?.unobserve(entry.wrapper);
+  state.freeObserver?.unobserve(entry.wrapper);
+  freePageCanvas(entry);
+  const removedHeight = entry.wrapper.getBoundingClientRect().height;
+  entry.wrapper.remove();
+  els.canvasWrap.scrollTop -= removedHeight; // idem: rimuovere pagine sopra sposta la vista, va compensato
+  state.windowStart = state.pages[0]?.pageNum ?? state.windowStart;
+}
+
+function removeLastPageEntry() {
+  const entry = state.pages.pop();
+  if (!entry) return;
+  state.observer?.unobserve(entry.wrapper);
+  state.freeObserver?.unobserve(entry.wrapper);
+  freePageCanvas(entry);
+  entry.wrapper.remove();
+  state.windowEnd = state.pages[state.pages.length - 1]?.pageNum ?? state.windowEnd;
 }
 
 function onPagesIntersect(entries) {
   let bestRatio = 0;
+  let bestPage = null;
   entries.forEach((entry) => {
     const pageNum = Number(entry.target.dataset.page);
-    const pageEntry = state.pages[pageNum - 1];
     if (entry.isIntersecting) {
-      renderPageEntry(pageEntry);
+      renderPageEntry(findPageEntry(pageNum));
       if (entry.intersectionRatio >= bestRatio) {
         bestRatio = entry.intersectionRatio;
-        state.visiblePage = pageNum;
+        bestPage = pageNum;
       }
     }
   });
-  if (els.pageIndicator) els.pageIndicator.textContent = `Pagina ${state.visiblePage} di ${state.pages.length}`;
+  if (bestPage != null) state.visiblePage = bestPage;
+  updatePageIndicator();
 }
 
 /** Libera le pagine ormai lontane (fuori dal margine ampio di state.freeObserver). */
@@ -334,7 +494,7 @@ function onPagesLeaveFreeZone(entries) {
   entries.forEach((entry) => {
     if (entry.isIntersecting) return;
     const pageNum = Number(entry.target.dataset.page);
-    freePageCanvas(state.pages[pageNum - 1]);
+    freePageCanvas(findPageEntry(pageNum));
   });
 }
 
@@ -488,7 +648,7 @@ async function applyZoom(newZoom, anchor) {
   // il ridimensionamento: gli spazi fissi tra una pagina e l'altra (i "gap") non si
   // ingrandiscono con lo zoom come le pagine, quindi una proporzione sull'intero scroll
   // sbaglierebbe di quel tanto e la vista "scivolerebbe" verso il basso dopo il pinch.
-  const anchorEntry = findPageEntryAtClientY(anchorClientY) || state.pages[state.visiblePage - 1];
+  const anchorEntry = findPageEntryAtClientY(anchorClientY) || findPageEntry(state.visiblePage);
   let fracX = 0.5;
   let fracY = 0.5;
   if (anchorEntry?.wrapper) {
@@ -632,16 +792,47 @@ function setResultsNavBusy(busy) {
   if (busy && els.resultsLabel) els.resultsLabel.textContent = 'Caricamento…';
 }
 
+/** Scorre alla pagina `pageNum`: se non è nella finestra attualmente caricata, la ricostruisce lì attorno. */
 async function scrollToPage(pageNum) {
-  const entry = state.pages[pageNum - 1];
-  if (!entry) return;
+  const token = state.loadToken;
+  let entry = findPageEntry(pageNum);
+  if (!entry) {
+    await buildWindow(pageNum, token);
+    if (token !== state.loadToken) return;
+    entry = findPageEntry(pageNum);
+    if (!entry) return;
+  }
   entry.wrapper.scrollIntoView({ behavior: 'smooth', block: 'start' });
   if (!entry.rendered) await renderPageEntry(entry);
 }
 
-/** Cerca `term` in tutte le pagine del manuale (estrazione testo via pdf.js) e scorre alla prima pagina trovata. */
+function yieldToBrowser() {
+  return new Promise((resolve) => requestAnimationFrame(() => resolve()));
+}
+
+function setSearchBusy(busy) {
+  els.searchInput?.toggleAttribute('disabled', busy);
+  const submitBtn = els.searchForm?.querySelector('button[type="submit"]');
+  submitBtn?.toggleAttribute('disabled', busy);
+  submitBtn?.classList.toggle('opacity-50', busy);
+  els.prevResultBtn?.toggleAttribute('disabled', busy);
+  els.nextResultBtn?.toggleAttribute('disabled', busy);
+  if (busy) {
+    els.resultsBar?.classList.remove('hidden');
+    if (els.resultsLabel) els.resultsLabel.textContent = 'Ricerca in corso…';
+  }
+}
+
+/**
+ * Cerca `term` in TUTTO il manuale (indipendentemente da quali pagine sono attualmente
+ * caricate) ed evidenzia/scorre alla prima pagina trovata. Su manuali da centinaia di
+ * pagine, elaborare tutto in un solo colpo bloccava l'interfaccia: qui si procede a
+ * blocchi paralleli, lasciando "respirare" il browser tra un blocco e l'altro, e con un
+ * indicatore "Ricerca in corso…" così si vede chiaramente che sta lavorando.
+ */
 async function runSearch(term, { silent = false } = {}) {
   const clean = (term || '').trim();
+  const searchToken = ++state.searchToken;
   if (!state.pdfDoc || !clean) {
     state.searchTerm = '';
     state.matches = [];
@@ -653,11 +844,30 @@ async function runSearch(term, { silent = false } = {}) {
   state.searchTerm = clean;
   const lower = clean.toLowerCase();
   const matches = [];
-  for (const entry of state.pages) {
-    const content = await entry.page.getTextContent();
-    const text = content.items.map((it) => it.str).join(' ').toLowerCase();
-    if (text.includes(lower)) matches.push(entry.pageNum);
+
+  setSearchBusy(true);
+  try {
+    for (let start = 1; start <= state.numPages; start += SEARCH_BATCH) {
+      if (searchToken !== state.searchToken) return; // è partita un'altra ricerca nel frattempo
+      const end = Math.min(state.numPages, start + SEARCH_BATCH - 1);
+      const batch = await Promise.all(
+        Array.from({ length: end - start + 1 }, (_, i) => start + i).map(async (p) => {
+          const page = await state.pdfDoc.getPage(p);
+          const content = await page.getTextContent();
+          const text = content.items.map((it) => it.str).join(' ').toLowerCase();
+          return text.includes(lower) ? p : null;
+        })
+      );
+      batch.forEach((p) => {
+        if (p) matches.push(p);
+      });
+      await yieldToBrowser(); // niente più freeze: il browser può ridisegnare lo spinner tra un blocco e l'altro
+    }
+  } finally {
+    setSearchBusy(false);
   }
+  if (searchToken !== state.searchToken) return;
+
   state.matches = matches;
   state.matchIndex = matches.length ? 0 : -1;
   updateResultsBar();
