@@ -174,6 +174,8 @@ function closeViewer() {
 function teardownPages() {
   state.observer?.disconnect();
   state.observer = null;
+  state.freeObserver?.disconnect();
+  state.freeObserver = null;
   els.pagesWrap.innerHTML = '';
   els.pagesWrap.style.transform = 'none';
   state.pages = [];
@@ -288,6 +290,18 @@ async function buildPageShells(token) {
     threshold: [0, 0.5],
   });
   state.pages.forEach((entry) => state.observer.observe(entry.wrapper));
+
+  // Observer separato, con un margine molto più ampio, dedicato SOLO a liberare la
+  // memoria delle pagine ormai lontane. Deve essere più largo di quello sopra: se
+  // avessero lo stesso margine, una pagina appena fuori dai 600px verrebbe liberata e
+  // poi ri-renderizzata a ogni minimo scroll avanti/indietro (è quello che causava i
+  // rallentamenti e i crash della scheda).
+  state.freeObserver = new IntersectionObserver(onPagesLeaveFreeZone, {
+    root: els.canvasWrap,
+    rootMargin: '2400px 0px 2400px 0px',
+    threshold: [0],
+  });
+  state.pages.forEach((entry) => state.freeObserver.observe(entry.wrapper));
 }
 
 function onPagesIntersect(entries) {
@@ -301,23 +315,36 @@ function onPagesIntersect(entries) {
         bestRatio = entry.intersectionRatio;
         state.visiblePage = pageNum;
       }
-    } else {
-      // Fuori dal margine di precarico (rootMargin qui sotto): libera subito la memoria
-      // del canvas. Senza questo, su un manuale lungo tutte le pagine già viste restano
-      // renderizzate ad alta risoluzione e uno zoom le ridisegna TUTTE insieme, saturando
-      // la memoria dei canvas (effetto "tutto nero" su iOS) e bloccando l'interfaccia.
-      freePageCanvas(pageEntry);
     }
   });
   if (els.pageIndicator) els.pageIndicator.textContent = `Pagina ${state.visiblePage} di ${state.pages.length}`;
 }
 
+/** Libera le pagine ormai lontane (fuori dal margine ampio di state.freeObserver). */
+function onPagesLeaveFreeZone(entries) {
+  entries.forEach((entry) => {
+    if (entry.isIntersecting) return;
+    const pageNum = Number(entry.target.dataset.page);
+    freePageCanvas(state.pages[pageNum - 1]);
+  });
+}
+
 /** Libera il canvas/text-layer di una pagina uscita dal margine di precarico. Verrà
  * ri-renderizzata automaticamente quando rientrerà in vista. */
 function freePageCanvas(entry) {
-  if (!entry || !entry.rendered) return;
+  if (!entry || (!entry.rendered && !entry.renderTask)) return;
   entry.rendered = false;
   entry.renderToken = (entry.renderToken || 0) + 1; // scarta un eventuale render ancora in corso
+  if (entry.renderTask) {
+    // Annulla il render in corso PRIMA di svuotare il canvas: scrivere sul canvas
+    // mentre pdf.js ci sta ancora disegnando sopra è ciò che mandava in crash la scheda.
+    try {
+      entry.renderTask.cancel();
+    } catch {
+      /* già concluso o già annullato: nessun problema */
+    }
+    entry.renderTask = null;
+  }
   if (entry.canvas) {
     entry.canvas.width = 0;
     entry.canvas.height = 0;
@@ -331,6 +358,20 @@ async function renderPageEntry(entry) {
   if (!entry || !state.pdfDoc) return;
   const myToken = (entry.renderToken || 0) + 1;
   entry.renderToken = myToken;
+
+  // Se questa stessa pagina ha già un render in corso (es. richiesta due volte di fila
+  // durante uno scroll veloce), annullalo prima di riusare il canvas: lasciare che
+  // pdf.js continui a disegnare su un canvas che stiamo per ridimensionare/riassegnare
+  // è quello che mandava in crash la scheda (e nel frattempo rallentava tutto).
+  if (entry.renderTask) {
+    try {
+      entry.renderTask.cancel();
+    } catch {
+      /* già concluso: nessun problema */
+    }
+    entry.renderTask = null;
+  }
+
   const scale = state.fitScale * state.zoom;
   const viewport = entry.page.getViewport({ scale });
 
@@ -365,7 +406,16 @@ async function renderPageEntry(entry) {
 
   const ctx = entry.canvas.getContext('2d');
   const transform = outputScale !== 1 ? [outputScale, 0, 0, outputScale, 0, 0] : undefined;
-  await entry.page.render({ canvasContext: ctx, viewport, transform }).promise;
+  const renderTask = entry.page.render({ canvasContext: ctx, viewport, transform });
+  entry.renderTask = renderTask;
+  try {
+    await renderTask.promise;
+  } catch (err) {
+    if (err?.name !== 'RenderingCancelledException') console.warn('Rendering pagina interrotto.', err);
+    return; // annullato volutamente (nuovo render, zoom, o pagina liberata nel frattempo)
+  } finally {
+    if (entry.renderTask === renderTask) entry.renderTask = null;
+  }
   if (myToken !== entry.renderToken) return; // superata da un render più recente (es. altro zoom)
 
   entry.textLayerEl.innerHTML = '';
