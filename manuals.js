@@ -279,10 +279,19 @@ async function buildPageShells(token) {
     wrapper.style.height = `${Math.round(base.height * state.fitScale)}px`;
     els.pagesWrap.appendChild(wrapper);
 
-    state.pages.push({ pageNum: p, page, wrapper, rendered: false });
+    // Spinner segnaposto: visibile finché la pagina non è stata renderizzata almeno
+    // una volta (o dopo essere stata liberata dalla memoria), così si capisce sempre
+    // se una pagina sta ancora caricando invece di sembrare "bloccata".
+    const spinner = document.createElement('div');
+    spinner.className = 'manual-page-spinner absolute inset-0 flex items-center justify-center pointer-events-none';
+    spinner.innerHTML = '<i data-lucide="loader-circle" class="w-6 h-6 text-amber-400/70 animate-spin" stroke-width="2"></i>';
+    wrapper.appendChild(spinner);
+
+    state.pages.push({ pageNum: p, page, wrapper, spinner, rendered: false });
   }
 
   els.pageIndicator.textContent = `Pagina 1 di ${numPages}`;
+  window.lucide?.createIcons();
 
   state.observer = new IntersectionObserver(onPagesIntersect, {
     root: els.canvasWrap,
@@ -351,6 +360,7 @@ function freePageCanvas(entry) {
   }
   if (entry.textLayerEl) entry.textLayerEl.innerHTML = '';
   if (entry.highlightEl) entry.highlightEl.innerHTML = '';
+  entry.spinner?.classList.remove('hidden');
 }
 
 /** Rende (o ri-rende, es. dopo uno zoom) il canvas + text layer + evidenziazioni di una pagina. */
@@ -417,6 +427,7 @@ async function renderPageEntry(entry) {
     if (entry.renderTask === renderTask) entry.renderTask = null;
   }
   if (myToken !== entry.renderToken) return; // superata da un render più recente (es. altro zoom)
+  entry.spinner?.classList.add('hidden'); // il canvas ha già del contenuto valido da qui in poi
 
   entry.textLayerEl.innerHTML = '';
   entry.textLayerEl.style.width = `${Math.floor(viewport.width)}px`;
@@ -471,10 +482,20 @@ async function applyZoom(newZoom, anchor) {
   const wrapRect = wrap.getBoundingClientRect();
   const anchorClientX = anchor?.clientX ?? wrapRect.left + wrap.clientWidth / 2;
   const anchorClientY = anchor?.clientY ?? wrapRect.top + wrap.clientHeight / 2;
-  // Punto del contenuto (in coordinate di scroll) che deve restare fermo sotto il punto di ancoraggio.
-  const contentX = wrap.scrollLeft + (anchorClientX - wrapRect.left);
-  const contentY = wrap.scrollTop + (anchorClientY - wrapRect.top);
-  const ratio = clamped / state.zoom;
+
+  // Trova la pagina esatta sotto il punto di ancoraggio e memorizza la posizione
+  // RELATIVA a quella pagina (0-1 sui due assi). È l'unico modo per tenerla ferma dopo
+  // il ridimensionamento: gli spazi fissi tra una pagina e l'altra (i "gap") non si
+  // ingrandiscono con lo zoom come le pagine, quindi una proporzione sull'intero scroll
+  // sbaglierebbe di quel tanto e la vista "scivolerebbe" verso il basso dopo il pinch.
+  const anchorEntry = findPageEntryAtClientY(anchorClientY) || state.pages[state.visiblePage - 1];
+  let fracX = 0.5;
+  let fracY = 0.5;
+  if (anchorEntry?.wrapper) {
+    const pageRect = anchorEntry.wrapper.getBoundingClientRect();
+    if (pageRect.width) fracX = (anchorClientX - pageRect.left) / pageRect.width;
+    if (pageRect.height) fracY = (anchorClientY - pageRect.top) / pageRect.height;
+  }
 
   state.zoom = clamped;
   await renderAllRenderedPages();
@@ -487,8 +508,25 @@ async function applyZoom(newZoom, anchor) {
     }
   });
 
-  wrap.scrollLeft = contentX * ratio - (anchorClientX - wrapRect.left);
-  wrap.scrollTop = contentY * ratio - (anchorClientY - wrapRect.top);
+  if (anchorEntry?.wrapper) {
+    // Ora che la pagina ha le nuove dimensioni, calcola dove si trova ORA lo stesso
+    // punto relativo e sposta lo scroll di conseguenza (differenza in coordinate
+    // schermo, valida qualunque sia il sistema di riferimento usato per lo scroll).
+    const pageRectAfter = anchorEntry.wrapper.getBoundingClientRect();
+    const targetClientX = pageRectAfter.left + fracX * pageRectAfter.width;
+    const targetClientY = pageRectAfter.top + fracY * pageRectAfter.height;
+    wrap.scrollLeft += targetClientX - anchorClientX;
+    wrap.scrollTop += targetClientY - anchorClientY;
+  }
+}
+
+/** Trova la pagina la cui area (verticale) contiene il punto `clientY` dato. */
+function findPageEntryAtClientY(clientY) {
+  return state.pages.find((entry) => {
+    if (!entry.wrapper) return false;
+    const rect = entry.wrapper.getBoundingClientRect();
+    return clientY >= rect.top && clientY <= rect.bottom;
+  });
 }
 
 /** Pinch a due dita SOLO sull'area del PDF: mai sul resto dell'interfaccia (che non ha questo listener). */
@@ -578,15 +616,27 @@ function updateResultsBar() {
 async function stepResult(direction) {
   if (!state.matches.length) return;
   state.matchIndex = (state.matchIndex + direction + state.matches.length) % state.matches.length;
+  // Feedback immediato al tocco: senza questo, se la pagina di destinazione non è
+  // ancora renderizzata, sembra che il pulsante non abbia risposto al tocco.
+  setResultsNavBusy(true);
   await scrollToPage(state.matches[state.matchIndex]);
+  setResultsNavBusy(false);
   updateResultsBar();
+}
+
+function setResultsNavBusy(busy) {
+  [els.prevResultBtn, els.nextResultBtn].forEach((btn) => {
+    btn?.toggleAttribute('disabled', busy);
+    btn?.classList.toggle('opacity-40', busy);
+  });
+  if (busy && els.resultsLabel) els.resultsLabel.textContent = 'Caricamento…';
 }
 
 async function scrollToPage(pageNum) {
   const entry = state.pages[pageNum - 1];
   if (!entry) return;
-  if (!entry.rendered) await renderPageEntry(entry);
   entry.wrapper.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  if (!entry.rendered) await renderPageEntry(entry);
 }
 
 /** Cerca `term` in tutte le pagine del manuale (estrazione testo via pdf.js) e scorre alla prima pagina trovata. */
