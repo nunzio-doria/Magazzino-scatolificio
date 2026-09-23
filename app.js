@@ -9,6 +9,7 @@ import { initDashboard, enterDashboard, resetDashboard, refresh as refreshDashbo
 import { initUsers, refreshUsers } from './users.js';
 import { initMachines } from './machines.js';
 import { initManuals } from './manuals.js';
+import { initHistoryAdmin } from './history-admin.js';
 import { initPicker } from './picker.js';
 import feedback, { initFeedbackSettings } from './feedback.js';
 import { initOfflineSync } from './offline-queue.js';
@@ -17,6 +18,10 @@ import { toastSuccess, toastError } from './toast.js';
 import { closeAllOverlays } from './ui-utils.js';
 
 const VIEWS = ['scanner', 'products', 'dashboard', 'settings'];
+// Titolo mostrato in alto nell'header: stessi nomi della barra di navigazione
+// in basso, così l'utente legge sempre "dove si trova" invece del nome fisso
+// dell'app.
+const VIEW_TITLES = { scanner: 'Movimenti', products: 'Magazzino', dashboard: 'Report', settings: 'Impostazioni' };
 let modulesInitialized = false;
 let currentView = null;
 let isTransitioning = false;
@@ -54,6 +59,7 @@ function onAuthed(profile) {
     initUsers();
     initMachines();
     initManuals();
+    initHistoryAdmin();
     initNav();
     initFeedbackSettings();
     initSettingsRefreshButton();
@@ -210,6 +216,8 @@ export function switchView(view, { animate = true, onStart } = {}) {
   const forward = fromIndex === -1 ? true : toIndex > fromIndex; // direzione: avanti = scivola da destra
 
   currentView = view;
+  const headerTitle = document.getElementById('app-header-title');
+  if (headerTitle) headerTitle.textContent = VIEW_TITLES[view] || VIEW_TITLES.scanner;
 
   // Entrando nello Scanner, toglie il focus da qualsiasi campo di testo
   // rimasto attivo (es. la ricerca nel Magazzino) cosí la tastiera

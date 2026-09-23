@@ -1116,3 +1116,35 @@ button.custom-select-option:not(:disabled):active {
   border-radius: 2px;
   pointer-events: none;
 }
+
+/* ---- Text layer di pdf.js: testo reale invisibile sopra il canvas, per poter
+   selezionare un codice tenendo premuto come in un lettore PDF nativo. ---- */
+.textLayer {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  line-height: 1;
+  opacity: 1;
+  -webkit-text-size-adjust: none;
+  text-size-adjust: none;
+  forced-color-adjust: none;
+  transform-origin: 0 0;
+  z-index: 2;
+}
+.textLayer span, .textLayer br {
+  color: transparent;
+  position: absolute;
+  white-space: pre;
+  cursor: text;
+  transform-origin: 0% 0%;
+}
+.textLayer ::selection {
+  background: rgba(251, 191, 36, 0.45);
+}
+.textLayer br::selection {
+  background: transparent;
+}
+.manual-page canvas {
+  position: relative;
+  z-index: 0;
+}

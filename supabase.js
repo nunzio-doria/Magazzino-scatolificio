@@ -322,10 +322,13 @@ export async function deleteMachine({ id, nome }) {
 }
 
 // --- MANUALI RICAMBI (PDF allegati alle macchine) -----------------
-// Un solo manuale per macchina (tabella `machine_manuals`, vincolo UNIQUE
-// su machine_id): un nuovo upload sostituisce il precedente. Il file vero
-// e proprio vive nel bucket privato `manuali-macchine` dello Storage;
-// l'apertura in app passa sempre da un URL firmato a tempo (mai pubblico).
+// Un manuale per ogni coppia macchina+linea (tabella `machine_manuals`,
+// vincolo UNIQUE su machine_id+linea): un nuovo upload sulla stessa coppia
+// sostituisce il precedente. linea = '' significa "generale" (vale per
+// tutte le linee di quella macchina, usato come ripiego se non esiste un
+// manuale specifico per la linea del pezzo). Il file vero e proprio vive
+// nel bucket privato `manuali-macchine` dello Storage; l'apertura in app
+// passa sempre da un URL firmato a tempo (mai pubblico).
 const MANUALS_BUCKET = 'manuali-macchine';
 
 /** True se l'errore indica che la tabella `machine_manuals` non esiste (ancora) sul database */
@@ -335,46 +338,53 @@ function isMissingManualsTable(error) {
 }
 
 /**
- * Elenco di tutti i manuali caricati, indicizzati per machine_id, per
- * sapere a colpo d'occhio quali macchine hanno già un manuale (Impostazioni
- * e scheda articolo in Ricambi tecnici).
- * @returns {Promise<{ manuals: Map<string, {id:string, file_name:string, storage_path:string, created_at:string}>, tableMissing: boolean }>}
+ * Elenco di tutti i manuali caricati (una riga per ogni coppia macchina+linea),
+ * per sapere a colpo d'occhio quali sono già presenti (Impostazioni e scheda
+ * articolo in Ricambi tecnici).
+ * @returns {Promise<{ manuals: Array<{id:string, machine_id:string, linea:string, file_name:string, storage_path:string, created_at:string, machines:{nome:string}}>, tableMissing: boolean }>}
  */
 export async function listMachineManuals() {
   const { data, error } = await supabase
     .from('machine_manuals')
-    .select('id, machine_id, file_name, storage_path, file_size, created_at, machines(nome)');
+    .select('id, machine_id, linea, file_name, storage_path, file_size, created_at, machines(nome)');
   if (error) {
-    if (isMissingManualsTable(error)) return { manuals: new Map(), tableMissing: true };
+    if (isMissingManualsTable(error)) return { manuals: [], tableMissing: true };
     throw error;
   }
-  const manuals = new Map();
-  (data || []).forEach((m) => manuals.set(m.machine_id, m));
-  return { manuals, tableMissing: false };
+  return { manuals: data || [], tableMissing: false };
 }
 
 /**
- * Carica (o sostituisce) il manuale PDF di una macchina: rimuove prima
- * l'eventuale file/riga precedente, poi carica il nuovo file nello Storage
- * e registra la riga in `machine_manuals`. Solo admin (RLS + policy Storage).
+ * Carica (o sostituisce) il manuale PDF di una macchina per una specifica
+ * linea (o generale, se `linea` è vuota/omessa): rimuove prima l'eventuale
+ * file/riga precedente della stessa coppia macchina+linea, poi carica il
+ * nuovo file nello Storage e registra la riga in `machine_manuals`. Solo
+ * admin (RLS + policy Storage).
  * @param {string} machineId
+ * @param {string} linea es. 'L1', 'L2', 'L1-L2', oppure '' per "generale"
  * @param {File} file
  */
-export async function uploadMachineManual(machineId, file) {
+export async function uploadMachineManual(machineId, linea, file) {
   if (!file) throw new Error('Nessun file selezionato.');
   if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {
     throw new Error('Il manuale deve essere un file PDF.');
   }
+  const lineaValue = linea || '';
 
-  // Rimuove l'eventuale manuale precedente della stessa macchina (vincolo 1:1)
-  const { data: existing } = await supabase.from('machine_manuals').select('id, storage_path').eq('machine_id', machineId).maybeSingle();
+  // Rimuove l'eventuale manuale precedente della stessa coppia macchina+linea (vincolo 1:1)
+  const { data: existing } = await supabase
+    .from('machine_manuals')
+    .select('id, storage_path')
+    .eq('machine_id', machineId)
+    .eq('linea', lineaValue)
+    .maybeSingle();
   if (existing) {
     await supabase.storage.from(MANUALS_BUCKET).remove([existing.storage_path]);
     await supabase.from('machine_manuals').delete().eq('id', existing.id);
   }
 
   const safeName = file.name.replace(/[^\w.\-]+/g, '_');
-  const storagePath = `${machineId}/${Date.now()}_${safeName}`;
+  const storagePath = `${machineId}/${lineaValue || 'generale'}/${Date.now()}_${safeName}`;
   const { error: uploadErr } = await supabase.storage.from(MANUALS_BUCKET).upload(storagePath, file, {
     contentType: 'application/pdf',
     upsert: false,
@@ -391,6 +401,7 @@ export async function uploadMachineManual(machineId, file) {
     .from('machine_manuals')
     .insert({
       machine_id: machineId,
+      linea: lineaValue,
       file_name: file.name,
       storage_path: storagePath,
       file_size: file.size,
@@ -472,6 +483,13 @@ export async function deleteAllTransactions() {
   // righe": il client Supabase richiede comunque un filtro esplicito, non
   // accetta un .delete() completamente senza condizioni.
   const { error } = await supabase.from('transactions').delete().not('id', 'is', null);
+  if (error) throw error;
+}
+
+/** Elimina uno o più movimenti specifici dallo storico (per la Gestione cronologia in Impostazioni). Non tocca la giacenza. */
+export async function deleteTransactions(ids) {
+  if (!ids?.length) return;
+  const { error } = await supabase.from('transactions').delete().in('id', ids);
   if (error) throw error;
 }
 

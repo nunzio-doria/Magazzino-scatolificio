@@ -105,7 +105,7 @@
     <div class="flex items-center justify-between px-4 py-3 max-w-2xl mx-auto">
       <div class="flex items-center gap-2 min-w-0">
         <div class="min-w-0">
-          <p class="font-display font-bold uppercase tracking-wide text-sm leading-none truncate text-white">Magazzino Scatolificio</p>
+          <p id="app-header-title" class="font-display font-bold uppercase tracking-wide text-sm leading-none truncate text-white">Movimenti</p>
         </div>
       </div>
       <div class="flex items-center gap-2 shrink-0">
@@ -540,55 +540,46 @@
       </div>
 
       <div data-admin-only class="hidden">
-        <h3 class="font-display font-semibold uppercase tracking-wide text-sm text-graphite-400 mb-2">Gestione utenti</h3>
-        <p class="text-xs text-graphite-500 mb-2">Il nome e cognome impostato qui compare nei report al posto dell'email.</p>
-        <div id="users-list-skeleton" class="space-y-2 mb-5">
-          <div class="skeleton h-16 w-full"></div>
-          <div class="skeleton h-16 w-full"></div>
-        </div>
-        <div id="users-list" class="hidden space-y-2 mb-5"></div>
-
-        <button id="machines-manage-btn" type="button" class="w-full flex items-center justify-between gap-2 rounded-lg border border-graphite-700 hover:bg-graphite-800 px-3.5 py-2.5 text-sm font-display font-semibold uppercase tracking-wide transition-colors min-h-[44px] mb-5">
-          <span class="flex items-center gap-2">
-            <i data-lucide="cog" class="w-4 h-4"></i>
-            Gestione macchine
-          </span>
-          <i data-lucide="chevron-right" class="w-4 h-4 text-graphite-500"></i>
-        </button>
-
-        <h3 class="font-display font-semibold uppercase tracking-wide text-sm text-graphite-400 mb-2">Carica da Excel</h3>
-
-        <div class="grid grid-cols-3 gap-2 mb-4">
-          <button type="button" data-import-category-tab="cuscinetti" class="import-category-tab card-plate rounded-lg min-h-[44px] px-1.5 py-1.5 flex items-center justify-center text-center leading-tight text-xs font-display font-semibold uppercase tracking-wide border-2 border-graphite-700">Cuscinetti</button>
-          <button type="button" data-import-category-tab="cinghie" class="import-category-tab card-plate rounded-lg min-h-[44px] px-1.5 py-1.5 flex items-center justify-center text-center leading-tight text-xs font-display font-semibold uppercase tracking-wide border-2 border-graphite-700">Cinghie</button>
-          <button type="button" data-import-category-tab="pezzi_ricambio" class="import-category-tab card-plate rounded-lg min-h-[44px] px-1.5 py-1.5 flex items-center justify-center text-center leading-tight text-xs font-display font-semibold uppercase tracking-wide border-2 border-graphite-700">Ricambi tecnici</button>
-        </div>
-
-        <div id="product-import-wrap" class="hidden card-plate rounded-xl p-4 mb-4">
-          <div class="flex items-center justify-between gap-3 mb-1.5">
-            <p class="font-display font-semibold uppercase tracking-wide text-sm text-graphite-200">Carica file</p>
-            <label id="product-import-label" for="product-import-input" class="cursor-pointer shrink-0 rounded-lg bg-graphite-700 hover:bg-graphite-600 text-graphite-100 text-xs font-display font-semibold uppercase tracking-wide px-3 py-2 transition-colors">
-              Scegli file .xlsx
-            </label>
-            <input id="product-import-input" type="file" accept=".xlsx,.xls" class="hidden">
+        <div class="card-plate rounded-xl p-4 mb-5">
+          <h3 class="font-display font-semibold uppercase tracking-wide text-sm text-graphite-400 mb-3">Gestione</h3>
+          <div class="space-y-2">
+            <button id="users-manage-btn" type="button" class="w-full flex items-center justify-between gap-2 rounded-lg border border-graphite-700 hover:bg-graphite-800 px-3.5 py-2.5 text-sm font-display font-semibold uppercase tracking-wide transition-colors min-h-[44px]">
+              <span class="flex items-center gap-2">
+                <i data-lucide="users" class="w-4 h-4"></i>
+                Gestione utenti
+              </span>
+              <i data-lucide="chevron-right" class="w-4 h-4 text-graphite-500"></i>
+            </button>
+            <button id="machines-manage-btn" type="button" class="w-full flex items-center justify-between gap-2 rounded-lg border border-graphite-700 hover:bg-graphite-800 px-3.5 py-2.5 text-sm font-display font-semibold uppercase tracking-wide transition-colors min-h-[44px]">
+              <span class="flex items-center gap-2">
+                <i data-lucide="cog" class="w-4 h-4"></i>
+                Gestione macchine
+              </span>
+              <i data-lucide="chevron-right" class="w-4 h-4 text-graphite-500"></i>
+            </button>
+            <button id="excel-import-manage-btn" type="button" class="w-full flex items-center justify-between gap-2 rounded-lg border border-graphite-700 hover:bg-graphite-800 px-3.5 py-2.5 text-sm font-display font-semibold uppercase tracking-wide transition-colors min-h-[44px]">
+              <span class="flex items-center gap-2">
+                <i data-lucide="file-spreadsheet" class="w-4 h-4"></i>
+                Carica da Excel
+              </span>
+              <i data-lucide="chevron-right" class="w-4 h-4 text-graphite-500"></i>
+            </button>
           </div>
-          <p id="product-import-hint" class="text-xs text-graphite-500 leading-relaxed"></p>
-          <p id="product-import-result" class="hidden text-xs mt-2 rounded-lg px-3 py-2"></p>
-        </div>
-        <div id="product-import-pending" class="hidden card-plate rounded-xl p-4 mb-4 text-sm text-graphite-500">
-          Import da Excel non ancora configurato per questa categoria — inventario in sospeso. Puoi comunque aggiungere articoli manualmente dal Magazzino con "+ Nuovo".
         </div>
 
         <h3 class="font-display font-semibold uppercase tracking-wide text-sm text-rose-700 mb-2 mt-2">Zona pericolosa</h3>
         <div class="card-plate rounded-xl p-4 border-2 border-rose-500/25">
-          <p class="text-sm text-graphite-200 font-medium mb-1">Elimina cronologia movimenti</p>
+          <p class="text-sm text-graphite-200 font-medium mb-1">Cronologia movimenti</p>
           <p class="text-xs text-graphite-500 leading-relaxed mb-3">
-            Cancella per sempre TUTTI i depositi e prelievi registrati, di tutti gli articoli. La giacenza attuale non cambia: viene rimosso solo lo storico. Utile per ripulire i report senza toccare gli articoli (eliminare un articolo elimina già in automatico i suoi movimenti collegati).
+            Rivedi ed elimina singoli depositi/prelievi dallo storico, di uno o più articoli. La giacenza attuale non cambia: si tocca solo lo storico (eliminare un articolo elimina già in automatico i suoi movimenti collegati).
           </p>
-          <button id="settings-delete-all-history-btn" type="button"
-            class="w-full flex items-center justify-center gap-2 rounded-lg border border-rose-500/40 text-rose-700 hover:bg-rose-50 px-4 py-2.5 text-sm font-display font-semibold uppercase tracking-wide transition-colors min-h-[44px]">
-            <i data-lucide="history" class="w-4 h-4" stroke-width="2"></i>
-            Elimina tutta la cronologia
+          <button id="history-manage-btn" type="button"
+            class="w-full flex items-center justify-between gap-2 rounded-lg border border-rose-500/40 text-rose-700 hover:bg-rose-50 px-4 py-2.5 text-sm font-display font-semibold uppercase tracking-wide transition-colors min-h-[44px]">
+            <span class="flex items-center gap-2">
+              <i data-lucide="history" class="w-4 h-4" stroke-width="2"></i>
+              Gestione cronologia movimenti
+            </span>
+            <i data-lucide="chevron-right" class="w-4 h-4"></i>
           </button>
         </div>
       </div>
@@ -636,6 +627,94 @@
             <div class="skeleton h-12 w-full"></div>
           </div>
           <div id="machines-list" class="hidden space-y-2"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- =================== MODALE GESTIONE UTENTI (Admin) =================== -->
+    <div id="users-modal" class="modal-overlay hidden fixed inset-0 z-[92] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm px-0 sm:px-4">
+      <div class="modal-panel w-full sm:max-w-md bg-graphite-900 border border-graphite-700 rounded-t-2xl sm:rounded-2xl max-h-[85vh] flex flex-col">
+        <div data-sheet-drag class="sheet-grabber sm:hidden"><span class="sheet-grabber-pill"></span></div>
+        <div data-sheet-drag class="flex items-center justify-between px-5 pb-3 pt-1 sm:pt-3 border-b border-graphite-800 shrink-0">
+          <h3 class="font-display font-bold text-lg uppercase tracking-wide">Gestione utenti</h3>
+          <button id="users-modal-close" aria-label="Chiudi" class="modal-close modal-close--on-light">
+            <i data-lucide="x" class="w-6 h-6" stroke-width="2.5"></i>
+          </button>
+        </div>
+        <div class="flex-1 overflow-y-auto px-5 py-4">
+          <p class="text-xs text-graphite-500 mb-3">Il nome e cognome impostato qui compare nei report al posto dell'email.</p>
+          <div id="users-list-skeleton" class="space-y-2">
+            <div class="skeleton h-16 w-full"></div>
+            <div class="skeleton h-16 w-full"></div>
+          </div>
+          <div id="users-list" class="hidden space-y-2"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- =================== MODALE CARICA DA EXCEL (Admin) =================== -->
+    <div id="excel-import-modal" class="modal-overlay hidden fixed inset-0 z-[92] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm px-0 sm:px-4">
+      <div class="modal-panel w-full sm:max-w-md bg-graphite-900 border border-graphite-700 rounded-t-2xl sm:rounded-2xl max-h-[85vh] flex flex-col">
+        <div data-sheet-drag class="sheet-grabber sm:hidden"><span class="sheet-grabber-pill"></span></div>
+        <div data-sheet-drag class="flex items-center justify-between px-5 pb-3 pt-1 sm:pt-3 border-b border-graphite-800 shrink-0">
+          <h3 class="font-display font-bold text-lg uppercase tracking-wide">Carica da Excel</h3>
+          <button id="excel-import-modal-close" aria-label="Chiudi" class="modal-close modal-close--on-light">
+            <i data-lucide="x" class="w-6 h-6" stroke-width="2.5"></i>
+          </button>
+        </div>
+        <div class="flex-1 overflow-y-auto px-5 py-4">
+          <p class="text-xs text-graphite-500 mb-3">Scegli la sezione del magazzino in cui importare il file.</p>
+          <div class="grid grid-cols-3 gap-2 mb-4">
+            <button type="button" data-import-category-tab="cuscinetti" class="import-category-tab card-plate rounded-lg min-h-[44px] px-1.5 py-1.5 flex items-center justify-center text-center leading-tight text-xs font-display font-semibold uppercase tracking-wide border-2 border-graphite-700">Cuscinetti</button>
+            <button type="button" data-import-category-tab="cinghie" class="import-category-tab card-plate rounded-lg min-h-[44px] px-1.5 py-1.5 flex items-center justify-center text-center leading-tight text-xs font-display font-semibold uppercase tracking-wide border-2 border-graphite-700">Cinghie</button>
+            <button type="button" data-import-category-tab="pezzi_ricambio" class="import-category-tab card-plate rounded-lg min-h-[44px] px-1.5 py-1.5 flex items-center justify-center text-center leading-tight text-xs font-display font-semibold uppercase tracking-wide border-2 border-graphite-700">Ricambi tecnici</button>
+          </div>
+          <div id="product-import-wrap" class="hidden card-plate rounded-xl p-4">
+            <div class="flex items-center justify-between gap-3 mb-1.5">
+              <p class="font-display font-semibold uppercase tracking-wide text-sm text-graphite-200">Carica file</p>
+              <label id="product-import-label" for="product-import-input" class="cursor-pointer shrink-0 rounded-lg bg-graphite-700 hover:bg-graphite-600 text-graphite-100 text-xs font-display font-semibold uppercase tracking-wide px-3 py-2 transition-colors">
+                Scegli file .xlsx
+              </label>
+              <input id="product-import-input" type="file" accept=".xlsx,.xls" class="hidden">
+            </div>
+            <p id="product-import-hint" class="text-xs text-graphite-500 leading-relaxed"></p>
+            <p id="product-import-result" class="hidden text-xs mt-2 rounded-lg px-3 py-2"></p>
+          </div>
+          <div id="product-import-pending" class="hidden card-plate rounded-xl p-4 text-sm text-graphite-500">
+            Import da Excel non ancora configurato per questa categoria — inventario in sospeso. Puoi comunque aggiungere articoli manualmente dal Magazzino con "+ Nuovo".
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- =================== MODALE GESTIONE CRONOLOGIA (Admin) =================== -->
+    <div id="history-manage-modal" class="modal-overlay hidden fixed inset-0 z-[92] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm px-0 sm:px-4">
+      <div class="modal-panel w-full sm:max-w-md bg-graphite-900 border border-graphite-700 rounded-t-2xl sm:rounded-2xl max-h-[85vh] flex flex-col">
+        <div data-sheet-drag class="sheet-grabber sm:hidden"><span class="sheet-grabber-pill"></span></div>
+        <div data-sheet-drag class="flex items-center justify-between px-5 pb-3 pt-1 sm:pt-3 border-b border-graphite-800 shrink-0">
+          <h3 class="font-display font-bold text-lg uppercase tracking-wide">Gestione cronologia</h3>
+          <button id="history-manage-close" aria-label="Chiudi" class="modal-close modal-close--on-light">
+            <i data-lucide="x" class="w-6 h-6" stroke-width="2.5"></i>
+          </button>
+        </div>
+        <div class="flex gap-2 px-4 pt-3 shrink-0">
+          <button type="button" data-history-manage-tab="tutti" class="history-tab history-tab-active flex-1 rounded-lg py-2 px-1 whitespace-nowrap text-xs font-display font-semibold uppercase tracking-wide border border-graphite-700 min-h-[44px]">Tutti</button>
+          <button type="button" data-history-manage-tab="deposito" class="history-tab flex-1 rounded-lg py-2 px-1 whitespace-nowrap text-xs font-display font-semibold uppercase tracking-wide border border-graphite-700 min-h-[44px]">Depositi</button>
+          <button type="button" data-history-manage-tab="prelievo" class="history-tab flex-1 rounded-lg py-2 px-1 whitespace-nowrap text-xs font-display font-semibold uppercase tracking-wide border border-graphite-700 min-h-[44px]">Prelievi</button>
+        </div>
+        <p class="text-xs text-graphite-500 leading-relaxed px-5 pt-2">Seleziona uno o più movimenti da eliminare dallo storico. La giacenza attuale non viene toccata.</p>
+        <div id="history-manage-skeleton" class="space-y-2 px-4 py-3">
+          <div class="skeleton h-14 w-full"></div>
+          <div class="skeleton h-14 w-full"></div>
+          <div class="skeleton h-14 w-full"></div>
+        </div>
+        <div id="history-manage-list" class="hidden flex-1 overflow-y-auto px-4 py-3"></div>
+        <div id="history-manage-actionbar" class="hidden shrink-0 flex items-center justify-between gap-3 px-4 py-3 border-t border-graphite-800 bg-graphite-900">
+          <span id="history-manage-count" class="text-xs text-graphite-400">0 selezionati</span>
+          <button id="history-manage-delete-btn" type="button" class="shrink-0 flex items-center gap-2 rounded-lg border border-rose-500/40 text-rose-700 hover:bg-rose-50 px-4 py-2.5 text-sm font-display font-semibold uppercase tracking-wide transition-colors min-h-[44px] disabled:opacity-40 disabled:pointer-events-none">
+            <i data-lucide="trash-2" class="w-4 h-4" stroke-width="2"></i>
+            Elimina selezionati
+          </button>
         </div>
       </div>
     </div>
@@ -844,12 +923,12 @@
     </button>
   </form>
 
-  <!-- Area di lettura: canvas della pagina + overlay evidenziazioni -->
-  <div id="manual-viewer-canvas-wrap" class="relative flex-1 overflow-auto flex items-start justify-center bg-graphite-950 px-2 py-3">
-    <div class="relative">
-      <canvas id="manual-viewer-canvas" class="bg-white shadow-lift rounded"></canvas>
-      <div id="manual-viewer-highlights" class="absolute inset-0 pointer-events-none"></div>
-    </div>
+  <!-- Area di lettura: pagine incolonnate in scroll continuo (niente pulsanti per cambiare
+       pagina). touch-action: pan-y lascia lo scroll verticale nativo ma disattiva lo zoom
+       nativo del browser qui dentro: il pinch a due dita è gestito da manuals.js e scala
+       SOLO il PDF, mai il resto dell'interfaccia. -->
+  <div id="manual-viewer-canvas-wrap" class="relative flex-1 overflow-auto bg-graphite-950 px-2 py-3" style="touch-action: pan-y;">
+    <div id="manual-viewer-pages" class="mx-auto flex flex-col items-center gap-3" style="width: max-content; transform-origin: top center;"></div>
     <div id="manual-viewer-loading" class="hidden absolute inset-0 flex flex-col items-center justify-center gap-2 bg-graphite-950">
       <i data-lucide="loader-circle" class="w-7 h-7 text-amber-400 animate-spin" stroke-width="2"></i>
       <p class="text-xs text-graphite-500">Apertura manuale…</p>
@@ -860,7 +939,7 @@
     </div>
   </div>
 
-  <!-- Navigazione pagine + zoom, sempre a portata di pollice in basso -->
+  <!-- Zoom (utile su desktop/mouse; su touch si usa il pinch) + indicatore di pagina in sola lettura -->
   <div class="flex items-center justify-between gap-2 px-3 py-2.5 border-t border-graphite-800 shrink-0 bg-graphite-900">
     <div class="flex items-center gap-1">
       <button id="manual-viewer-zoom-out" type="button" aria-label="Riduci zoom" class="w-10 h-10 rounded-lg flex items-center justify-center text-graphite-400 hover:text-amber-300 hover:bg-graphite-800 transition-colors">
@@ -870,15 +949,7 @@
         <i data-lucide="zoom-in" class="w-4 h-4" stroke-width="2"></i>
       </button>
     </div>
-    <div class="flex items-center gap-2">
-      <button id="manual-viewer-prev-page" type="button" aria-label="Pagina precedente" class="w-10 h-10 rounded-lg flex items-center justify-center text-graphite-300 hover:text-amber-300 hover:bg-graphite-800 disabled:opacity-30 disabled:pointer-events-none transition-colors">
-        <i data-lucide="chevron-left" class="w-5 h-5" stroke-width="2.2"></i>
-      </button>
-      <span id="manual-viewer-page-indicator" class="ui-note whitespace-nowrap text-graphite-400 min-w-[92px] text-center">Pagina — di —</span>
-      <button id="manual-viewer-next-page" type="button" aria-label="Pagina successiva" class="w-10 h-10 rounded-lg flex items-center justify-center text-graphite-300 hover:text-amber-300 hover:bg-graphite-800 disabled:opacity-30 disabled:pointer-events-none transition-colors">
-        <i data-lucide="chevron-right" class="w-5 h-5" stroke-width="2.2"></i>
-      </button>
-    </div>
+    <span id="manual-viewer-page-indicator" class="ui-note whitespace-nowrap text-graphite-400">Pagina — di —</span>
   </div>
 </div>
 

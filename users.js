@@ -4,21 +4,29 @@
 // dell'email nello storico transazioni e nei report.
 // =============================================================
 
-import { listProfiles, updateProfileName, deleteAllTransactions } from './supabase.js';
+import { listProfiles, updateProfileName } from './supabase.js';
 import { toastSuccess, toastError, toastWarning } from './toast.js';
-import { staggerIndex, replayAnimation, emptyStateHtml, setButtonBusy } from './ui-utils.js';
-import { confirmDialog } from './ui-modal.js';
+import { staggerIndex, replayAnimation, emptyStateHtml, setButtonBusy, openOverlay, closeOverlay } from './ui-utils.js';
 import feedback from './feedback.js';
-import { loadIdlePanel } from './scanner.js';
 
 const els = {};
 let profiles = [];
 
 export function initUsers() {
+  els.modal = document.getElementById('users-modal');
+  els.openBtn = document.getElementById('users-manage-btn');
+  els.closeBtn = document.getElementById('users-modal-close');
   els.list = document.getElementById('users-list');
   els.skeleton = document.getElementById('users-list-skeleton');
-  els.deleteAllHistoryBtn = document.getElementById('settings-delete-all-history-btn');
-  els.deleteAllHistoryBtn?.addEventListener('click', handleDeleteAllHistory);
+
+  els.openBtn?.addEventListener('click', () => {
+    openOverlay(els.modal);
+    refreshUsers(); // sempre aggiornato all'apertura: la lista non è più visibile di striscio in Impostazioni
+  });
+  els.closeBtn?.addEventListener('click', () => closeOverlay(els.modal));
+  els.modal?.addEventListener('click', (e) => {
+    if (e.target === els.modal) closeOverlay(els.modal);
+  });
 }
 
 export async function refreshUsers() {
@@ -90,37 +98,6 @@ async function saveName(id, name, btn) {
     console.error(err);
     feedback.errorAction();
     toastError('Errore nel salvataggio del nome.');
-  } finally {
-    setButtonBusy(btn, false);
-  }
-}
-
-/**
- * Cancellazione integrale della cronologia movimenti (tutti gli articoli),
- * spostata qui in Impostazioni — sostituisce la vecchia eliminazione
- * "per singolo articolo" che stava nella scheda prodotto.
- */
-async function handleDeleteAllHistory() {
-  const ok = await confirmDialog({
-    title: 'Eliminare tutta la cronologia?',
-    message:
-      'Verranno cancellati per sempre TUTTI i movimenti (depositi e prelievi) di TUTTI gli articoli. La giacenza attuale non cambia: viene rimosso solo lo storico. L\'operazione non è reversibile.',
-    confirmLabel: 'Elimina tutto',
-    danger: true,
-  });
-  if (!ok) return;
-
-  const btn = els.deleteAllHistoryBtn;
-  setButtonBusy(btn, true, 'Eliminazione…');
-  try {
-    await deleteAllTransactions();
-    feedback.confirmAction();
-    toastSuccess('Cronologia movimenti eliminata.');
-    loadIdlePanel(); // "ultimi movimenti" in Scanner deve svuotarsi subito, non alla prossima visita
-  } catch (err) {
-    console.error(err);
-    feedback.errorAction();
-    toastError('Errore durante l\'eliminazione della cronologia.');
   } finally {
     setButtonBusy(btn, false);
   }
