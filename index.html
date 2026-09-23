@@ -924,10 +924,11 @@
   </form>
 
   <!-- Area di lettura: pagine incolonnate in scroll continuo (niente pulsanti per cambiare
-       pagina). touch-action: pan-y lascia lo scroll verticale nativo ma disattiva lo zoom
-       nativo del browser qui dentro: il pinch a due dita è gestito da manuals.js e scala
-       SOLO il PDF, mai il resto dell'interfaccia. -->
-  <div id="manual-viewer-canvas-wrap" class="relative flex-1 overflow-auto bg-graphite-950 px-2 py-3" style="touch-action: pan-y;">
+       pagina). touch-action: pan-x pan-y lascia il pan nativo con un dito in ENTRAMBE le
+       direzioni (si trascina il foglio, niente scrollbar da agganciare) ma disattiva il
+       pinch-zoom nativo del browser qui dentro: il pinch a due dita è gestito da manuals.js
+       e scala SOLO il PDF, mai il resto dell'interfaccia. -->
+  <div id="manual-viewer-canvas-wrap" class="relative flex-1 overflow-auto bg-graphite-950 px-2 py-3" style="touch-action: pan-x pan-y;">
     <div id="manual-viewer-pages" class="mx-auto flex flex-col items-center gap-3" style="width: max-content; transform-origin: top center;"></div>
     <div id="manual-viewer-loading" class="hidden absolute inset-0 flex flex-col items-center justify-center gap-2 bg-graphite-950">
       <i data-lucide="loader-circle" class="w-7 h-7 text-amber-400 animate-spin" stroke-width="2"></i>

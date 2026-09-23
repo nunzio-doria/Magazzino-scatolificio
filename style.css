@@ -1108,6 +1108,18 @@ button.custom-select-option:not(:disabled):active {
   animation: shake-error 480ms cubic-bezier(0.36, 0.07, 0.19, 0.97);
 }
 
+/* ---- Visualizzatore manuale PDF: niente scrollbar visibili nell'area di lettura.
+   La navigazione avviene trascinando il foglio col dito (pan nativo) o con lo scroll
+   del mouse; la scrollbar resta funzionante ma invisibile, così non si "ruba" spazio
+   né dà l'idea di dover essere trascinata per muoversi. ---- */
+#manual-viewer-canvas-wrap {
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* Edge legacy */
+}
+#manual-viewer-canvas-wrap::-webkit-scrollbar {
+  display: none; /* Chrome/Safari/WebKit */
+}
+
 /* ---- Visualizzatore manuale PDF: evidenziazione delle occorrenze del codice cercato ---- */
 .manual-highlight {
   position: absolute;

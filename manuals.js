@@ -17,6 +17,10 @@ import { openOverlay, closeOverlay } from './ui-utils.js';
 const PDFJS_VERSION = '3.11.174';
 const MIN_ZOOM = 0.6;
 const MAX_ZOOM = 3;
+// Limite di pixel (larghezza × altezza) per il canvas di una singola pagina. Oltre questa
+// soglia, soprattutto con più pagine ad alta risoluzione tenute in memoria insieme, iOS/Safari
+// può svuotare silenziosamente il canvas (appare tutto nero): meglio restare ben al di sotto.
+const MAX_CANVAS_PIXELS = 4_000_000;
 
 const els = {};
 let manualsByMachineId = new Map(); // machine_id -> Map<linea, riga machine_manuals> (linea '' = generale)
@@ -290,15 +294,36 @@ function onPagesIntersect(entries) {
   let bestRatio = 0;
   entries.forEach((entry) => {
     const pageNum = Number(entry.target.dataset.page);
+    const pageEntry = state.pages[pageNum - 1];
     if (entry.isIntersecting) {
-      renderPageEntry(state.pages[pageNum - 1]);
+      renderPageEntry(pageEntry);
       if (entry.intersectionRatio >= bestRatio) {
         bestRatio = entry.intersectionRatio;
         state.visiblePage = pageNum;
       }
+    } else {
+      // Fuori dal margine di precarico (rootMargin qui sotto): libera subito la memoria
+      // del canvas. Senza questo, su un manuale lungo tutte le pagine già viste restano
+      // renderizzate ad alta risoluzione e uno zoom le ridisegna TUTTE insieme, saturando
+      // la memoria dei canvas (effetto "tutto nero" su iOS) e bloccando l'interfaccia.
+      freePageCanvas(pageEntry);
     }
   });
   if (els.pageIndicator) els.pageIndicator.textContent = `Pagina ${state.visiblePage} di ${state.pages.length}`;
+}
+
+/** Libera il canvas/text-layer di una pagina uscita dal margine di precarico. Verrà
+ * ri-renderizzata automaticamente quando rientrerà in vista. */
+function freePageCanvas(entry) {
+  if (!entry || !entry.rendered) return;
+  entry.rendered = false;
+  entry.renderToken = (entry.renderToken || 0) + 1; // scarta un eventuale render ancora in corso
+  if (entry.canvas) {
+    entry.canvas.width = 0;
+    entry.canvas.height = 0;
+  }
+  if (entry.textLayerEl) entry.textLayerEl.innerHTML = '';
+  if (entry.highlightEl) entry.highlightEl.innerHTML = '';
 }
 
 /** Rende (o ri-rende, es. dopo uno zoom) il canvas + text layer + evidenziazioni di una pagina. */
@@ -324,9 +349,15 @@ async function renderPageEntry(entry) {
     entry.wrapper.appendChild(entry.textLayerEl);
   }
 
-  // Risoluzione di rendering più alta della resa a schermo, per un testo nitido
-  // anche quando si aumenta lo zoom (non solo pixel-perfect al 100%).
-  const outputScale = (window.devicePixelRatio || 1) * 1.5;
+  // Risoluzione di rendering più alta della resa a schermo, per un testo nitido anche
+  // quando si aumenta lo zoom (non solo pixel-perfect al 100%) — ma mai oltre il budget
+  // di sicurezza MAX_CANVAS_PIXELS, altrimenti il canvas rischia di apparire nero.
+  const desiredOutputScale = (window.devicePixelRatio || 1) * 1.5;
+  const viewportArea = viewport.width * viewport.height;
+  const outputScale =
+    viewportArea * desiredOutputScale * desiredOutputScale > MAX_CANVAS_PIXELS
+      ? Math.max(1, Math.sqrt(MAX_CANVAS_PIXELS / viewportArea))
+      : desiredOutputScale;
   entry.canvas.width = Math.floor(viewport.width * outputScale);
   entry.canvas.height = Math.floor(viewport.height * outputScale);
   entry.canvas.style.width = `${Math.floor(viewport.width)}px`;
@@ -376,13 +407,24 @@ async function changeZoom(delta) {
   await applyZoom(state.zoom + delta);
 }
 
-async function applyZoom(newZoom) {
+/**
+ * Applica un nuovo livello di zoom mantenendo fermo, sotto le dita (pinch) o al centro
+ * dell'area visibile (pulsanti +/-), lo stesso punto del PDF — su entrambi gli assi X e Y.
+ * @param {number} newZoom
+ * @param {{ clientX: number, clientY: number }} [anchor] punto in coordinate schermo da tenere fermo; default: centro dell'area di lettura
+ */
+async function applyZoom(newZoom, anchor) {
   const clamped = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, +newZoom.toFixed(2)));
   if (clamped === state.zoom) return;
 
-  // Mantiene la pagina attualmente a schermo nella stessa posizione dopo il ridimensionamento.
-  const anchor = state.pages[state.visiblePage - 1];
-  const prevOffset = anchor ? anchor.wrapper.offsetTop - els.canvasWrap.scrollTop : 0;
+  const wrap = els.canvasWrap;
+  const wrapRect = wrap.getBoundingClientRect();
+  const anchorClientX = anchor?.clientX ?? wrapRect.left + wrap.clientWidth / 2;
+  const anchorClientY = anchor?.clientY ?? wrapRect.top + wrap.clientHeight / 2;
+  // Punto del contenuto (in coordinate di scroll) che deve restare fermo sotto il punto di ancoraggio.
+  const contentX = wrap.scrollLeft + (anchorClientX - wrapRect.left);
+  const contentY = wrap.scrollTop + (anchorClientY - wrapRect.top);
+  const ratio = clamped / state.zoom;
 
   state.zoom = clamped;
   await renderAllRenderedPages();
@@ -395,19 +437,34 @@ async function applyZoom(newZoom) {
     }
   });
 
-  if (anchor) els.canvasWrap.scrollTop = anchor.wrapper.offsetTop - prevOffset;
+  wrap.scrollLeft = contentX * ratio - (anchorClientX - wrapRect.left);
+  wrap.scrollTop = contentY * ratio - (anchorClientY - wrapRect.top);
 }
 
 /** Pinch a due dita SOLO sull'area del PDF: mai sul resto dell'interfaccia (che non ha questo listener). */
 function initPinchZoom() {
   const wrap = els.canvasWrap;
   if (!wrap) return;
+  let rafId = null;
+  let pendingScale = null;
+
+  const applyPreview = () => {
+    rafId = null;
+    if (pendingScale != null) els.pagesWrap.style.transform = `scale(${pendingScale})`;
+  };
 
   wrap.addEventListener(
     'touchstart',
     (e) => {
       if (e.touches.length === 2) {
-        state.pinch = { startDist: touchDistance(e.touches), startZoom: state.zoom };
+        const midClientX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+        const midClientY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+        state.pinch = { startDist: touchDistance(e.touches), startZoom: state.zoom, midClientX, midClientY };
+        // Ancora la scala esattamente al punto tra le due dita (in coordinate locali,
+        // non scalate, del contenuto): è ciò che rende il pinch fluido e "naturale"
+        // invece che uno zoom fisso dall'alto che fa scappare il contenuto dalle dita.
+        const pagesRect = els.pagesWrap.getBoundingClientRect();
+        els.pagesWrap.style.transformOrigin = `${midClientX - pagesRect.left}px ${midClientY - pagesRect.top}px`;
       }
     },
     { passive: true }
@@ -418,11 +475,15 @@ function initPinchZoom() {
     (e) => {
       if (e.touches.length === 2 && state.pinch) {
         e.preventDefault(); // impedisce il residuo scroll/gesto nativo durante il pinch
+        state.pinch.midClientX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+        state.pinch.midClientY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
         const dist = touchDistance(e.touches);
         const previewZoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, state.pinch.startZoom * (dist / state.pinch.startDist)));
-        // Anteprima istantanea via CSS: scala solo il contenitore delle pagine, non l'interfaccia attorno.
-        els.pagesWrap.style.transform = `scale(${previewZoom / state.zoom})`;
         state.pinch.previewZoom = previewZoom;
+        // Anteprima istantanea via CSS (solo il contenitore delle pagine, mai il resto
+        // dell'interfaccia), aggiornata al massimo una volta per frame per un movimento fluido.
+        pendingScale = previewZoom / state.zoom;
+        if (rafId == null) rafId = requestAnimationFrame(applyPreview);
       }
     },
     { passive: false }
@@ -430,10 +491,18 @@ function initPinchZoom() {
 
   const commitPinch = () => {
     if (!state.pinch) return;
-    const { previewZoom } = state.pinch;
+    const { previewZoom, midClientX, midClientY } = state.pinch;
     state.pinch = null;
+    if (rafId != null) {
+      cancelAnimationFrame(rafId);
+      rafId = null;
+    }
+    pendingScale = null;
     els.pagesWrap.style.transform = 'none';
-    if (previewZoom) applyZoom(previewZoom); // ri-renderizza a piena nitidezza alla nuova risoluzione
+    els.pagesWrap.style.transformOrigin = 'top center';
+    // Ri-renderizza a piena nitidezza alla nuova risoluzione, mantenendo fermo sotto le
+    // dita lo stesso punto del PDF su cui si è pinchato (sia in orizzontale sia in verticale).
+    if (previewZoom) applyZoom(previewZoom, { clientX: midClientX, clientY: midClientY });
   };
   wrap.addEventListener('touchend', commitPinch);
   wrap.addEventListener('touchcancel', commitPinch);
