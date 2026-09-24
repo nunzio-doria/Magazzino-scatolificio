@@ -411,7 +411,32 @@
       </div>
     </section>
 
-    <!-- ============ VISTA DASHBOARD (solo Admin) ============ -->
+    <!-- ============ VISTA MANUALI (barra in basso, visibile a tutti) ============ -->
+    <section id="view-manuals" class="hidden">
+      <!-- Testata: card "app" con l'icona manuale + chiave inglese e il titolo della sezione -->
+      <div class="card-plate rounded-2xl p-6 mb-5 flex flex-col items-center text-center gap-3">
+        <span class="relative inline-flex w-16 h-16 rounded-2xl bg-amber-400/10 border border-amber-500/30 items-center justify-center">
+          <i data-lucide="book-open-text" class="w-8 h-8 text-amber-300" stroke-width="1.7"></i>
+          <span class="absolute -bottom-1.5 -right-1.5 w-7 h-7 rounded-full bg-graphite-800 border-2 border-graphite-900 flex items-center justify-center">
+            <i data-lucide="wrench" class="w-3.5 h-3.5 text-amber-300" stroke-width="2.2"></i>
+          </span>
+        </span>
+        <div>
+          <p class="font-display font-bold text-xl uppercase tracking-wide">Manuali</p>
+          <p class="ui-note text-graphite-500 mt-0.5">Manuali ricambi PDF, una macchina alla volta</p>
+        </div>
+      </div>
+
+      <div id="manuals-browser-skeleton" class="space-y-2">
+        <div class="skeleton h-16 w-full rounded-xl"></div>
+        <div class="skeleton h-16 w-full rounded-xl"></div>
+        <div class="skeleton h-16 w-full rounded-xl"></div>
+      </div>
+      <div id="manuals-browser-list" class="hidden space-y-2"></div>
+      <p id="manuals-browser-empty" class="hidden text-sm text-graphite-500 text-center py-6">Nessuna macchina ancora registrata.</p>
+    </section>
+
+    <!-- ============ VISTA DASHBOARD (solo Admin, raggiungibile da Impostazioni → Applicazioni → Report) ============ -->
     <section id="view-dashboard" class="hidden" data-admin-only>
       <div class="flex items-center justify-end mb-3 gap-2">
         <div class="flex items-center gap-1.5">
@@ -557,6 +582,13 @@
               </span>
               <i data-lucide="chevron-right" class="w-4 h-4 text-graphite-500"></i>
             </button>
+            <button id="applications-manage-btn" type="button" class="w-full flex items-center justify-between gap-2 rounded-lg border border-graphite-700 hover:bg-graphite-800 px-3.5 py-2.5 text-sm font-display font-semibold uppercase tracking-wide transition-colors min-h-[44px]">
+              <span class="flex items-center gap-2">
+                <i data-lucide="layout-grid" class="w-4 h-4"></i>
+                Applicazioni
+              </span>
+              <i data-lucide="chevron-right" class="w-4 h-4 text-graphite-500"></i>
+            </button>
           </div>
         </div>
 
@@ -620,6 +652,29 @@
             <div class="skeleton h-12 w-full"></div>
           </div>
           <div id="machines-list" class="hidden space-y-2"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- =================== MODALE APPLICAZIONI (Admin) =================== -->
+    <div id="applications-modal" class="modal-overlay hidden fixed inset-0 z-[92] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm px-0 sm:px-4">
+      <div class="modal-panel w-full sm:max-w-md bg-graphite-900 border border-graphite-700 rounded-t-2xl sm:rounded-2xl max-h-[85vh] flex flex-col">
+        <div data-sheet-drag class="sheet-grabber sm:hidden"><span class="sheet-grabber-pill"></span></div>
+        <div data-sheet-drag class="flex items-center justify-between px-5 pb-3 pt-1 sm:pt-3 border-b border-graphite-800 shrink-0">
+          <h3 class="font-display font-bold text-lg uppercase tracking-wide">Applicazioni</h3>
+          <button id="applications-modal-close" aria-label="Chiudi" class="modal-close modal-close--on-light">
+            <i data-lucide="x" class="w-6 h-6" stroke-width="2.5"></i>
+          </button>
+        </div>
+        <div class="flex-1 overflow-y-auto px-5 py-4">
+          <div class="grid grid-cols-3 gap-3">
+            <button id="applications-report-tile" type="button" class="press-spring card-plate rounded-2xl flex flex-col items-center justify-center gap-2 py-5 px-2 border-2 border-graphite-700">
+              <span class="w-11 h-11 rounded-xl bg-amber-400/10 border border-amber-500/30 flex items-center justify-center">
+                <i data-lucide="chart-column" class="w-5 h-5 text-amber-300" stroke-width="1.8"></i>
+              </span>
+              <span class="ui-label whitespace-nowrap font-display font-semibold uppercase tracking-wide">Report</span>
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -731,11 +786,11 @@
         <span class="ui-label whitespace-nowrap font-display font-semibold uppercase tracking-wide">Magazzino</span>
         <span class="nav-dot w-1 h-1 rounded-full bg-amber-400"></span>
       </button>
-      <button data-nav-target="dashboard" data-admin-only class="hidden nav-item flex-1 flex flex-col items-center gap-1 py-3 text-graphite-500">
+      <button data-nav-target="manuals" class="nav-item flex-1 flex flex-col items-center gap-1 py-3 text-graphite-500">
         <span class="nav-icon-wrap transition-transform">
-          <i data-lucide="chart-column" class="w-6 h-6" stroke-width="1.8"></i>
+          <i data-lucide="book-open-text" class="w-6 h-6" stroke-width="1.8"></i>
         </span>
-        <span class="ui-label whitespace-nowrap font-display font-semibold uppercase tracking-wide">Report</span>
+        <span class="ui-label whitespace-nowrap font-display font-semibold uppercase tracking-wide">Manuali</span>
         <span class="nav-dot w-1 h-1 rounded-full bg-amber-400"></span>
       </button>
     </div>
