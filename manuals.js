@@ -10,7 +10,7 @@
 // puntuale del codice cercato.
 // =============================================================
 
-import { listMachineManuals, getManualSignedUrl, normalizeMachineName } from './supabase.js';
+import { listMachineManuals, listOperatorManuals, getManualSignedUrl, normalizeMachineName } from './supabase.js';
 import { toastError, toastWarning } from './toast.js';
 import { openOverlay, closeOverlay } from './ui-utils.js';
 
@@ -34,6 +34,8 @@ const els = {};
 let manualsByMachineId = new Map(); // machine_id -> Map<linea, riga machine_manuals> (linea '' = generale)
 let manualsByMachineName = new Map(); // nome macchina normalizzato (minuscolo) -> Map<linea, riga>
 let manualsTableMissing = false;
+let operatorManualsByMachineId = new Map(); // machine_id -> Array<riga machine_operator_manuals> (più di uno per macchina)
+let operatorManualsTableMissing = false;
 
 const state = {
   pdfDoc: null,
@@ -59,10 +61,13 @@ const state = {
 
 // --- CACHE MANUALI (condivisa con machines.js e products.js) -----------
 
-/** Ricarica dal database le mappe machine_id/nome → { linea → manuale }. Va richiamata dopo ogni upload/eliminazione. */
+/** Ricarica dal database le mappe machine_id/nome → { linea → manuale } (ricambi) e machine_id → [manuali] (operatore). Va richiamata dopo ogni upload/eliminazione. */
 export async function refreshManualsCache() {
   try {
-    const { manuals, tableMissing } = await listMachineManuals();
+    const [{ manuals, tableMissing }, { manuals: opManuals, tableMissing: opTableMissing }] = await Promise.all([
+      listMachineManuals(),
+      listOperatorManuals(),
+    ]);
     manualsByMachineId = new Map();
     manualsByMachineName = new Map();
     manuals.forEach((row) => {
@@ -76,6 +81,13 @@ export async function refreshManualsCache() {
       }
     });
     manualsTableMissing = tableMissing;
+
+    operatorManualsByMachineId = new Map();
+    opManuals.forEach((row) => {
+      if (!operatorManualsByMachineId.has(row.machine_id)) operatorManualsByMachineId.set(row.machine_id, []);
+      operatorManualsByMachineId.get(row.machine_id).push(row);
+    });
+    operatorManualsTableMissing = opTableMissing;
   } catch (err) {
     console.warn('Impossibile caricare l\'elenco dei manuali.', err);
   }
@@ -111,6 +123,22 @@ export function getManualForMachineName(nome, linea = '') {
 
 export function isManualsTableMissing() {
   return manualsTableMissing;
+}
+
+/** Il "miglior" manuale ricambi disponibile per una macchina, per chi non ha una linea specifica da cercare (vista Manuali): il generale se c'è, altrimenti il primo caricato. */
+export function getAnyManualForMachine(machineId) {
+  const byLinea = machineId && manualsByMachineId.get(machineId);
+  if (!byLinea || byLinea.size === 0) return null;
+  return byLinea.get('') || byLinea.values().next().value;
+}
+
+/** Tutti i manuali operatore caricati per una macchina (nell'ordine di caricamento), dato il suo id. */
+export function getOperatorManualsForMachine(machineId) {
+  return operatorManualsByMachineId.get(machineId) || [];
+}
+
+export function isOperatorManualsTableMissing() {
+  return operatorManualsTableMissing;
 }
 
 // --- CARICAMENTO LIBRERIA PDF.JS (CDN, caricata solo al primo utilizzo) --
@@ -207,7 +235,7 @@ function teardownPages() {
 
 /**
  * Apre il visualizzatore per un manuale già noto (riga machine_manuals).
- * @param {{ file_name: string, storage_path: string }} manual
+ * @param {{ file_name: string, storage_path: string, bucket?: string }} manual `bucket` distingue manuali ricambi/operatore (vedi supabase.js); se assente si usa il bucket manuali ricambi.
  * @param {{ searchTerm?: string }} [opts] se presente, cerca subito il codice e scorre alla prima pagina trovata
  */
 export async function openManualViewer(manual, opts = {}) {
@@ -222,7 +250,7 @@ export async function openManualViewer(manual, opts = {}) {
 
   try {
     const pdfjsLib = await ensurePdfJs();
-    const url = await getManualSignedUrl(manual.storage_path);
+    const url = await getManualSignedUrl(manual.storage_path, manual.bucket);
     const pdfDoc = await pdfjsLib.getDocument(url).promise;
     if (token !== state.loadToken) return; // l'utente ha già aperto un altro manuale nel frattempo
 

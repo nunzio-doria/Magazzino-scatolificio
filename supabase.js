@@ -351,7 +351,7 @@ export async function listMachineManuals() {
     if (isMissingManualsTable(error)) return { manuals: [], tableMissing: true };
     throw error;
   }
-  return { manuals: data || [], tableMissing: false };
+  return { manuals: (data || []).map((r) => ({ ...r, bucket: MANUALS_BUCKET })), tableMissing: false };
 }
 
 /**
@@ -430,13 +430,93 @@ export async function deleteMachineManual(manual) {
 
 /**
  * URL firmato temporaneo (1 ora) per aprire/scaricare il PDF dal bucket
- * privato — mai un URL pubblico permanente.
+ * privato — mai un URL pubblico permanente. `bucket` distingue tra manuali
+ * ricambi (manuali-macchine, default) e manuali operatore (manuali-operatore).
  */
-export async function getManualSignedUrl(storagePath) {
-  const { data, error } = await supabase.storage.from(MANUALS_BUCKET).createSignedUrl(storagePath, 3600);
+export async function getManualSignedUrl(storagePath, bucket = MANUALS_BUCKET) {
+  const { data, error } = await supabase.storage.from(bucket).createSignedUrl(storagePath, 3600);
   if (error) throw error;
   return data.signedUrl;
 }
+
+// --- MANUALI OPERATORE (PDF allegati alle macchine, PIÙ di uno per macchina) ---
+// A differenza di machine_manuals (1 manuale ricambi per coppia macchina+linea),
+// qui non c'è alcun vincolo di unicità: un Admin può caricarne quanti vuole per
+// macchina (es. uso e manutenzione, sicurezza, avviamento…). Bucket separato,
+// stesso livello di privacy (URL firmati, mai pubblico).
+const OPERATOR_MANUALS_BUCKET = 'manuali-operatore';
+
+function isMissingOperatorManualsTable(error) {
+  const msg = `${error?.message || ''} ${error?.details || ''}`;
+  return error?.code === 'PGRST205' || error?.code === '42P01' || (/machine_operator_manuals/.test(msg) && /schema cache|does not exist/i.test(msg));
+}
+
+/**
+ * Elenco di tutti i manuali operatore caricati, per popolare la cache condivisa
+ * (manuals.js) usata da Impostazioni → Gestione macchine e dalla vista Manuali.
+ * @returns {Promise<{ manuals: Array<{id:string, machine_id:string, file_name:string, storage_path:string, created_at:string, bucket:string, machines:{nome:string}}>, tableMissing: boolean }>}
+ */
+export async function listOperatorManuals() {
+  const { data, error } = await supabase
+    .from('machine_operator_manuals')
+    .select('id, machine_id, file_name, storage_path, file_size, created_at, machines(nome)')
+    .order('created_at', { ascending: true });
+  if (error) {
+    if (isMissingOperatorManualsTable(error)) return { manuals: [], tableMissing: true };
+    throw error;
+  }
+  return { manuals: (data || []).map((r) => ({ ...r, bucket: OPERATOR_MANUALS_BUCKET })), tableMissing: false };
+}
+
+/** Carica un nuovo manuale operatore per una macchina (si aggiunge agli altri, non li sostituisce). Solo admin. */
+export async function uploadOperatorManual(machineId, file) {
+  if (!file) throw new Error('Nessun file selezionato.');
+  if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {
+    throw new Error('Il manuale deve essere un file PDF.');
+  }
+  const safeName = file.name.replace(/[^\w.\-]+/g, '_');
+  const storagePath = `${machineId}/${Date.now()}_${safeName}`;
+  const { error: uploadErr } = await supabase.storage.from(OPERATOR_MANUALS_BUCKET).upload(storagePath, file, {
+    contentType: 'application/pdf',
+    upsert: false,
+  });
+  if (uploadErr) {
+    if (/row-level security|not allowed|permission/i.test(uploadErr.message || '')) {
+      throw new Error('Solo un amministratore può caricare i manuali.');
+    }
+    throw uploadErr;
+  }
+
+  const { data: userData } = await supabase.auth.getUser();
+  const { data, error } = await supabase
+    .from('machine_operator_manuals')
+    .insert({
+      machine_id: machineId,
+      file_name: file.name,
+      storage_path: storagePath,
+      file_size: file.size,
+      uploaded_by: userData?.user?.id || null,
+    })
+    .select()
+    .single();
+  if (error) {
+    await supabase.storage.from(OPERATOR_MANUALS_BUCKET).remove([storagePath]);
+    if (isMissingOperatorManualsTable(error)) {
+      throw new Error('La tabella dei manuali operatore non è ancora stata creata sul database.');
+    }
+    throw error;
+  }
+  return { ...data, bucket: OPERATOR_MANUALS_BUCKET };
+}
+
+/** Elimina un manuale operatore (file + riga). Solo admin. */
+export async function deleteOperatorManual(manual) {
+  const { error: storageErr } = await supabase.storage.from(OPERATOR_MANUALS_BUCKET).remove([manual.storage_path]);
+  if (storageErr) throw storageErr;
+  const { error } = await supabase.from('machine_operator_manuals').delete().eq('id', manual.id);
+  if (error) throw error;
+}
+
 
 // --- TRANSAZIONI (deposito/prelievo) ------------------------------
 /**
