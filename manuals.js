@@ -15,7 +15,7 @@ import { toastError, toastWarning } from './toast.js';
 import { openOverlay, closeOverlay } from './ui-utils.js';
 
 const PDFJS_VERSION = '3.11.174';
-const MIN_ZOOM = 0.6;
+const MIN_ZOOM = 0.3;
 const MAX_ZOOM = 3;
 // Limite di pixel (larghezza × altezza) per il canvas di una singola pagina. Oltre questa
 // soglia, soprattutto con più pagine ad alta risoluzione tenute in memoria insieme, iOS/Safari
@@ -945,7 +945,18 @@ function drawHighlightBox(entry, item, viewport, localStart, localEnd) {
   const scaleX = Math.hypot(tx[0], tx[1]) || 1;
   const fontHeight = Math.hypot(tx[2], tx[3]) || 10;
   const totalWidth = Math.max((item.width || 0) * scaleX, 1);
-  const charWidth = totalWidth / Math.max(item.str.length, 1);
+  const charWidthFromItem = totalWidth / Math.max(item.str.length, 1);
+
+  // Tetto di sicurezza indipendente da item.width: in alcuni cataloghi (esportati da
+  // software CAD/PDM) il singolo comando di testo del PDF contiene, oltre al codice,
+  // un lunghissimo riempimento a spazi per allineare una colonna lontana — e quello
+  // spazio fa parte della STESSA larghezza dichiarata dall'elemento, quindi nessuna
+  // media per-carattere calcolata su di essa può darci una misura corretta. Qui si
+  // stima invece la larghezza di un carattere dalla dimensione del font stesso (un
+  // carattere è tipicamente largo circa il 55-65% della sua altezza) e non si supera
+  // mai quella stima: elimina i riquadri enormi indipendentemente dalla causa.
+  const estimatedCharWidth = fontHeight * 0.62;
+  const charWidth = Math.min(charWidthFromItem, estimatedCharWidth * 1.5);
 
   const x = tx[4] + charWidth * localStart;
   const width = Math.max(charWidth * (localEnd - localStart), 4);
