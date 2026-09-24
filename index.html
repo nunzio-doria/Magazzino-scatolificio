@@ -105,7 +105,7 @@
     <div class="flex items-center justify-between px-4 py-3 max-w-2xl mx-auto">
       <div class="flex items-center gap-2 min-w-0">
         <div class="min-w-0">
-          <p id="app-header-title" class="font-display font-bold uppercase tracking-wide text-sm leading-none truncate text-white">Movimenti</p>
+          <p id="app-header-title" class="font-display font-bold uppercase tracking-wide text-lg leading-none truncate text-white">Movimenti</p>
         </div>
       </div>
       <div class="flex items-center gap-2 shrink-0">
@@ -315,8 +315,7 @@
 
     <!-- ============ VISTA MAGAZZINO (consultazione + admin CRUD + import Excel) ============ -->
     <section id="view-products" class="hidden">
-      <div class="flex items-center justify-between mb-3 gap-2">
-        <h2 class="font-display font-bold text-xl uppercase tracking-wide">Magazzino</h2>
+      <div class="flex items-center justify-end mb-3 gap-2">
         <div class="flex items-center gap-1.5">
           <button id="product-undo-btn" data-admin-only type="button" disabled aria-label="Annulla ultima modifica" title="Annulla"
             class="hidden history-btn w-11 h-11 rounded-lg bg-graphite-800 border border-graphite-700 text-graphite-400 hover:text-amber-400 hover:border-amber-400 flex items-center justify-center">
@@ -418,8 +417,7 @@
 
     <!-- ============ VISTA DASHBOARD (solo Admin) ============ -->
     <section id="view-dashboard" class="hidden" data-admin-only>
-      <div class="flex items-center justify-between mb-3 gap-2">
-        <h2 class="font-display font-bold text-xl uppercase tracking-wide">Report consumi</h2>
+      <div class="flex items-center justify-end mb-3 gap-2">
         <div class="flex items-center gap-1.5">
           <select id="dash-period-select" class="rounded-lg bg-graphite-800 border border-graphite-700 text-sm px-2.5 py-1.5 focus:border-amber-400 outline-none min-h-[44px]">
             <option value="7d">Ultimi 7 giorni</option>
@@ -486,7 +484,6 @@
 
     <!-- ============ VISTA IMPOSTAZIONI ============ -->
     <section id="view-settings" class="hidden">
-      <h2 class="font-display font-bold text-xl uppercase tracking-wide mb-3">Impostazioni</h2>
 
       <div class="card-plate rounded-xl p-4 mb-5 flex items-center justify-between gap-3">
         <div class="min-w-0">
@@ -932,7 +929,7 @@
     <div id="manual-viewer-pages" class="mx-auto flex flex-col items-center gap-3" style="width: max-content; transform-origin: top center;"></div>
     <div id="manual-viewer-loading" class="hidden absolute inset-0 flex flex-col items-center justify-center gap-2 bg-graphite-950">
       <i data-lucide="loader-circle" class="w-7 h-7 text-amber-400 animate-spin" stroke-width="2"></i>
-      <p class="text-xs text-graphite-500">Apertura manuale…</p>
+      <p id="manual-viewer-loading-text" class="text-xs text-graphite-500">Apertura manuale…</p>
     </div>
     <div id="manual-viewer-error" class="hidden absolute inset-0 flex flex-col items-center justify-center gap-2 px-6 text-center bg-graphite-950">
       <i data-lucide="file-warning" class="w-7 h-7 text-rose-600" stroke-width="1.8"></i>

@@ -28,7 +28,7 @@ const MAX_CANVAS_PIXELS = 4_000_000;
 const WINDOW_RADIUS = 5; // pagine prima/dopo il centro alla prima apertura
 const WINDOW_EXTEND = 10; // pagine aggiunte quando si scorre vicino a un bordo della finestra
 const WINDOW_MAX = 40; // oltre questa dimensione, si liberano le pagine dal lato opposto
-const SEARCH_BATCH = 8; // pagine analizzate in parallelo per blocco durante la ricerca del codice
+const SEARCH_BATCH = 16; // pagine analizzate in parallelo per blocco durante la ricerca del codice
 
 const els = {};
 let manualsByMachineId = new Map(); // machine_id -> Map<linea, riga machine_manuals> (linea '' = generale)
@@ -149,6 +149,7 @@ export function initManuals() {
   els.canvasWrap = document.getElementById('manual-viewer-canvas-wrap');
   els.pagesWrap = document.getElementById('manual-viewer-pages');
   els.loading = document.getElementById('manual-viewer-loading');
+  els.loadingText = document.getElementById('manual-viewer-loading-text');
   els.error = document.getElementById('manual-viewer-error');
   els.errorText = document.getElementById('manual-viewer-error-text');
 
@@ -276,9 +277,14 @@ export async function openManualForMachineName(nomeMacchina, linea, codiceArtico
 
 // --- COSTRUZIONE PAGINE (placeholder + rendering pigro allo scroll) -----
 
-function setLoading(on) {
+function setLoading(on, message) {
+  // #manual-viewer-loading è DENTRO #manual-viewer-canvas-wrap: se rendevamo quest'ultimo
+  // "invisible" mentre si caricava, nascondevamo insieme a lui anche lo spinner stesso
+  // (la visibilità si eredita) — risultato: schermo scuro e apparentemente bloccato,
+  // niente indicatore visibile. L'overlay ha già uno sfondo opaco che copre tutto:
+  // basta lui, non serve nascondere il contenitore.
   els.loading?.classList.toggle('hidden', !on);
-  els.canvasWrap?.classList.toggle('invisible', on);
+  if (on && els.loadingText) els.loadingText.textContent = message || 'Apertura manuale…';
 }
 
 function showError(message) {
@@ -612,7 +618,17 @@ async function renderPageEntry(entry) {
   entry.highlightEl.innerHTML = '';
   entry.highlightEl.style.width = `${Math.floor(viewport.width)}px`;
   entry.highlightEl.style.height = `${Math.floor(viewport.height)}px`;
-  if (state.searchTerm) drawHighlights(entry, content, viewport, state.searchTerm);
+  if (state.searchTerm) {
+    // Per l'evidenziazione serve la larghezza VERA di ogni singolo frammento di testo:
+    // il `content` qui sopra ha combineTextItems attivo (il default, utile per la
+    // selezione naturale del testo), che unisce più frammenti della stessa riga in un
+    // solo elemento — compresi eventuali spazi di riempimento per allineare le tabelle —
+    // gonfiandone la larghezza complessiva e producendo riquadri enormi. Con
+    // disableCombineTextItems ogni frammento resta separato, con la sua larghezza reale.
+    const preciseContent = await entry.page.getTextContent({ disableCombineTextItems: true });
+    if (myToken !== entry.renderToken) return;
+    drawHighlights(entry, preciseContent, viewport, state.searchTerm);
+  }
 
   entry.rendered = true;
   window.lucide?.createIcons();
@@ -802,8 +818,13 @@ async function scrollToPage(pageNum) {
     entry = findPageEntry(pageNum);
     if (!entry) return;
   }
-  entry.wrapper.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  // Renderizza PRIMA di scorrere: se lo scroll "smooth" fosse già in corso mentre la
+  // pagina riceve canvas e text layer (con il relativo micro-cambio di layout), il
+  // browser può interrompere l'animazione a metà strada — è quello che faceva
+  // "atterrare" all'inizio della finestra (5 pagine prima) invece che sul risultato.
   if (!entry.rendered) await renderPageEntry(entry);
+  if (token !== state.loadToken) return;
+  entry.wrapper.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 function yieldToBrowser() {
@@ -861,6 +882,14 @@ async function runSearch(term, { silent = false } = {}) {
       batch.forEach((p) => {
         if (p) matches.push(p);
       });
+      // Avanzamento reale (non un generico "in corso"): compare nello spinner grande se
+      // il manuale si sta aprendo ora, o nella barra risultati se si sta cercando a
+      // manuale già aperto — a seconda di quale dei due è visibile in questo momento.
+      const progress = `Ricerca di "${clean}"… ${end}/${state.numPages}`;
+      if (els.loading && !els.loading.classList.contains('hidden') && els.loadingText) {
+        els.loadingText.textContent = progress;
+      }
+      if (els.resultsLabel) els.resultsLabel.textContent = progress;
       await yieldToBrowser(); // niente più freeze: il browser può ridisegnare lo spinner tra un blocco e l'altro
     }
   } finally {
