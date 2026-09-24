@@ -93,13 +93,20 @@
 html, body {
   height: 100%;
   overscroll-behavior: contain;
+}
+html {
   /* Riserva sempre lo spazio della scrollbar verticale, anche quando il
      contenuto non ne ha bisogno. Senza questo, durante le transizioni tra
      sezioni l'altezza del documento oscilla per un istante (la vista
      uscente è ancora nel calcolo dell'overflow mentre quella entrante
      prende il suo posto), la scrollbar compare/scompare, e tutto il body
      si restringe/allarga lateralmente per quell'istante. Riservando lo
-     spazio a priori, la larghezza disponibile resta sempre costante. */
+     spazio a priori, la larghezza disponibile resta sempre costante.
+     Impostato solo qui e non anche su body: se entrambi hanno un
+     overflow-y esplicito, il body smette di propagare il proprio scroll
+     al viewport e diventa un secondo contesto di scorrimento indipendente
+     — due scrollbar affiancate invece di una, visibili soprattutto nel
+     momento in cui la transizione fluida sblocca html a fine animazione. */
   scrollbar-gutter: stable;
   overflow-y: scroll; /* fallback per browser senza scrollbar-gutter */
 }
