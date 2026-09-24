@@ -275,6 +275,18 @@ export function animateFluidSwap(fromSection, toSection, forward, onSettled) {
   isTransitioning = true;
   const host = toSection.parentElement;
 
+  // Se l'host non ha già un contesto di posizionamento (es. #view-products,
+  // che eredita solo il layout di <main class="view-host">), la vista uscente
+  // messa in position:absolute qui sotto verrebbe ancorata al primo antenato
+  // realmente posizionato più in alto (<main>), non a host: le coordinate
+  // top/left calcolate rispetto a hostRect risulterebbero sfalsate e la vista
+  // "salterebbe" in una posizione più alta, sovrapponendosi a ciò che sta
+  // sopra host. Forziamo qui un contesto locale, ripristinato in cleanup().
+  const hostHadPosition = host.style.position;
+  if (getComputedStyle(host).position === 'static') {
+    host.style.position = 'relative';
+  }
+
   // Per la durata della transizione, sia la vista uscente (ancora presente,
   // position:absolute alla sua geometria originale) sia quella entrante
   // (già alla sua altezza reale, non "cresce" gradualmente: solo min-height
@@ -342,6 +354,7 @@ export function animateFluidSwap(fromSection, toSection, forward, onSettled) {
     toSection.classList.remove('view-fluid-entering', 'view-fluid-enter-right', 'view-fluid-enter-left');
     host.style.minHeight = '';
     host.style.transition = '';
+    host.style.position = hostHadPosition;
     document.documentElement.style.overflowY = previousHtmlOverflowY;
     isTransitioning = false;
     // Se nel frattempo è stata toccata un'altra sezione, si passa subito a

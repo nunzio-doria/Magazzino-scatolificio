@@ -420,8 +420,23 @@ function setCategory(category) {
   refresh();
 }
 
+let viewModeBusy = false; // true mentre una animateFluidSwap tra scaffalatura/macchina è in corso
+let queuedViewMode = null; // ultima modalità richiesta mentre viewModeBusy era true
+
 function setViewMode(mode) {
+  if (viewModeBusy) {
+    // Non tocchiamo stato/UI finché la transizione in corso non è conclusa:
+    // farlo subito disallineerebbe la tab selezionata dal contenuto davvero
+    // visibile, perché la nuova animazione verrebbe scartata (già in corso
+    // quella vecchia) mentre la modalità/tab risulterebbero già aggiornate.
+    queuedViewMode = mode === viewMode ? null : mode;
+    return;
+  }
   if (mode === viewMode) return;
+  applyViewMode(mode);
+}
+
+function applyViewMode(mode) {
   const previousMode = viewMode;
   viewMode = mode;
   els.viewModeTabs.forEach((btn) => btn.classList.toggle('view-mode-tab-active', btn.dataset.viewModeTab === mode));
@@ -433,10 +448,23 @@ function setViewMode(mode) {
   const forward = VIEW_MODE_ORDER.indexOf(mode) > VIEW_MODE_ORDER.indexOf(previousMode);
   const fromEl = viewModeElement(previousMode);
 
+  // Il contenitore anima già il proprio ingresso (view-fluid-entering): far
+  // rifare la stessa cosa a ogni singola card sommerebbe le due animazioni,
+  // dando l'impressione che tutto si restringa per poi riassestarsi.
+  setListStatic(true);
   renderModeContent(mode);
   const toEl = viewModeElement(mode);
 
-  animateFluidSwap(fromEl, toEl, forward);
+  viewModeBusy = true;
+  animateFluidSwap(fromEl, toEl, forward, () => {
+    viewModeBusy = false;
+    setListStatic(false);
+    if (queuedViewMode) {
+      const next = queuedViewMode;
+      queuedViewMode = null;
+      if (next !== viewMode) applyViewMode(next);
+    }
+  });
 }
 
 function viewModeElement(mode) {
