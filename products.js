@@ -191,6 +191,8 @@ export function initProducts() {
   els.detailLowStock = document.getElementById('product-detail-lowstock');
   els.detailRows = document.getElementById('product-detail-rows');
   els.detailManualBtn = document.getElementById('product-detail-manual-btn');
+  els.detailDescrizioneWrap = document.getElementById('product-detail-descrizione-wrap');
+  els.detailDescrizione = document.getElementById('product-detail-descrizione');
   els.detailEditBtn = document.getElementById('product-detail-edit-btn');
   enableSheetDrag(els.detailModal.querySelector('.modal-panel'), () => closeDetail());
   els.detailCloseBtn.addEventListener('click', closeDetail);
@@ -996,15 +998,21 @@ function renderDetail(p) {
   }`;
   els.detailLowStock.classList.toggle('hidden', !lowStock);
 
+  // Descrizione: solo per i Ricambi tecnici, box dedicato subito sotto la testata
+  const isRicambi = p.categoria === 'pezzi_ricambio';
+  const descrizione = (p.punto_utilizzo_standard || '').trim();
+  els.detailDescrizioneWrap.classList.toggle('hidden', !isRicambi);
+  els.detailDescrizione.textContent = descrizione || '—';
+  els.detailDescrizione.classList.toggle('text-graphite-400', !descrizione);
+
   const hasMachine = p.categoria === 'cinghie' || p.categoria === 'pezzi_ricambio';
   const rows = [];
   if (hasMachine) {
     rows.push({ label: 'Linea', value: p.linea });
     rows.push({ label: 'Macchina', value: p.macchina });
   }
-  if (hasMachine || (p.punto_utilizzo_standard || '').trim()) {
-    const label = p.categoria === 'pezzi_ricambio' ? 'Descrizione' : 'Punto utilizzo standard';
-    rows.push({ label, value: p.punto_utilizzo_standard });
+  if (!isRicambi && (hasMachine || (p.punto_utilizzo_standard || '').trim())) {
+    rows.push({ label: 'Punto utilizzo standard', value: p.punto_utilizzo_standard });
   }
   rows.push({ label: 'Codice a barre', value: p.codice_barre, mono: true, print: !!(p.codice_barre || '').trim() });
 
