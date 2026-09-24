@@ -582,10 +582,10 @@
               </span>
               <i data-lucide="chevron-right" class="w-4 h-4 text-graphite-500"></i>
             </button>
-            <button id="applications-manage-btn" type="button" class="w-full flex items-center justify-between gap-2 rounded-lg border border-graphite-700 hover:bg-graphite-800 px-3.5 py-2.5 text-sm font-display font-semibold uppercase tracking-wide transition-colors min-h-[44px]">
+            <button id="settings-report-btn" type="button" class="w-full flex items-center justify-between gap-2 rounded-lg border border-graphite-700 hover:bg-graphite-800 px-3.5 py-2.5 text-sm font-display font-semibold uppercase tracking-wide transition-colors min-h-[44px]">
               <span class="flex items-center gap-2">
-                <i data-lucide="layout-grid" class="w-4 h-4"></i>
-                Applicazioni
+                <i data-lucide="chart-column" class="w-4 h-4"></i>
+                Report
               </span>
               <i data-lucide="chevron-right" class="w-4 h-4 text-graphite-500"></i>
             </button>
@@ -656,28 +656,6 @@
       </div>
     </div>
 
-    <!-- =================== MODALE APPLICAZIONI (Admin) =================== -->
-    <div id="applications-modal" class="modal-overlay hidden fixed inset-0 z-[92] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm px-0 sm:px-4">
-      <div class="modal-panel w-full sm:max-w-md bg-graphite-900 border border-graphite-700 rounded-t-2xl sm:rounded-2xl max-h-[85vh] flex flex-col">
-        <div data-sheet-drag class="sheet-grabber sm:hidden"><span class="sheet-grabber-pill"></span></div>
-        <div data-sheet-drag class="flex items-center justify-between px-5 pb-3 pt-1 sm:pt-3 border-b border-graphite-800 shrink-0">
-          <h3 class="font-display font-bold text-lg uppercase tracking-wide">Applicazioni</h3>
-          <button id="applications-modal-close" aria-label="Chiudi" class="modal-close modal-close--on-light">
-            <i data-lucide="x" class="w-6 h-6" stroke-width="2.5"></i>
-          </button>
-        </div>
-        <div class="flex-1 overflow-y-auto px-5 py-4">
-          <div class="grid grid-cols-3 gap-3">
-            <button id="applications-report-tile" type="button" class="press-spring card-plate rounded-2xl flex flex-col items-center justify-center gap-2 py-5 px-2 border-2 border-graphite-700">
-              <span class="w-11 h-11 rounded-xl bg-amber-400/10 border border-amber-500/30 flex items-center justify-center">
-                <i data-lucide="chart-column" class="w-5 h-5 text-amber-300" stroke-width="1.8"></i>
-              </span>
-              <span class="ui-label whitespace-nowrap font-display font-semibold uppercase tracking-wide">Report</span>
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
 
     <!-- =================== MODALE GESTIONE UTENTI (Admin) =================== -->
     <div id="users-modal" class="modal-overlay hidden fixed inset-0 z-[92] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm px-0 sm:px-4">

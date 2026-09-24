@@ -10,7 +10,6 @@ import { initUsers, refreshUsers } from './users.js';
 import { initMachines } from './machines.js';
 import { initManuals } from './manuals.js';
 import { initManualsBrowser, enterManualsBrowser, resetManualsBrowser } from './manuals-browser.js';
-import { initApplications } from './applications.js';
 import { initHistoryAdmin } from './history-admin.js';
 import { initPicker } from './picker.js';
 import feedback, { initFeedbackSettings } from './feedback.js';
@@ -62,7 +61,6 @@ function onAuthed(profile) {
     initMachines();
     initManuals();
     initManualsBrowser();
-    initApplications();
     initHistoryAdmin();
     initNav();
     initFeedbackSettings();
@@ -141,6 +139,9 @@ function initNav() {
   });
   document.getElementById('settings-btn').addEventListener('click', () => {
     switchView('settings', { onStart: () => feedback.navTap() });
+  });
+  document.getElementById('settings-report-btn')?.addEventListener('click', () => {
+    switchView('dashboard');
   });
 }
 
