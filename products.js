@@ -111,7 +111,7 @@ const CATEGORY_IMPORT_CONFIG = {
     }),
   },
   pezzi_ricambio: {
-    hint: 'Colonne A→G: Codice, Locazione, Quantità, Linea, Macchina, Punto di utilizzo, Scorta minima.',
+    hint: 'Colonne A→G: Codice, Locazione, Quantità, Linea, Macchina, Descrizione, Scorta minima.',
     mapRow: (c) => ({
       codice_articolo: c[0],
       locazione: c[1] || null,
@@ -826,6 +826,36 @@ function updateLineaMacchinaVisibility() {
   els.lineaMacchinaWrap.classList.toggle('hidden', categoria !== 'cinghie' && categoria !== 'pezzi_ricambio');
   updateGenerateBarcodeVisibility();
   updateManualButtonVisibility();
+  updatePuntoStandardField(categoria);
+}
+
+/**
+ * Per i Ricambi tecnici il campo "Punto utilizzo standard" diventa "Descrizione":
+ * stesso campo del database (punto_utilizzo_standard), ma spostato subito sotto il
+ * codice articolo e a piena larghezza, come richiesto per quella categoria. Per le
+ * altre categorie resta "Punto utilizzo standard", appaiato alla Locazione magazzino.
+ */
+function updatePuntoStandardField(categoria) {
+  const topSlot = document.getElementById('product-punto-standard-top-slot');
+  const wrap = document.getElementById('product-punto-standard-wrap');
+  const label = document.getElementById('product-punto-standard-label');
+  const input = document.getElementById('product-punto-standard');
+  const locazioneRow = document.getElementById('product-locazione-row');
+  if (!topSlot || !wrap || !label || !input || !locazioneRow) return;
+
+  if (categoria === 'pezzi_ricambio') {
+    label.textContent = 'Descrizione';
+    input.placeholder = 'es. Guarnizione pompa dosatrice';
+    topSlot.appendChild(wrap);
+    locazioneRow.classList.remove('grid-cols-2');
+    locazioneRow.classList.add('grid-cols-1');
+  } else {
+    label.textContent = 'Punto utilizzo standard';
+    input.placeholder = 'es. Linea 2';
+    locazioneRow.classList.remove('grid-cols-1');
+    locazioneRow.classList.add('grid-cols-2');
+    locazioneRow.insertBefore(wrap, locazioneRow.firstChild);
+  }
 }
 
 /**
@@ -973,7 +1003,8 @@ function renderDetail(p) {
     rows.push({ label: 'Macchina', value: p.macchina });
   }
   if (hasMachine || (p.punto_utilizzo_standard || '').trim()) {
-    rows.push({ label: 'Punto utilizzo standard', value: p.punto_utilizzo_standard });
+    const label = p.categoria === 'pezzi_ricambio' ? 'Descrizione' : 'Punto utilizzo standard';
+    rows.push({ label, value: p.punto_utilizzo_standard });
   }
   rows.push({ label: 'Codice a barre', value: p.codice_barre, mono: true, print: !!(p.codice_barre || '').trim() });
 

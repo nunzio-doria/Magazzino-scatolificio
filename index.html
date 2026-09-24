@@ -822,6 +822,9 @@
         <label class="block text-xs font-display font-semibold uppercase tracking-wide text-graphite-400 mb-1.5">Codice articolo *</label>
         <input id="product-codice-articolo" required type="text" class="w-full rounded-lg bg-graphite-800 border border-graphite-700 px-3.5 py-2.5 font-mono text-sm focus:border-amber-400 outline-none transition-colors">
       </div>
+      <!-- Punto d'inserimento: per i Ricambi tecnici il campo "Punto utilizzo standard" viene
+           spostato qui (via JS) e mostrato come "Descrizione", a piena larghezza come il codice. -->
+      <div id="product-punto-standard-top-slot"></div>
       <div id="product-linea-macchina-wrap" class="hidden grid grid-cols-2 gap-3">
         <div>
           <label class="block text-xs font-display font-semibold uppercase tracking-wide text-graphite-400 mb-1.5">Linea</label>
@@ -850,12 +853,12 @@
         </span>
         <i data-lucide="chevron-right" class="w-4 h-4 shrink-0"></i>
       </button>
-      <div class="grid grid-cols-2 gap-3">
-        <div>
-          <label class="block text-xs font-display font-semibold uppercase tracking-wide text-graphite-400 mb-1.5">Punto utilizzo standard</label>
+      <div id="product-locazione-row" class="grid grid-cols-2 gap-3">
+        <div id="product-punto-standard-wrap">
+          <label id="product-punto-standard-label" class="block text-xs font-display font-semibold uppercase tracking-wide text-graphite-400 mb-1.5">Punto utilizzo standard</label>
           <input id="product-punto-standard" type="text" placeholder="es. Linea 2" class="w-full rounded-lg bg-graphite-800 border border-graphite-700 px-3.5 py-2.5 text-sm focus:border-amber-400 outline-none transition-colors">
         </div>
-        <div>
+        <div id="product-locazione-wrap">
           <label class="block text-xs font-display font-semibold uppercase tracking-wide text-graphite-400 mb-1.5">Locazione magazzino</label>
           <input id="product-locazione" type="text" placeholder="es. A-12-3" class="w-full rounded-lg bg-graphite-800 border border-graphite-700 px-3.5 py-2.5 text-sm focus:border-amber-400 outline-none transition-colors">
         </div>
