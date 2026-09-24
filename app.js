@@ -9,6 +9,8 @@ import { initDashboard, enterDashboard, resetDashboard, refresh as refreshDashbo
 import { initUsers, refreshUsers } from './users.js';
 import { initMachines } from './machines.js';
 import { initManuals } from './manuals.js';
+import { initManualsBrowser, enterManualsBrowser, resetManualsBrowser } from './manuals-browser.js';
+import { initApplications } from './applications.js';
 import { initHistoryAdmin } from './history-admin.js';
 import { initPicker } from './picker.js';
 import feedback, { initFeedbackSettings } from './feedback.js';
@@ -17,11 +19,11 @@ import { processTransaction, adjustCachedProductQuantity, bumpProductsVersion } 
 import { toastSuccess, toastError } from './toast.js';
 import { closeAllOverlays } from './ui-utils.js';
 
-const VIEWS = ['scanner', 'products', 'dashboard', 'settings'];
+const VIEWS = ['scanner', 'products', 'manuals', 'dashboard', 'settings'];
 // Titolo mostrato in alto nell'header: stessi nomi della barra di navigazione
 // in basso, così l'utente legge sempre "dove si trova" invece del nome fisso
 // dell'app.
-const VIEW_TITLES = { scanner: 'Movimenti', products: 'Magazzino', dashboard: 'Report', settings: 'Impostazioni' };
+const VIEW_TITLES = { scanner: 'Movimenti', products: 'Magazzino', manuals: 'Manuali', dashboard: 'Report', settings: 'Impostazioni' };
 let modulesInitialized = false;
 let currentView = null;
 let isTransitioning = false;
@@ -59,6 +61,8 @@ function onAuthed(profile) {
     initUsers();
     initMachines();
     initManuals();
+    initManualsBrowser();
+    initApplications();
     initHistoryAdmin();
     initNav();
     initFeedbackSettings();
@@ -110,6 +114,7 @@ function onSignedOut() {
     teardownProducts();
     resetProducts(); // al prossimo accesso la lista si ricarica da capo (e non resta quella di un altro utente)
     resetDashboard();
+    resetManualsBrowser();
     for (const v of VIEWS) {
       document.getElementById(`view-${v}`)?.classList.add('hidden');
       document.querySelector(`[data-nav-target="${v}"]`)?.classList.remove('nav-active');
@@ -240,6 +245,7 @@ export function switchView(view, { animate = true, onStart } = {}) {
     // Magazzino: caricamento completo solo al primo ingresso dopo l'accesso; ai rientri la
     // lista già in memoria compare subito (se qualcosa è cambiato si aggiorna in silenzio).
     if (view === 'products') enterProducts();
+    if (view === 'manuals') enterManualsBrowser();
     if (view === 'dashboard') enterDashboard();
     if (view === 'settings' && isAdmin()) {
       refreshUsers();
