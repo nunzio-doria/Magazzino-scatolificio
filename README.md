@@ -28,6 +28,8 @@ app.js                       Entry point: routing tra viste, transizioni glass, 
 
 ## Novità di questa sessione
 
+**Magazzino senza vista a elenco + scheda articolo in sola lettura** — la vista "Elenco" è stata eliminata. I **Cuscinetti** mostrano sempre la scaffalatura (nessun selettore; la ricerca resta per codice o scaffale); **Cinghie** e **Ricambi tecnici** hanno il selettore Scaffalatura / Macchina, con la scaffalatura di default. Toccando un articolo non si apre più il modulo di modifica ma una **scheda di sola lettura** (categoria, codice, locazione, quantità disponibile, linea, macchina, punto di utilizzo, codice a barre; la scorta minima non compare). Per i Ricambi tecnici con manuale caricato c'è un pulsante con sola icona per aprirlo. Solo l'Admin vede in basso il **pulsante tondo a matita** che apre il modulo di modifica completo; annullando si torna alla scheda.
+
 **Campo "Descrizione" rimosso completamente** — era causa di doppioni nell'elenco articoli (mostrava il codice due volte quando la descrizione era vuota). Rimosso da form, ricerca, database e dagli output PDF/report.
 
 **Elenco Magazzino senza doppioni** — ogni riga mostra il **codice articolo in grassetto** in alto, e sotto in piccolo locazione, macchina, punto di utilizzo e linea (solo i campi effettivamente valorizzati).

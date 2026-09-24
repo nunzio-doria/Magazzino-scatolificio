@@ -338,17 +338,14 @@
         <button type="button" data-category-tab="pezzi_ricambio" class="category-tab card-plate rounded-lg min-h-[44px] px-1.5 py-1.5 flex items-center justify-center text-center leading-tight text-xs font-display font-semibold uppercase tracking-wide border-2 border-graphite-700">Ricambi tecnici</button>
       </div>
 
-      <!-- Toggle modalità di visualizzazione: elenco piatto, scaffalatura per
-           locazione, o riordino per macchina (quest'ultimo solo per le
-           categorie che hanno senso — mostrato/nascosto via JS in base alla categoria) -->
-      <div class="inline-flex max-w-full overflow-x-auto rounded-lg border border-graphite-700 bg-graphite-800 p-0.5 mb-4">
-        <button type="button" data-view-mode-tab="list" class="view-mode-tab view-mode-tab-active flex items-center justify-center gap-1.5 rounded-md px-2.5 sm:px-3 py-1.5 whitespace-nowrap text-xs font-display font-semibold uppercase tracking-wide min-h-[44px]">
-          <i data-lucide="list" class="w-3.5 h-3.5" stroke-width="2"></i>Elenco
-        </button>
-        <button type="button" data-view-mode-tab="shelf" class="view-mode-tab flex items-center justify-center gap-1.5 rounded-md px-2.5 sm:px-3 py-1.5 whitespace-nowrap text-xs font-display font-semibold uppercase tracking-wide min-h-[44px]">
+      <!-- Toggle modalità di visualizzazione: scaffalatura per locazione (default) o
+           riordino per macchina. Visibile solo per Cinghie e Ricambi tecnici: i Cuscinetti
+           mostrano sempre la scaffalatura, senza selettore (gestito via JS in base alla categoria) -->
+      <div id="product-view-mode-wrap" class="hidden inline-flex max-w-full overflow-x-auto rounded-lg border border-graphite-700 bg-graphite-800 p-0.5 mb-4">
+        <button type="button" data-view-mode-tab="shelf" class="view-mode-tab view-mode-tab-active flex items-center justify-center gap-1.5 rounded-md px-2.5 sm:px-3 py-1.5 whitespace-nowrap text-xs font-display font-semibold uppercase tracking-wide min-h-[44px]">
           <i data-lucide="layout-grid" class="w-3.5 h-3.5" stroke-width="2"></i>Scaffalatura
         </button>
-        <button type="button" data-view-mode-tab="machine" class="view-mode-tab hidden flex items-center justify-center gap-1.5 rounded-md px-2.5 sm:px-3 py-1.5 whitespace-nowrap text-xs font-display font-semibold uppercase tracking-wide min-h-[44px]">
+        <button type="button" data-view-mode-tab="machine" class="view-mode-tab flex items-center justify-center gap-1.5 rounded-md px-2.5 sm:px-3 py-1.5 whitespace-nowrap text-xs font-display font-semibold uppercase tracking-wide min-h-[44px]">
           <i data-lucide="wrench" class="w-3.5 h-3.5" stroke-width="2"></i>Macchina
         </button>
       </div>
@@ -403,7 +400,6 @@
         <div class="skeleton h-16 w-full"></div>
         <div class="skeleton h-16 w-full"></div>
       </div>
-      <div id="product-list" class="hidden space-y-2"></div>
       <div id="product-shelf-view" class="hidden space-y-2.5"></div>
       <div id="product-machine-view" class="hidden space-y-2.5"></div>
       <div id="product-empty-state" class="hidden flex flex-col items-center gap-2.5 py-10">
@@ -744,6 +740,61 @@
       </button>
     </div>
   </nav>
+</div>
+
+<!-- =================== SCHEDA ARTICOLO (sola lettura) ===================
+     Si apre toccando un articolo. Nessun campo da compilare: etichette a sinistra, valori
+     allineati a destra. Il pulsante tondo con la matita (solo Admin) apre il modale di modifica. -->
+<div id="product-detail-modal" class="modal-overlay hidden fixed inset-0 z-[89] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm px-0 sm:px-4">
+  <div class="modal-panel w-full sm:max-w-md bg-graphite-900 border border-graphite-700 rounded-t-2xl sm:rounded-2xl max-h-[92vh] flex flex-col">
+    <div data-sheet-drag class="sheet-grabber sm:hidden"><span class="sheet-grabber-pill"></span></div>
+    <div data-sheet-drag class="flex items-center justify-between px-5 pb-3 pt-1 sm:pt-3 border-b border-graphite-800 shrink-0">
+      <h3 class="font-display font-bold text-lg uppercase tracking-wide">Dettaglio articolo</h3>
+      <button id="product-detail-close" type="button" aria-label="Chiudi" class="modal-close modal-close--on-light">
+        <i data-lucide="x" class="w-6 h-6" stroke-width="2.5"></i>
+      </button>
+    </div>
+
+    <div class="flex-1 overflow-y-auto p-5 space-y-3">
+      <!-- Testata: categoria, codice articolo e (solo Ricambi tecnici con manuale) pulsante manuale -->
+      <div class="card-plate rounded-xl p-4 flex items-center justify-between gap-3">
+        <div class="min-w-0">
+          <p id="product-detail-category" class="ui-label font-display font-semibold uppercase tracking-wide text-graphite-400"></p>
+          <p id="product-detail-code" class="font-display font-bold text-2xl leading-tight break-words mt-0.5"></p>
+        </div>
+        <button id="product-detail-manual-btn" type="button" aria-label="Apri manuale ricambi" title="Apri manuale ricambi e cerca il codice"
+          class="hidden press-spring shrink-0 w-12 h-12 rounded-xl border border-amber-500/30 bg-amber-400/10 hover:bg-amber-400/15 text-amber-300 flex items-center justify-center transition-colors">
+          <i data-lucide="book-open" class="w-6 h-6" stroke-width="1.8"></i>
+        </button>
+      </div>
+
+      <!-- Locazione e quantità: i due dati che servono di più, in grande -->
+      <div class="grid grid-cols-2 gap-3">
+        <div class="card-plate rounded-xl p-4 min-w-0">
+          <p class="ui-label font-display font-semibold uppercase tracking-wide text-graphite-400">Locazione magazzino</p>
+          <p id="product-detail-locazione" class="font-display font-bold text-xl leading-tight break-words mt-1.5"></p>
+        </div>
+        <div class="card-plate rounded-xl p-4 min-w-0">
+          <p class="ui-label font-display font-semibold uppercase tracking-wide text-graphite-400">Quantità disponibile</p>
+          <div class="flex flex-wrap items-center gap-x-2 gap-y-1 mt-1.5">
+            <span id="product-detail-quantita" class="inline-block px-3 py-0.5 rounded-full font-mono font-bold text-xl"></span>
+            <span id="product-detail-lowstock" class="hidden ui-label whitespace-nowrap font-display font-semibold uppercase tracking-wide text-rose-700">sotto scorta</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Altri dati: una riga per campo, etichetta a sinistra e valore a destra -->
+      <dl id="product-detail-rows" class="card-plate rounded-xl"></dl>
+    </div>
+
+    <!-- Solo Admin: pulsante tondo di modifica, sola icona -->
+    <div data-admin-only class="hidden shrink-0 flex justify-end px-5 pt-1 pb-5">
+      <button id="product-detail-edit-btn" type="button" aria-label="Modifica articolo" title="Modifica articolo"
+        class="fab-round press-spring w-14 h-14 rounded-full bg-amber-400 hover:bg-amber-300 text-white flex items-center justify-center">
+        <i data-lucide="pencil" class="w-6 h-6" stroke-width="2"></i>
+      </button>
+    </div>
+  </div>
 </div>
 
 <!-- =================== MODALE ARTICOLO (Admin) =================== -->

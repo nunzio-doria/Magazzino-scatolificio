@@ -46,13 +46,15 @@ let currentCategory = 'cuscinetti';
 let importCategory = 'cuscinetti';
 let lineaFilterValue = '';
 let macchinaFilterValue = '';
-let viewMode = 'list'; // 'list' | 'shelf' | 'machine'
-const VIEW_MODE_ORDER = ['list', 'shelf', 'machine']; // determina la direzione della transizione
+let viewMode = 'shelf'; // 'shelf' | 'machine' — la vista a elenco non esiste più
+const VIEW_MODE_ORDER = ['shelf', 'machine']; // determina la direzione della transizione
+let detailProduct = null; // articolo mostrato nella scheda di sola lettura
+let returnToDetail = null; // se il modale di modifica è stato aperto dalla scheda, articolo a cui tornare annullando
 const openShelves = new Set(); // locazioni espanse, persiste tra i refresh
 const openMachines = new Set(); // macchine espanse, persiste tra i refresh
-// Il riordino per macchina ha senso solo dove l'articolo è davvero legato a
-// una macchina specifica: cinghie e pezzi di ricambio. I cuscinetti sono
-// stock generico, senza questa associazione.
+// Il selettore Scaffalatura/Macchina e il riordino per macchina hanno senso solo dove
+// l'articolo è davvero legato a una macchina specifica: cinghie e pezzi di ricambio. I
+// cuscinetti sono stock generico: mostrano sempre e solo la scaffalatura, senza selettore.
 const MACHINE_VIEW_CATEGORIES = ['cinghie', 'pezzi_ricambio'];
 
 // --- UNDO / REDO -----------------------------------------------------
@@ -146,7 +148,6 @@ export function initProducts() {
   els.scanSearchBtn = document.getElementById('product-scan-search-btn');
   els.searchScannerWrap = document.getElementById('product-search-scanner-wrap');
   els.searchScannerCloseBtn = document.getElementById('product-search-scanner-close');
-  els.listWrap = document.getElementById('product-list');
   els.skeleton = document.getElementById('product-list-skeleton');
   els.emptyState = document.getElementById('product-empty-state');
   els.newBtn = document.getElementById('product-new-btn');
@@ -155,9 +156,9 @@ export function initProducts() {
   els.lowStockToggle = document.getElementById('product-lowstock-toggle');
   els.categoryTabs = document.querySelectorAll('[data-category-tab]');
   els.viewModeTabs = document.querySelectorAll('[data-view-mode-tab]');
+  els.viewModeWrap = document.getElementById('product-view-mode-wrap');
   els.shelfView = document.getElementById('product-shelf-view');
   els.machineView = document.getElementById('product-machine-view');
-  els.machineViewTab = document.querySelector('[data-view-mode-tab="machine"]');
   els.lineaFilterWrap = document.getElementById('product-linea-filter-wrap');
   els.lineaFilterBtn = document.getElementById('product-linea-filter-btn');
   els.lineaFilterValue = document.getElementById('product-linea-filter-value');
@@ -178,6 +179,32 @@ export function initProducts() {
   els.excelCloseBtn?.addEventListener('click', () => closeOverlay(els.excelModal));
   els.excelModal?.addEventListener('click', (e) => {
     if (e.target === els.excelModal) closeOverlay(els.excelModal);
+  });
+
+  // Scheda articolo (sola lettura): si apre toccando un articolo
+  els.detailModal = document.getElementById('product-detail-modal');
+  els.detailCloseBtn = document.getElementById('product-detail-close');
+  els.detailCategory = document.getElementById('product-detail-category');
+  els.detailCode = document.getElementById('product-detail-code');
+  els.detailLocazione = document.getElementById('product-detail-locazione');
+  els.detailQuantita = document.getElementById('product-detail-quantita');
+  els.detailLowStock = document.getElementById('product-detail-lowstock');
+  els.detailRows = document.getElementById('product-detail-rows');
+  els.detailManualBtn = document.getElementById('product-detail-manual-btn');
+  els.detailEditBtn = document.getElementById('product-detail-edit-btn');
+  enableSheetDrag(els.detailModal.querySelector('.modal-panel'), () => closeDetail());
+  els.detailCloseBtn.addEventListener('click', closeDetail);
+  // Sola lettura: nessun dato si perde, quindi si può chiudere anche toccando lo sfondo
+  els.detailModal.addEventListener('click', (e) => {
+    if (e.target === els.detailModal) closeDetail();
+  });
+  els.detailEditBtn.addEventListener('click', editFromDetail);
+  els.detailManualBtn.addEventListener('click', () => {
+    if (!detailProduct?.macchina) return;
+    openManualForMachineName(detailProduct.macchina, detailProduct.linea || '', detailProduct.codice_articolo);
+  });
+  els.detailRows.addEventListener('click', (e) => {
+    if (e.target.closest('[data-action="print"]')) printLabelFor(detailProduct?.codice_barre);
   });
 
   // Modale form
@@ -227,7 +254,7 @@ export function initProducts() {
   els.newBtn.addEventListener('click', () => openModal());
   els.undoBtn.addEventListener('click', undo);
   els.redoBtn.addEventListener('click', redo);
-  els.closeModalBtn.addEventListener('click', closeModal);
+  els.closeModalBtn.addEventListener('click', () => closeModal());
   els.form.addEventListener('submit', handleSubmit);
   els.deleteBtn.addEventListener('click', handleDelete);
   els.printLabelBtn.addEventListener('click', printCurrentLabel);
@@ -347,11 +374,11 @@ async function handleSearchScanDetected(code) {
     if (product.categoria && product.categoria !== currentCategory) setCategory(product.categoria);
     else refresh();
     // Recupera il record completo (get_product_by_barcode restituisce solo i
-    // campi che servono allo scanner) cosí la scheda mostra/permette di
-    // modificare anche linea/macchina/scorta minima, non solo i campi base.
+    // campi che servono allo scanner) cosí la scheda mostra anche
+    // linea/macchina/punto di utilizzo, non solo i campi base.
     try {
       const fullProduct = await getProductById(product.id);
-      openModal(fullProduct);
+      openDetail(fullProduct);
     } catch (modalErr) {
       console.warn('Impossibile aprire la scheda completa dell\'articolo.', modalErr);
     }
@@ -373,17 +400,21 @@ function setCategory(category) {
     macchinaFilterValue = '';
     updateFilterLabels();
   }
+  els.searchInput.placeholder = showLineaFilter
+    ? 'Cerca per codice, locazione, macchina, punto utilizzo…'
+    : 'Cerca per codice o scaffale…';
 
-  // Riordino per macchina: visibile solo per le categorie dove l'associazione
-  // a una macchina ha senso (cinghie, pezzi di ricambio) — non per i cuscinetti.
-  const showMachineView = MACHINE_VIEW_CATEGORIES.includes(category);
-  els.machineViewTab?.classList.toggle('hidden', !showMachineView);
-  if (!showMachineView && viewMode === 'machine') {
-    // La categoria appena scelta non supporta questa modalità: torna
-    // silenziosamente a Elenco, senza animazione (cambio di contesto, non
-    // un'azione dell'utente sul toggle).
-    viewMode = 'list';
-    els.viewModeTabs.forEach((btn) => btn.classList.toggle('view-mode-tab-active', btn.dataset.viewModeTab === 'list'));
+  // Selettore Scaffalatura/Macchina: solo per le categorie dove l'associazione a una
+  // macchina ha senso (cinghie, pezzi di ricambio). I cuscinetti mostrano sempre la
+  // scaffalatura, senza selettore.
+  const showViewToggle = MACHINE_VIEW_CATEGORIES.includes(category);
+  els.viewModeWrap?.classList.toggle('hidden', !showViewToggle);
+  if (!showViewToggle && viewMode !== 'shelf') {
+    // La categoria appena scelta non supporta il riordino per macchina: si torna
+    // silenziosamente alla scaffalatura, senza animazione (cambio di contesto, non
+    // un'azione dell'utente sul selettore).
+    viewMode = 'shelf';
+    els.viewModeTabs.forEach((btn) => btn.classList.toggle('view-mode-tab-active', btn.dataset.viewModeTab === 'shelf'));
   }
 
   refresh();
@@ -397,8 +428,8 @@ function setViewMode(mode) {
 
   if (currentList.length === 0) return; // l'empty state resta cosí com'è, nulla da animare
 
-  // Direzione della transizione coerente con l'ordine dei tab: Elenco →
-  // Scaffalatura → Macchina scivola "avanti", il percorso inverso "indietro".
+  // Direzione della transizione coerente con l'ordine dei tab: Scaffalatura →
+  // Macchina scivola "avanti", il percorso inverso "indietro".
   const forward = VIEW_MODE_ORDER.indexOf(mode) > VIEW_MODE_ORDER.indexOf(previousMode);
   const fromEl = viewModeElement(previousMode);
 
@@ -409,15 +440,12 @@ function setViewMode(mode) {
 }
 
 function viewModeElement(mode) {
-  if (mode === 'shelf') return els.shelfView;
-  if (mode === 'machine') return els.machineView;
-  return els.listWrap;
+  return mode === 'machine' ? els.machineView : els.shelfView;
 }
 
 function renderModeContent(mode) {
-  if (mode === 'shelf') renderShelves();
-  else if (mode === 'machine') renderByMachine();
-  else renderList();
+  if (mode === 'machine') renderByMachine();
+  else renderShelves();
 }
 
 function setImportCategory(category) {
@@ -516,7 +544,8 @@ export async function refresh() {
   const seq = ++refreshSeq;
   setListStatic(false); // caricamento "vero": gli elementi entrano con la loro animazione
   els.skeleton.classList.remove('hidden');
-  els.listWrap.classList.add('hidden');
+  els.shelfView.classList.add('hidden');
+  els.machineView.classList.add('hidden');
   els.emptyState.classList.add('hidden');
   try {
     const list = await fetchCurrentList();
@@ -555,7 +584,6 @@ function matchesLineaFilter(productLinea, wanted) {
 }
 
 function renderCurrentList() {
-  els.listWrap.classList.add('hidden');
   els.shelfView.classList.add('hidden');
   els.machineView.classList.add('hidden');
   els.emptyState.classList.add('hidden');
@@ -568,35 +596,6 @@ function renderCurrentList() {
   }
 
   renderModeContent(viewMode);
-}
-
-function renderList() {
-  els.listWrap.innerHTML = '';
-  els.listWrap.classList.remove('hidden');
-
-  currentList.forEach((p, i) => {
-    const lowStock = p.quantita_disponibile < p.scorta_minima;
-    const subtitleParts = [p.locazione, p.macchina, p.punto_utilizzo_standard, p.linea].filter(Boolean);
-    const row = document.createElement('button');
-    row.type = 'button';
-    row.className =
-      'list-item-in w-full text-left card-plate rounded-xl px-4 py-3 flex items-center justify-between gap-3 hover:border-amber-500/40 transition-colors';
-    row.style.setProperty('--i', staggerIndex(i));
-    row.innerHTML = `
-      <div class="min-w-0">
-        <p class="font-display font-bold text-graphite-100 truncate">${escapeHtml(p.codice_articolo)}</p>
-        <p class="text-xs text-graphite-500 mt-0.5 truncate">${escapeHtml(subtitleParts.join(' · ') || '—')}</p>
-      </div>
-      <div class="shrink-0 text-right">
-        <span class="inline-block px-2.5 py-1 rounded-full text-sm font-mono font-semibold ${
-          lowStock ? 'bg-rose-500/15 text-rose-700' : 'bg-graphite-700 text-graphite-200'
-        }">${p.quantita_disponibile}</span>
-        ${lowStock ? '<p class="ui-label whitespace-nowrap uppercase tracking-wide text-rose-700 mt-1">sotto scorta</p>' : ''}
-      </div>
-    `;
-    row.addEventListener('click', () => openModal(p));
-    els.listWrap.appendChild(row);
-  });
 }
 
 /**
@@ -712,13 +711,13 @@ function renderGroupedCards({ wrapEl, openSet, groupKeyFn, subtitleFields, unass
       else openSet.delete(key);
     });
 
-    // Sola lettura per l'operatore (vedi applyModalPermissions): può aprire
-    // la scheda, ma i campi risulteranno disabilitati.
+    // Toccando un articolo si apre la scheda di sola lettura (uguale per tutti); la
+    // modifica si raggiunge da lì con il pulsante a matita, riservato all'Admin.
     card.querySelectorAll('.shelf-item').forEach((btn) => {
       const product = items.find((p) => String(p.id) === btn.dataset.productId);
       btn.addEventListener('click', (e) => {
         e.stopPropagation();
-        openModal(product);
+        openDetail(product);
       });
       btn.classList.add('hover:bg-graphite-700/30', 'transition-colors');
     });
@@ -754,7 +753,8 @@ function applyModalPermissions() {
   els.modalTitle.textContent = readOnly ? 'Dettaglio articolo' : (editingId ? 'Modifica articolo' : 'Nuovo articolo');
 }
 
-function openModal(product = null) {
+function openModal(product = null, { fromDetail = false } = {}) {
+  returnToDetail = fromDetail ? product : null;
   editingId = product?.id || null;
   editingSnapshot = product ? { ...product } : null;
   els.deleteBtn.classList.toggle('hidden', !product);
@@ -871,9 +871,114 @@ function updateFilterLabels() {
   }
 }
 
-function closeModal() {
+/**
+ * Chiude il modale di modifica. Se era stato aperto dalla scheda articolo e si annulla
+ * (X o trascinamento), si torna alla scheda; dopo un salvataggio o un'eliminazione no
+ * (backToDetail: false), perché i dati mostrati sarebbero superati.
+ */
+function closeModal({ backToDetail = true } = {}) {
   stopBarcodeScan();
+  const back = backToDetail ? returnToDetail : null;
+  returnToDetail = null;
+  // Prima si apre la scheda, poi si chiude il modale: il blocco dello scroll non scende mai a zero
+  if (back) openDetail(back);
   closeOverlay(els.modal);
+}
+
+// --- SCHEDA ARTICOLO (sola lettura) ------------------------------------
+
+function openDetail(product) {
+  if (!product) return;
+  detailProduct = product;
+  renderDetail(product);
+  openOverlay(els.detailModal);
+
+  // Aggiorna in background la cache dei manuali (potrebbe essere stato caricato/rimosso
+  // da poco in Impostazioni) e ricalcola il pulsante, solo se la scheda è ancora la stessa.
+  const openedId = product.id;
+  refreshManualsCache().then(() => {
+    if (detailProduct?.id === openedId) updateDetailManualButton();
+  });
+}
+
+function closeDetail() {
+  detailProduct = null;
+  closeOverlay(els.detailModal);
+}
+
+/** Dalla scheda al modale di modifica (solo Admin): il pulsante è comunque nascosto agli operatori. */
+function editFromDetail() {
+  const product = detailProduct;
+  if (!product || !isAdmin()) return;
+  // Prima si apre il modale di modifica, poi si chiude la scheda: il blocco dello scroll non scende mai a zero
+  openModal(product, { fromDetail: true });
+  detailProduct = null;
+  closeOverlay(els.detailModal);
+}
+
+function detailValueHtml(value, { mono = false } = {}) {
+  const text = value === null || value === undefined ? '' : String(value).trim();
+  if (!text) return '<span class="detail-row-value detail-row-value--empty">—</span>';
+  return `<span class="detail-row-value${mono ? ' font-mono' : ''}">${escapeHtml(text)}</span>`;
+}
+
+function renderDetail(p) {
+  els.detailCategory.textContent = CATEGORY_LABELS[p.categoria] || '';
+  els.detailCode.textContent = p.codice_articolo || '—';
+
+  const locazione = (p.locazione || '').trim();
+  els.detailLocazione.textContent = locazione || '—';
+  els.detailLocazione.classList.toggle('text-graphite-400', !locazione);
+
+  const qty = p.quantita_disponibile ?? 0;
+  const lowStock = qty < (p.scorta_minima ?? 0); // la scorta minima non si mostra, si segnala solo se si è sotto
+  els.detailQuantita.textContent = qty;
+  els.detailQuantita.className = `inline-block px-3 py-0.5 rounded-full font-mono font-bold text-xl ${
+    lowStock ? 'bg-rose-500/15 text-rose-700' : 'bg-graphite-700 text-graphite-200'
+  }`;
+  els.detailLowStock.classList.toggle('hidden', !lowStock);
+
+  const hasMachine = p.categoria === 'cinghie' || p.categoria === 'pezzi_ricambio';
+  const rows = [];
+  if (hasMachine) {
+    rows.push({ label: 'Linea', value: p.linea });
+    rows.push({ label: 'Macchina', value: p.macchina });
+  }
+  if (hasMachine || (p.punto_utilizzo_standard || '').trim()) {
+    rows.push({ label: 'Punto utilizzo standard', value: p.punto_utilizzo_standard });
+  }
+  rows.push({ label: 'Codice a barre', value: p.codice_barre, mono: true, print: !!(p.codice_barre || '').trim() });
+
+  els.detailRows.innerHTML = rows
+    .map(
+      (r) => `
+      <div class="detail-row${r.print ? ' detail-row--center' : ''}">
+        <dt class="detail-row-label">${escapeHtml(r.label)}</dt>
+        <dd class="m-0 min-w-0 flex items-center justify-end gap-2">
+          ${detailValueHtml(r.value, { mono: r.mono })}
+          ${
+            r.print
+              ? `<button type="button" data-action="print" aria-label="Stampa etichetta PDF" title="Stampa etichetta PDF"
+                  class="shrink-0 w-11 h-11 rounded-lg bg-graphite-800 border border-graphite-700 hover:border-amber-400 text-graphite-300 hover:text-amber-400 flex items-center justify-center transition-colors">
+                  <i data-lucide="printer" class="w-5 h-5" stroke-width="1.6"></i>
+                </button>`
+              : ''
+          }
+        </dd>
+      </div>`
+    )
+    .join('');
+
+  updateDetailManualButton();
+  window.lucide?.createIcons();
+}
+
+/** Pulsante manuale (solo icona): solo per Ricambi tecnici, con una macchina che ha già un manuale PDF caricato. */
+function updateDetailManualButton() {
+  const p = detailProduct;
+  const hasManual =
+    !!p && p.categoria === 'pezzi_ricambio' && !!p.macchina && !!getManualForMachineName(p.macchina, p.linea || '');
+  els.detailManualBtn.classList.toggle('hidden', !hasManual);
 }
 
 function updateBarcodePreview() {
@@ -978,7 +1083,7 @@ async function handleSubmit(e) {
       feedback.confirmAction();
       toastSuccess('Articolo creato.');
     }
-    closeModal();
+    closeModal({ backToDetail: false });
     if (payload.categoria === currentCategory) refresh();
   } catch (err) {
     console.error(err);
@@ -1003,7 +1108,7 @@ async function handleDelete() {
     await deleteProduct(editingId);
     pushHistory({ type: 'delete', before, after: null });
     toastSuccess('Articolo eliminato.');
-    closeModal();
+    closeModal({ backToDetail: false });
     refresh();
     loadIdlePanel(); // la cronologia dell'articolo è sparita anche dagli "ultimi movimenti" in Scanner
   } catch (err) {
@@ -1081,7 +1186,12 @@ async function redo() {
 
 /** Genera un PDF stampabile con SOLO il barcode e il suo numero sotto (nessun testo aggiuntivo) */
 function printCurrentLabel() {
-  const barcode = document.getElementById('product-codice-barre').value.trim();
+  printLabelFor(document.getElementById('product-codice-barre').value.trim());
+}
+
+/** Stessa etichetta, per un barcode qualsiasi (usata sia dal modale di modifica sia dalla scheda articolo) */
+function printLabelFor(barcode) {
+  barcode = (barcode || '').trim();
   if (!barcode) {
     feedback.errorAction();
     toastError('Inserisci o genera un codice a barre prima di stampare.');
