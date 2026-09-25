@@ -10,7 +10,7 @@
 // puntuale del codice cercato.
 // =============================================================
 
-import { listMachineManuals, listOperatorManuals, getManualSignedUrl, normalizeMachineName } from './supabase.js';
+import { listMachineManuals, listOperatorManuals, listManualSections, getManualSignedUrl, normalizeMachineName } from './supabase.js';
 import { toastError, toastWarning } from './toast.js';
 import { openOverlay, closeOverlay } from './ui-utils.js';
 
@@ -36,6 +36,8 @@ let manualsByMachineName = new Map(); // nome macchina normalizzato (minuscolo) 
 let manualsTableMissing = false;
 let operatorManualsByMachineId = new Map(); // machine_id -> Array<riga machine_operator_manuals> (più di uno per macchina)
 let operatorManualsTableMissing = false;
+let sectionsByOperatorManualId = new Map(); // operator_manual_id -> Array<riga machine_manual_sections>, in ordine
+let sectionsTableMissing = false;
 
 const state = {
   pdfDoc: null,
@@ -64,9 +66,10 @@ const state = {
 /** Ricarica dal database le mappe machine_id/nome → { linea → manuale } (ricambi) e machine_id → [manuali] (operatore). Va richiamata dopo ogni upload/eliminazione. */
 export async function refreshManualsCache() {
   try {
-    const [{ manuals, tableMissing }, { manuals: opManuals, tableMissing: opTableMissing }] = await Promise.all([
+    const [{ manuals, tableMissing }, { manuals: opManuals, tableMissing: opTableMissing }, { sections, tableMissing: sectionsMissing }] = await Promise.all([
       listMachineManuals(),
       listOperatorManuals(),
+      listManualSections(),
     ]);
     manualsByMachineId = new Map();
     manualsByMachineName = new Map();
@@ -88,6 +91,13 @@ export async function refreshManualsCache() {
       operatorManualsByMachineId.get(row.machine_id).push(row);
     });
     operatorManualsTableMissing = opTableMissing;
+
+    sectionsByOperatorManualId = new Map();
+    sections.forEach((row) => {
+      if (!sectionsByOperatorManualId.has(row.operator_manual_id)) sectionsByOperatorManualId.set(row.operator_manual_id, []);
+      sectionsByOperatorManualId.get(row.operator_manual_id).push(row);
+    });
+    sectionsTableMissing = sectionsMissing;
   } catch (err) {
     console.warn('Impossibile caricare l\'elenco dei manuali.', err);
   }
@@ -139,6 +149,15 @@ export function getOperatorManualsForMachine(machineId) {
 
 export function isOperatorManualsTableMissing() {
   return operatorManualsTableMissing;
+}
+
+/** Tutte le sezioni/pulsanti (in ordine) definiti per un manuale operatore. */
+export function getSectionsForOperatorManual(operatorManualId) {
+  return sectionsByOperatorManualId.get(operatorManualId) || [];
+}
+
+export function isSectionsTableMissing() {
+  return sectionsTableMissing;
 }
 
 // --- CARICAMENTO LIBRERIA PDF.JS (CDN, caricata solo al primo utilizzo) --
@@ -236,6 +255,7 @@ function teardownPages() {
 /**
  * Apre il visualizzatore per un manuale già noto (riga machine_manuals).
  * @param {{ file_name: string, storage_path: string, bucket?: string }} manual `bucket` distingue manuali ricambi/operatore (vedi supabase.js); se assente si usa il bucket manuali ricambi.
+ * @param {{ searchTerm?: string, startPage?: number }} opts `startPage` apre il manuale già scorso a quella pagina (usato dai pulsanti/sezioni); ignorato se è presente `searchTerm`.
  * @param {{ searchTerm?: string }} [opts] se presente, cerca subito il codice e scorre alla prima pagina trovata
  */
 export async function openManualViewer(manual, opts = {}) {
@@ -275,6 +295,10 @@ export async function openManualViewer(manual, opts = {}) {
         toastWarning(`Codice "${opts.searchTerm}" non trovato nel manuale — apro comunque il manuale.`);
         await buildWindow(1, token);
       }
+    } else if (opts.startPage) {
+      const target = Math.min(Math.max(1, Math.round(opts.startPage)), state.numPages);
+      await scrollToPage(target);
+      if (token !== state.loadToken) return;
     } else {
       await buildWindow(1, token);
     }

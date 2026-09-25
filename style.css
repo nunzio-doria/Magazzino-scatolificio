@@ -424,6 +424,49 @@ input.peer:checked ~ span:first-of-type {
   .list-item-in { animation-duration: 1ms !important; animation-delay: 0ms !important; }
 }
 
+/* ---- Vista Manuali: due pannelli (elenco macchine / indice della macchina),
+   con uno scambio a scorrimento orizzontale invece di un accordion. Di
+   default il pannello dettaglio è pronto fuori schermo a destra; passando
+   #view-manuals a .manuals-detail-open i due pannelli si scambiano posto. --- */
+#view-manuals { position: relative; overflow-x: clip; }
+.manuals-panel {
+  transition: transform var(--dur-slow) var(--ease-inout), opacity var(--dur-slow) var(--ease-inout);
+}
+.manuals-panel-detail {
+  position: absolute;
+  inset: 0;
+  transform: translateX(24px);
+  opacity: 0;
+  pointer-events: none;
+}
+#view-manuals.manuals-detail-open #manuals-list-panel {
+  transform: translateX(-24px);
+  opacity: 0;
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+}
+#view-manuals.manuals-detail-open .manuals-panel-detail {
+  position: relative;
+  transform: translateX(0);
+  opacity: 1;
+  pointer-events: auto;
+}
+@media (prefers-reduced-motion: reduce) {
+  .manuals-panel { transition-duration: 1ms; }
+}
+
+/* Griglia pulsanti dell'indice macchina: tile quadrata, icona grande e
+   centrata, etichetta su 2 righe al massimo. */
+.manual-section-tile {
+  aspect-ratio: 1 / 1;
+}
+.manual-section-tile-icon {
+  width: 44%;
+  height: 44%;
+  object-fit: contain;
+}
+
 /* Empty state illustrati: entrano con un piccolo respiro invece di
    comparire di scatto quando una lista risulta vuota. */
 .empty-state-in {

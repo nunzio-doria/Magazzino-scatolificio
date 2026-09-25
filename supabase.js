@@ -517,6 +517,91 @@ export async function deleteOperatorManual(manual) {
   if (error) throw error;
 }
 
+// --- SEZIONI/PULSANTI DEL MANUALE OPERATORE (indice per intervallo di pagine) ---
+// Ogni riga è un pulsante che l'Admin definisce ("Mettifoglio", "Squadratura"…),
+// legato a UN manuale operatore preciso e a un intervallo di pagine al suo interno.
+// Le icone vivono in un bucket pubblico separato (sono solo grafiche, non documenti).
+const SECTION_ICONS_BUCKET = 'manuali-sezioni-icone';
+
+function isMissingSectionsTable(error) {
+  const msg = `${error?.message || ''} ${error?.details || ''}`;
+  return error?.code === 'PGRST205' || error?.code === '42P01' || (/machine_manual_sections/.test(msg) && /schema cache|does not exist/i.test(msg));
+}
+
+/**
+ * Elenco di tutte le sezioni/pulsanti definiti, per popolare la cache condivisa (manuals.js).
+ * @returns {Promise<{ sections: Array<{id:string, machine_id:string, operator_manual_id:string, label:string, icon_storage_path:string|null, page_start:number, page_end:number, sort_order:number}>, tableMissing: boolean }>}
+ */
+export async function listManualSections() {
+  const { data, error } = await supabase
+    .from('machine_manual_sections')
+    .select('id, machine_id, operator_manual_id, label, icon_storage_path, page_start, page_end, sort_order')
+    .order('sort_order', { ascending: true })
+    .order('created_at', { ascending: true });
+  if (error) {
+    if (isMissingSectionsTable(error)) return { sections: [], tableMissing: true };
+    throw error;
+  }
+  return { sections: data || [], tableMissing: false };
+}
+
+/** Carica l'icona di un pulsante nel bucket pubblico e restituisce il suo storage_path. Solo admin. */
+export async function uploadSectionIcon(file) {
+  if (!file) return null;
+  const safeName = file.name.replace(/[^\w.\-]+/g, '_');
+  const storagePath = `${Date.now()}_${safeName}`;
+  const { error } = await supabase.storage.from(SECTION_ICONS_BUCKET).upload(storagePath, file, { upsert: false });
+  if (error) {
+    if (/row-level security|not allowed|permission/i.test(error.message || '')) {
+      throw new Error('Solo un amministratore può caricare le icone.');
+    }
+    throw error;
+  }
+  return storagePath;
+}
+
+/** URL pubblico (permanente, il bucket delle icone non è privato) di un'icona. */
+export function getSectionIconUrl(storagePath) {
+  if (!storagePath) return null;
+  const { data } = supabase.storage.from(SECTION_ICONS_BUCKET).getPublicUrl(storagePath);
+  return data?.publicUrl || null;
+}
+
+/** Crea un nuovo pulsante/sezione per un manuale operatore. Solo admin. */
+export async function createManualSection({ machineId, operatorManualId, label, iconStoragePath, pageStart, pageEnd, sortOrder }) {
+  const { data: userData } = await supabase.auth.getUser();
+  const { data, error } = await supabase
+    .from('machine_manual_sections')
+    .insert({
+      machine_id: machineId,
+      operator_manual_id: operatorManualId,
+      label,
+      icon_storage_path: iconStoragePath || null,
+      page_start: pageStart,
+      page_end: pageEnd,
+      sort_order: sortOrder ?? 0,
+      created_by: userData?.user?.id || null,
+    })
+    .select()
+    .single();
+  if (error) {
+    if (isMissingSectionsTable(error)) {
+      throw new Error('La tabella delle sezioni non è ancora stata creata sul database.');
+    }
+    throw error;
+  }
+  return data;
+}
+
+/** Elimina un pulsante/sezione (e la sua icona, se presente). Solo admin. */
+export async function deleteManualSection(section) {
+  if (section.icon_storage_path) {
+    await supabase.storage.from(SECTION_ICONS_BUCKET).remove([section.icon_storage_path]);
+  }
+  const { error } = await supabase.from('machine_manual_sections').delete().eq('id', section.id);
+  if (error) throw error;
+}
+
 
 // --- TRANSAZIONI (deposito/prelievo) ------------------------------
 /**

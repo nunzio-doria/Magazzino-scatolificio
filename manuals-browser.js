@@ -1,35 +1,95 @@
 // =============================================================
 // manuals-browser.js — Vista "Manuali" (barra in basso, visibile a tutti:
-// Admin e Operatore). Una card ad accordion per ogni macchina registrata:
-// aperta, mostra tanti tab cliccabili quanti sono i manuali OPERATORE
-// assegnati alla macchina (uso e manutenzione, sicurezza, ecc. — quelli
-// caricati in Impostazioni → Gestione macchine), più un pulsante "SPARE
-// PARTS" in basso a destra per aprire il manuale ricambi della macchina
-// (quello già esistente, cercabile per codice dalla scheda articolo).
-//
-// Riusa deliberatamente lo stesso pattern shelf-card/shelf-header/
-// shelf-chevron/shelf-body-track già presente in products.js (vista
-// "Scaffalatura"), così l'apertura/chiusura delle card ha esattamente le
-// stesse animazioni del resto dell'app invece di introdurne di nuove.
+// Admin e Operatore). Due pannelli:
+//  1) elenco macchine, righe semplici (non espandibili) — toccarne una apre
+//  2) il dettaglio: un indice a griglia (3 per riga) di pulsanti personalizzati
+//     ("Mettifoglio", "Squadratura"…) definiti dall'Admin, ognuno legato a un
+//     intervallo di pagine di un manuale operatore; toccandolo si apre il PDF
+//     già scorso a quella pagina. In basso il pulsante "Spare parts" apre il
+//     manuale ricambi della macchina (quello cercabile per codice articolo).
+//     L'Admin trova qui anche il pulsante "+" per aggiungerne di nuovi.
 // =============================================================
 
-import { listMachinesWithCounts } from './supabase.js';
-import { refreshManualsCache, getOperatorManualsForMachine, getAnyManualForMachine, openManualViewer } from './manuals.js';
-import { staggerIndex } from './ui-utils.js';
-import { toastError, toastWarning } from './toast.js';
+import { listMachinesWithCounts, createManualSection, deleteManualSection, uploadSectionIcon, getSectionIconUrl } from './supabase.js';
+import { refreshManualsCache, getOperatorManualsForMachine, getSectionsForOperatorManual, getAnyManualForMachine, openManualViewer } from './manuals.js';
+import { staggerIndex, setButtonBusy, openOverlay, closeOverlay, enableSheetDrag } from './ui-utils.js';
+import { toastError, toastSuccess, toastWarning } from './toast.js';
+import { isAdmin } from './auth.js';
+import feedback from './feedback.js';
 
 const els = {};
 let loaded = false; // dopo il primo caricamento, i rientri nella vista non mostrano più lo scheletro
+let cachedMachines = [];
+let currentMachine = null;
+let pendingIconFile = null;
 
 export function initManualsBrowser() {
   els.skeleton = document.getElementById('manuals-browser-skeleton');
   els.list = document.getElementById('manuals-browser-list');
   els.empty = document.getElementById('manuals-browser-empty');
+
+  els.view = document.getElementById('view-manuals');
+  els.listPanel = document.getElementById('manuals-list-panel');
+  els.detailPanel = document.getElementById('manuals-detail-panel');
+  els.detailBack = document.getElementById('manuals-detail-back');
+  els.detailIconWrap = document.getElementById('manuals-detail-icon-wrap');
+  els.detailTitle = document.getElementById('manuals-detail-title');
+  els.detailGrid = document.getElementById('manuals-detail-grid');
+  els.detailEmpty = document.getElementById('manuals-detail-empty');
+  els.detailSpareBtn = document.getElementById('manuals-detail-spare-parts');
+
+  els.modal = document.getElementById('manual-section-modal');
+  els.modalClose = document.getElementById('manual-section-modal-close');
+  els.form = document.getElementById('manual-section-form');
+  els.noManualNotice = document.getElementById('manual-section-no-manual-notice');
+  els.labelInput = document.getElementById('manual-section-label');
+  els.manualSelect = document.getElementById('manual-section-manual');
+  els.pageStartInput = document.getElementById('manual-section-page-start');
+  els.pageEndInput = document.getElementById('manual-section-page-end');
+  els.iconInput = document.getElementById('manual-section-icon');
+  els.iconPreview = document.getElementById('manual-section-icon-preview');
+  els.iconPlaceholder = document.getElementById('manual-section-icon-placeholder');
+  els.submitBtn = document.getElementById('manual-section-submit');
+
+  if (!els.list) return; // markup non presente (non dovrebbe succedere)
+
+  els.detailBack?.addEventListener('click', closeMachineDetail);
+  els.detailSpareBtn?.addEventListener('click', () => {
+    if (!currentMachine) return;
+    const manual = getAnyManualForMachine(currentMachine.id);
+    if (!manual) {
+      toastWarning(`Nessun manuale ricambi caricato per "${currentMachine.nome}". Puoi caricarlo da Impostazioni → Gestione macchine.`);
+      return;
+    }
+    openManualViewer(manual);
+  });
+
+  els.modalClose?.addEventListener('click', () => closeOverlay(els.modal));
+  els.modal?.addEventListener('click', (e) => {
+    if (e.target === els.modal) closeOverlay(els.modal);
+  });
+  if (els.modal) enableSheetDrag(els.modal.querySelector('.modal-panel'), () => closeOverlay(els.modal));
+
+  els.iconInput?.addEventListener('change', () => {
+    const file = els.iconInput.files?.[0] || null;
+    pendingIconFile = file;
+    if (file) {
+      els.iconPreview.src = URL.createObjectURL(file);
+      els.iconPreview.classList.remove('hidden');
+      els.iconPlaceholder.classList.add('hidden');
+    } else {
+      els.iconPreview.classList.add('hidden');
+      els.iconPlaceholder.classList.remove('hidden');
+    }
+  });
+
+  els.form?.addEventListener('submit', handleCreateSection);
 }
 
 /** Richiamata da app.js ogni volta che si entra nella vista Manuali. */
 export async function enterManualsBrowser() {
   if (!els.list) return;
+  closeMachineDetail({ immediate: true });
   if (!loaded) {
     els.skeleton?.classList.remove('hidden');
     els.list.classList.add('hidden');
@@ -37,7 +97,8 @@ export async function enterManualsBrowser() {
   }
   try {
     const [{ machines }] = await Promise.all([listMachinesWithCounts(), refreshManualsCache()]);
-    render(machines.filter((m) => m.id)); // solo le macchine registrate possono avere un manuale collegato
+    cachedMachines = machines.filter((m) => m.id); // solo le macchine registrate possono avere un manuale collegato
+    renderList();
     loaded = true;
   } catch (err) {
     console.error(err);
@@ -50,94 +111,219 @@ export async function enterManualsBrowser() {
 /** Si richiama al logout, così il prossimo accesso (magari di un altro utente) ricarica da capo. */
 export function resetManualsBrowser() {
   loaded = false;
+  cachedMachines = [];
+  currentMachine = null;
 }
 
-function render(machines) {
+// ---------------------------------------------------------------- elenco --
+
+function sectionsCountForMachine(machine) {
+  return getOperatorManualsForMachine(machine.id).reduce((sum, m) => sum + getSectionsForOperatorManual(m.id).length, 0);
+}
+
+function renderList() {
   els.list.innerHTML = '';
-  if (machines.length === 0) {
+  if (cachedMachines.length === 0) {
     els.list.classList.add('hidden');
     els.empty?.classList.remove('hidden');
     return;
   }
   els.empty?.classList.add('hidden');
 
-  machines.forEach((machine, i) => {
-    const operatorManuals = getOperatorManualsForMachine(machine.id); // Array, uno per manuale caricato
-    const count = operatorManuals.length;
+  cachedMachines.forEach((machine, i) => {
+    const hasOperatorManual = getOperatorManualsForMachine(machine.id).length > 0;
+    const count = sectionsCountForMachine(machine);
+    const meta = !hasOperatorManual
+      ? 'nessun manuale operatore'
+      : count === 0
+        ? 'nessuna sezione creata'
+        : `${count} ${count === 1 ? 'sezione' : 'sezioni'}`;
 
-    const tabsHtml = operatorManuals
-      .map(
-        (manual, idx) => `
-          <button type="button" data-idx="${idx}" style="--i:${idx}"
-            class="shelf-item press-spring flex items-center gap-1.5 max-w-full rounded-lg border border-graphite-700 bg-graphite-900 hover:border-amber-500/40 hover:bg-white px-3 py-2 text-left transition-colors">
-            <i data-lucide="file-text" class="w-3.5 h-3.5 shrink-0 text-graphite-500"></i>
-            <span class="min-w-0 truncate text-sm text-graphite-100">${escapeHtml(manual.file_name)}</span>
-          </button>
-        `
-      )
-      .join('');
-
-    const card = document.createElement('div');
-    card.className = 'list-item-in shelf-card card-plate rounded-xl';
-    card.style.setProperty('--i', staggerIndex(i));
-    card.innerHTML = `
-      <div class="shelf-header flex items-center justify-between gap-3 px-4 py-3.5 border-2 border-graphite-700 rounded-xl">
-        <div class="flex items-center gap-3 min-w-0">
-          <span class="shrink-0 w-9 h-9 rounded-lg bg-graphite-700/50 flex items-center justify-center">
-            <i data-lucide="cog" class="w-[18px] h-[18px] text-graphite-400" stroke-width="1.8"></i>
-          </span>
-          <div class="min-w-0">
-            <p class="font-display font-bold uppercase tracking-wide truncate">${escapeHtml(machine.nome)}</p>
-            <p class="ui-note text-graphite-500 mt-0.5">${
-              count ? `${count} ${count === 1 ? 'manuale operatore' : 'manuali operatore'}` : 'nessun manuale operatore'
-            }</p>
-          </div>
-        </div>
-        <i data-lucide="chevron-down" class="shelf-chevron w-5 h-5 text-graphite-400 shrink-0" stroke-width="2"></i>
-      </div>
-      <div class="shelf-body-track">
-        <div class="shelf-body-inner p-3 space-y-2">
-          ${
-            count
-              ? `<div class="flex flex-wrap gap-2">${tabsHtml}</div>`
-              : '<p class="ui-note italic text-graphite-600 px-1">Nessun manuale operatore caricato.</p>'
-          }
-          <div class="flex justify-end pt-1">
-            <button type="button" data-spare-parts style="--i:${count}"
-              class="shelf-item press-spring inline-flex items-center gap-1.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-white font-display font-bold uppercase tracking-wide text-xs px-3.5 py-2.5 shadow-lg shadow-amber-500/20">
-              <i data-lucide="cog" class="w-4 h-4" stroke-width="2.2"></i>
-              Spare parts
-            </button>
-          </div>
-        </div>
-      </div>
+    const row = document.createElement('button');
+    row.type = 'button';
+    row.className = 'list-item-in press-spring w-full flex items-center justify-between gap-3 px-4 py-3.5 card-plate rounded-xl';
+    row.style.setProperty('--i', staggerIndex(i));
+    row.innerHTML = `
+      <span class="flex items-center gap-3 min-w-0">
+        <span class="shrink-0 w-9 h-9 rounded-lg bg-graphite-700/50 flex items-center justify-center">
+          <i data-lucide="cog" class="w-[18px] h-[18px] text-graphite-400" stroke-width="1.8"></i>
+        </span>
+        <span class="min-w-0 text-left">
+          <span class="block font-display font-bold uppercase tracking-wide truncate">${escapeHtml(machine.nome)}</span>
+          <span class="block ui-note text-graphite-500 mt-0.5">${meta}</span>
+        </span>
+      </span>
+      <i data-lucide="chevron-right" class="w-5 h-5 text-graphite-400 shrink-0"></i>
     `;
-
-    card.querySelector('.shelf-header').addEventListener('click', () => {
-      card.classList.toggle('shelf-open');
-    });
-    card.querySelectorAll('[data-idx]').forEach((btn) => {
-      const manual = operatorManuals[Number(btn.dataset.idx)];
-      btn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        openManualViewer(manual);
-      });
-    });
-    card.querySelector('[data-spare-parts]').addEventListener('click', (e) => {
-      e.stopPropagation();
-      const manual = getAnyManualForMachine(machine.id);
-      if (!manual) {
-        toastWarning(`Nessun manuale ricambi caricato per "${machine.nome}". Puoi caricarlo da Impostazioni → Gestione macchine.`);
-        return;
-      }
-      openManualViewer(manual);
-    });
-
-    els.list.appendChild(card);
+    row.addEventListener('click', () => openMachineDetail(machine));
+    els.list.appendChild(row);
   });
 
   els.list.classList.remove('hidden');
   window.lucide?.createIcons();
+}
+
+// ---------------------------------------------------------------- dettaglio --
+
+function openMachineDetail(machine) {
+  currentMachine = machine;
+  els.detailTitle.textContent = machine.nome;
+  renderDetailGrid();
+  els.view?.classList.add('manuals-detail-open');
+  window.lucide?.createIcons();
+}
+
+function closeMachineDetail({ immediate = false } = {}) {
+  els.view?.classList.remove('manuals-detail-open');
+  if (immediate) currentMachine = null;
+}
+
+function renderDetailGrid() {
+  if (!currentMachine) return;
+  const machine = currentMachine;
+  const operatorManuals = getOperatorManualsForMachine(machine.id);
+  const sections = [];
+  operatorManuals.forEach((manual) => {
+    getSectionsForOperatorManual(manual.id).forEach((section) => sections.push({ section, manual }));
+  });
+
+  els.detailGrid.innerHTML = '';
+
+  sections.forEach(({ section, manual }, i) => {
+    const tile = document.createElement('button');
+    tile.type = 'button';
+    tile.className = 'manual-section-tile list-item-in press-spring card-plate rounded-2xl flex flex-col items-center justify-center gap-2 p-2 border-2 border-graphite-700';
+    tile.style.setProperty('--i', staggerIndex(i));
+    const iconUrl = section.icon_storage_path ? getSectionIconUrl(section.icon_storage_path) : null;
+    tile.innerHTML = `
+      <span class="manual-section-tile-icon flex items-center justify-center">
+        ${
+          iconUrl
+            ? `<img src="${escapeHtml(iconUrl)}" alt="" class="w-full h-full object-contain">`
+            : '<i data-lucide="book-open" class="w-full h-full text-graphite-400" stroke-width="1.6"></i>'
+        }
+      </span>
+      <span class="ui-label text-center leading-tight font-display font-semibold uppercase tracking-wide line-clamp-2">${escapeHtml(section.label)}</span>
+    `;
+    tile.addEventListener('click', () => openManualViewer(manual, { startPage: section.page_start }));
+    if (isAdmin()) {
+      tile.addEventListener(
+        'contextmenu',
+        (e) => {
+          e.preventDefault();
+          handleDeleteSection(section);
+        },
+        { passive: false }
+      );
+    }
+    els.detailGrid.appendChild(tile);
+  });
+
+  if (isAdmin()) {
+    const addTile = document.createElement('button');
+    addTile.type = 'button';
+    addTile.setAttribute('aria-label', `Aggiungi pulsante per ${machine.nome}`);
+    addTile.className = 'manual-section-tile list-item-in press-spring rounded-2xl flex flex-col items-center justify-center gap-2 p-2 border-2 border-dashed border-graphite-700 text-graphite-500 hover:text-amber-300 hover:border-amber-500/40 transition-colors';
+    addTile.style.setProperty('--i', staggerIndex(sections.length));
+    addTile.innerHTML = `
+      <i data-lucide="plus" class="w-7 h-7" stroke-width="1.8"></i>
+      <span class="ui-label text-center font-display font-semibold uppercase tracking-wide">Aggiungi</span>
+    `;
+    addTile.addEventListener('click', () => openAddSectionModal(machine));
+    els.detailGrid.appendChild(addTile);
+  }
+
+  const isEmpty = sections.length === 0 && !isAdmin();
+  els.detailGrid.classList.toggle('hidden', isEmpty);
+  els.detailEmpty?.classList.toggle('hidden', !isEmpty);
+
+  window.lucide?.createIcons();
+}
+
+async function handleDeleteSection(section) {
+  try {
+    await deleteManualSection(section);
+    feedback.deleteAction();
+    toastSuccess(`Pulsante "${section.label}" eliminato.`);
+    await refreshManualsCache();
+    renderDetailGrid();
+    renderList();
+  } catch (err) {
+    console.error(err);
+    feedback.errorAction();
+    toastError(err.message || 'Impossibile eliminare il pulsante.');
+  }
+}
+
+// ---------------------------------------------------------------- modale "Aggiungi pulsante" --
+
+function openAddSectionModal(machine) {
+  const operatorManuals = getOperatorManualsForMachine(machine.id);
+
+  els.form.reset();
+  pendingIconFile = null;
+  els.iconPreview.classList.add('hidden');
+  els.iconPlaceholder.classList.remove('hidden');
+
+  els.manualSelect.innerHTML = operatorManuals
+    .map((m) => `<option value="${m.id}">${escapeHtml(m.file_name)}</option>`)
+    .join('');
+
+  const hasManuals = operatorManuals.length > 0;
+  els.noManualNotice.classList.toggle('hidden', hasManuals);
+  els.manualSelect.disabled = !hasManuals;
+  els.labelInput.disabled = !hasManuals;
+  els.pageStartInput.disabled = !hasManuals;
+  els.pageEndInput.disabled = !hasManuals;
+  els.iconInput.disabled = !hasManuals;
+  els.submitBtn.disabled = !hasManuals;
+  els.submitBtn.classList.toggle('opacity-50', !hasManuals);
+
+  openOverlay(els.modal);
+}
+
+async function handleCreateSection(e) {
+  e.preventDefault();
+  if (!currentMachine) return;
+  const label = els.labelInput.value.trim();
+  const operatorManualId = els.manualSelect.value;
+  const pageStart = Number(els.pageStartInput.value);
+  const pageEnd = Number(els.pageEndInput.value);
+
+  if (!label || !operatorManualId) return;
+  if (!Number.isFinite(pageStart) || !Number.isFinite(pageEnd) || pageStart < 1 || pageEnd < pageStart) {
+    toastError('Controlla l\'intervallo di pagine: la pagina finale deve essere uguale o successiva a quella iniziale.');
+    return;
+  }
+
+  setButtonBusy(els.submitBtn, true);
+  try {
+    let iconStoragePath = null;
+    if (pendingIconFile) iconStoragePath = await uploadSectionIcon(pendingIconFile);
+
+    const sortOrder = getSectionsForOperatorManual(operatorManualId).length;
+    await createManualSection({
+      machineId: currentMachine.id,
+      operatorManualId,
+      label,
+      iconStoragePath,
+      pageStart,
+      pageEnd,
+      sortOrder,
+    });
+    feedback.confirmAction();
+    toastSuccess(`Pulsante "${label}" aggiunto.`);
+    closeOverlay(els.modal);
+    await refreshManualsCache();
+    renderDetailGrid();
+    renderList();
+  } catch (err) {
+    console.error(err);
+    feedback.errorAction();
+    toastError(err.message || 'Impossibile aggiungere il pulsante.');
+  } finally {
+    setButtonBusy(els.submitBtn, false);
+  }
 }
 
 function escapeHtml(str) {

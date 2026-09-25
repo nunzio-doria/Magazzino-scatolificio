@@ -413,28 +413,109 @@
 
     <!-- ============ VISTA MANUALI (barra in basso, visibile a tutti) ============ -->
     <section id="view-manuals" class="hidden">
-      <!-- Testata: card "app" con l'icona manuale + chiave inglese e il titolo della sezione -->
-      <div class="card-plate rounded-2xl p-6 mb-5 flex flex-col items-center text-center gap-3">
-        <span class="relative inline-flex w-16 h-16 rounded-2xl bg-amber-400/10 border border-amber-500/30 items-center justify-center">
-          <i data-lucide="book-open-text" class="w-8 h-8 text-amber-300" stroke-width="1.7"></i>
-          <span class="absolute -bottom-1.5 -right-1.5 w-7 h-7 rounded-full bg-graphite-800 border-2 border-graphite-900 flex items-center justify-center">
-            <i data-lucide="wrench" class="w-3.5 h-3.5 text-amber-300" stroke-width="2.2"></i>
+      <!-- Pannello 1: elenco macchine (righe semplici, non espandibili: toccare naviga al dettaglio) -->
+      <div id="manuals-list-panel" class="manuals-panel">
+        <!-- Testata: card "app" con l'icona manuale + chiave inglese e il titolo della sezione -->
+        <div class="card-plate rounded-2xl p-6 mb-5 flex flex-col items-center text-center gap-3">
+          <span class="relative inline-flex w-16 h-16 rounded-2xl bg-amber-400/10 border border-amber-500/30 items-center justify-center">
+            <i data-lucide="book-open-text" class="w-8 h-8 text-amber-300" stroke-width="1.7"></i>
+            <span class="absolute -bottom-1.5 -right-1.5 w-7 h-7 rounded-full bg-graphite-800 border-2 border-graphite-900 flex items-center justify-center">
+              <i data-lucide="wrench" class="w-3.5 h-3.5 text-amber-300" stroke-width="2.2"></i>
+            </span>
           </span>
-        </span>
-        <div>
-          <p class="font-display font-bold text-xl uppercase tracking-wide">Manuali</p>
-          <p class="ui-note text-graphite-500 mt-0.5">Manuali ricambi PDF, una macchina alla volta</p>
+          <div>
+            <p class="font-display font-bold text-xl uppercase tracking-wide">Manuali</p>
+            <p class="ui-note text-graphite-500 mt-0.5">Scegli una macchina per il suo indice</p>
+          </div>
         </div>
+
+        <div id="manuals-browser-skeleton" class="space-y-2">
+          <div class="skeleton h-16 w-full rounded-xl"></div>
+          <div class="skeleton h-16 w-full rounded-xl"></div>
+          <div class="skeleton h-16 w-full rounded-xl"></div>
+        </div>
+        <div id="manuals-browser-list" class="hidden space-y-2"></div>
+        <p id="manuals-browser-empty" class="hidden text-sm text-graphite-500 text-center py-6">Nessuna macchina ancora registrata.</p>
       </div>
 
-      <div id="manuals-browser-skeleton" class="space-y-2">
-        <div class="skeleton h-16 w-full rounded-xl"></div>
-        <div class="skeleton h-16 w-full rounded-xl"></div>
-        <div class="skeleton h-16 w-full rounded-xl"></div>
+      <!-- Pannello 2: dettaglio macchina (indice a griglia, 3 pulsanti per riga) -->
+      <div id="manuals-detail-panel" class="manuals-panel manuals-panel-detail">
+        <button id="manuals-detail-back" type="button" class="press-spring flex items-center gap-1.5 text-sm font-display font-semibold uppercase tracking-wide text-graphite-400 hover:text-graphite-100 mb-3 -ml-1 px-1 py-1.5 rounded-lg transition-colors">
+          <i data-lucide="chevron-left" class="w-4 h-4" stroke-width="2.4"></i>
+          Manuali
+        </button>
+        <div class="card-plate rounded-2xl p-4 mb-4 flex items-center gap-3">
+          <span id="manuals-detail-icon-wrap" class="shrink-0 w-11 h-11 rounded-xl bg-graphite-700/50 flex items-center justify-center">
+            <i data-lucide="cog" class="w-5 h-5 text-graphite-400" stroke-width="1.8"></i>
+          </span>
+          <p id="manuals-detail-title" class="font-display font-bold text-lg uppercase tracking-wide truncate"></p>
+        </div>
+
+        <div id="manuals-detail-grid" class="grid grid-cols-3 gap-3"></div>
+        <p id="manuals-detail-empty" class="hidden text-sm text-graphite-500 text-center py-6">Nessuna sezione ancora disponibile per questa macchina.</p>
+
+        <div class="flex justify-end mt-4">
+          <button type="button" id="manuals-detail-spare-parts"
+            class="press-spring inline-flex items-center gap-1.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-white font-display font-bold uppercase tracking-wide text-xs px-3.5 py-2.5 shadow-lg shadow-amber-500/20">
+            <i data-lucide="cog" class="w-4 h-4" stroke-width="2.2"></i>
+            Spare parts
+          </button>
+        </div>
       </div>
-      <div id="manuals-browser-list" class="hidden space-y-2"></div>
-      <p id="manuals-browser-empty" class="hidden text-sm text-graphite-500 text-center py-6">Nessuna macchina ancora registrata.</p>
     </section>
+
+    <!-- =================== MODALE "AGGIUNGI PULSANTE" (Admin, dentro Manuali) =================== -->
+    <div id="manual-section-modal" class="modal-overlay hidden fixed inset-0 z-[92] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm px-0 sm:px-4">
+      <div class="modal-panel w-full sm:max-w-md bg-graphite-900 border border-graphite-700 rounded-t-2xl sm:rounded-2xl max-h-[85vh] flex flex-col">
+        <div data-sheet-drag class="sheet-grabber sm:hidden"><span class="sheet-grabber-pill"></span></div>
+        <div data-sheet-drag class="flex items-center justify-between px-5 pb-3 pt-1 sm:pt-3 border-b border-graphite-800 shrink-0">
+          <h3 class="font-display font-bold text-lg uppercase tracking-wide">Nuovo pulsante</h3>
+          <button id="manual-section-modal-close" aria-label="Chiudi" class="modal-close modal-close--on-light">
+            <i data-lucide="x" class="w-6 h-6" stroke-width="2.5"></i>
+          </button>
+        </div>
+        <form id="manual-section-form" class="flex-1 overflow-y-auto px-5 py-4 space-y-3.5">
+          <p id="manual-section-no-manual-notice" class="hidden text-xs rounded-lg px-3 py-2 bg-rose-500/10 text-rose-700">
+            Questa macchina non ha ancora un manuale operatore caricato: caricane uno da Impostazioni → Gestione macchine prima di poter aggiungere un pulsante.
+          </p>
+          <div>
+            <label class="block text-xs font-display font-semibold uppercase tracking-wide text-graphite-400 mb-1.5">Nome pulsante *</label>
+            <input id="manual-section-label" required type="text" maxlength="40" placeholder="es. Mettifoglio"
+              class="w-full rounded-lg bg-graphite-800 border border-graphite-700 px-3.5 py-2.5 text-sm focus:border-amber-400 outline-none transition-colors">
+          </div>
+          <div>
+            <label class="block text-xs font-display font-semibold uppercase tracking-wide text-graphite-400 mb-1.5">Manuale operatore *</label>
+            <select id="manual-section-manual" required
+              class="w-full rounded-lg bg-graphite-800 border border-graphite-700 px-3.5 py-2.5 text-sm focus:border-amber-400 outline-none transition-colors"></select>
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-display font-semibold uppercase tracking-wide text-graphite-400 mb-1.5">Pagina inizio *</label>
+              <input id="manual-section-page-start" required type="number" min="1" inputmode="numeric" placeholder="es. 12"
+                class="w-full rounded-lg bg-graphite-800 border border-graphite-700 px-3.5 py-2.5 text-sm focus:border-amber-400 outline-none transition-colors">
+            </div>
+            <div>
+              <label class="block text-xs font-display font-semibold uppercase tracking-wide text-graphite-400 mb-1.5">Pagina fine *</label>
+              <input id="manual-section-page-end" required type="number" min="1" inputmode="numeric" placeholder="es. 15"
+                class="w-full rounded-lg bg-graphite-800 border border-graphite-700 px-3.5 py-2.5 text-sm focus:border-amber-400 outline-none transition-colors">
+            </div>
+          </div>
+          <div>
+            <label class="block text-xs font-display font-semibold uppercase tracking-wide text-graphite-400 mb-1.5">Icona (facoltativa)</label>
+            <div class="flex items-center gap-3">
+              <span id="manual-section-icon-preview-wrap" class="shrink-0 w-14 h-14 rounded-xl bg-graphite-800 border border-graphite-700 flex items-center justify-center overflow-hidden">
+                <img id="manual-section-icon-preview" class="hidden w-full h-full object-contain" alt="">
+                <i id="manual-section-icon-placeholder" data-lucide="image" class="w-5 h-5 text-graphite-500"></i>
+              </span>
+              <input id="manual-section-icon" type="file" accept="image/*" class="flex-1 min-w-0 text-xs text-graphite-400 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:bg-graphite-700 file:text-graphite-100 file:text-xs file:font-display file:font-semibold file:uppercase file:tracking-wide">
+            </div>
+          </div>
+          <button id="manual-section-submit" type="submit" class="press-spring w-full rounded-lg bg-amber-400 hover:bg-amber-300 text-white font-display font-bold uppercase tracking-wide py-3 mt-1">
+            Aggiungi
+          </button>
+        </form>
+      </div>
+    </div>
 
     <!-- ============ VISTA DASHBOARD (solo Admin, raggiungibile da Impostazioni → Applicazioni → Report) ============ -->
     <section id="view-dashboard" class="hidden" data-admin-only>
