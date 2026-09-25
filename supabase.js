@@ -602,6 +602,31 @@ export async function deleteManualSection(section) {
   if (error) throw error;
 }
 
+/**
+ * Aggiorna un pulsante/sezione esistente (stessa schermata usata per crearlo). Solo admin.
+ * Se `newIconStoragePath` è presente (l'admin ha scelto una nuova icona), sostituisce anche
+ * il file precedente (`previousIconStoragePath`), eliminandolo dallo storage.
+ */
+export async function updateManualSection(sectionId, { operatorManualId, label, pageStart, pageEnd, newIconStoragePath, previousIconStoragePath }) {
+  const patch = {
+    operator_manual_id: operatorManualId,
+    label,
+    page_start: pageStart,
+    page_end: pageEnd,
+  };
+  if (newIconStoragePath !== undefined) patch.icon_storage_path = newIconStoragePath;
+
+  const { data, error } = await supabase.from('machine_manual_sections').update(patch).eq('id', sectionId).select().single();
+  if (error) {
+    if (isMissingSectionsTable(error)) throw new Error('La tabella delle sezioni non è ancora stata creata sul database.');
+    throw error;
+  }
+  if (newIconStoragePath !== undefined && previousIconStoragePath && previousIconStoragePath !== newIconStoragePath) {
+    await supabase.storage.from(SECTION_ICONS_BUCKET).remove([previousIconStoragePath]);
+  }
+  return data;
+}
+
 
 // --- TRANSAZIONI (deposito/prelievo) ------------------------------
 /**

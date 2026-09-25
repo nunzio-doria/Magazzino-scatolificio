@@ -469,7 +469,7 @@
       <div class="modal-panel w-full sm:max-w-md bg-graphite-900 border border-graphite-700 rounded-t-2xl sm:rounded-2xl max-h-[85vh] flex flex-col">
         <div data-sheet-drag class="sheet-grabber sm:hidden"><span class="sheet-grabber-pill"></span></div>
         <div data-sheet-drag class="flex items-center justify-between px-5 pb-3 pt-1 sm:pt-3 border-b border-graphite-800 shrink-0">
-          <h3 class="font-display font-bold text-lg uppercase tracking-wide">Nuovo pulsante</h3>
+          <h3 id="manual-section-modal-title" class="font-display font-bold text-lg uppercase tracking-wide">Nuovo pulsante</h3>
           <button id="manual-section-modal-close" aria-label="Chiudi" class="modal-close modal-close--on-light">
             <i data-lucide="x" class="w-6 h-6" stroke-width="2.5"></i>
           </button>
@@ -488,7 +488,11 @@
             <select id="manual-section-manual" required
               class="w-full rounded-lg bg-graphite-800 border border-graphite-700 px-3.5 py-2.5 text-sm focus:border-amber-400 outline-none transition-colors"></select>
           </div>
-          <div class="grid grid-cols-2 gap-3">
+          <label class="flex items-center gap-2.5 py-1 cursor-pointer select-none">
+            <input id="manual-section-whole" type="checkbox" class="w-[18px] h-[18px] rounded accent-amber-400 shrink-0">
+            <span class="text-sm">Manuale intero (dall'inizio alla fine)</span>
+          </label>
+          <div id="manual-section-pages-row" class="grid grid-cols-2 gap-3">
             <div>
               <label class="block text-xs font-display font-semibold uppercase tracking-wide text-graphite-400 mb-1.5">Pagina inizio *</label>
               <input id="manual-section-page-start" required type="number" min="1" inputmode="numeric" placeholder="es. 12"
@@ -512,6 +516,9 @@
           </div>
           <button id="manual-section-submit" type="submit" class="press-spring w-full rounded-lg bg-amber-400 hover:bg-amber-300 text-white font-display font-bold uppercase tracking-wide py-3 mt-1">
             Aggiungi
+          </button>
+          <button id="manual-section-delete" type="button" class="hidden press-spring w-full rounded-lg border border-rose-700/40 text-rose-700 font-display font-bold uppercase tracking-wide py-3">
+            Elimina pulsante
           </button>
         </form>
       </div>

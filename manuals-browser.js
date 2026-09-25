@@ -10,9 +10,10 @@
 //     L'Admin trova qui anche il pulsante "+" per aggiungerne di nuovi.
 // =============================================================
 
-import { listMachinesWithCounts, createManualSection, deleteManualSection, uploadSectionIcon, getSectionIconUrl } from './supabase.js';
+import { listMachinesWithCounts, createManualSection, updateManualSection, deleteManualSection, uploadSectionIcon, getSectionIconUrl } from './supabase.js';
 import { refreshManualsCache, getOperatorManualsForMachine, getSectionsForOperatorManual, getAnyManualForMachine, openManualViewer } from './manuals.js';
 import { staggerIndex, setButtonBusy, openOverlay, closeOverlay, enableSheetDrag } from './ui-utils.js';
+import { confirmDialog } from './ui-modal.js';
 import { toastError, toastSuccess, toastWarning } from './toast.js';
 import { isAdmin } from './auth.js';
 import feedback from './feedback.js';
@@ -22,6 +23,7 @@ let loaded = false; // dopo il primo caricamento, i rientri nella vista non most
 let cachedMachines = [];
 let currentMachine = null;
 let pendingIconFile = null;
+let editingSection = null; // null = si sta creando un nuovo pulsante; altrimenti quello in modifica
 
 export function initManualsBrowser() {
   els.skeleton = document.getElementById('manuals-browser-skeleton');
@@ -39,6 +41,7 @@ export function initManualsBrowser() {
   els.detailSpareBtn = document.getElementById('manuals-detail-spare-parts');
 
   els.modal = document.getElementById('manual-section-modal');
+  els.modalTitle = document.getElementById('manual-section-modal-title');
   els.modalClose = document.getElementById('manual-section-modal-close');
   els.form = document.getElementById('manual-section-form');
   els.noManualNotice = document.getElementById('manual-section-no-manual-notice');
@@ -46,10 +49,13 @@ export function initManualsBrowser() {
   els.manualSelect = document.getElementById('manual-section-manual');
   els.pageStartInput = document.getElementById('manual-section-page-start');
   els.pageEndInput = document.getElementById('manual-section-page-end');
+  els.wholeCheckbox = document.getElementById('manual-section-whole');
+  els.pagesRow = document.getElementById('manual-section-pages-row');
   els.iconInput = document.getElementById('manual-section-icon');
   els.iconPreview = document.getElementById('manual-section-icon-preview');
   els.iconPlaceholder = document.getElementById('manual-section-icon-placeholder');
   els.submitBtn = document.getElementById('manual-section-submit');
+  els.deleteBtn = document.getElementById('manual-section-delete');
 
   if (!els.list) return; // markup non presente (non dovrebbe succedere)
 
@@ -84,6 +90,16 @@ export function initManualsBrowser() {
   });
 
   els.form?.addEventListener('submit', handleCreateSection);
+  els.wholeCheckbox?.addEventListener('change', applyWholeDocumentToggle);
+  els.deleteBtn?.addEventListener('click', handleDeleteFromModal);
+}
+
+/** Con "Manuale intero" spuntato, i campi pagina si nascondono e smettono di essere obbligatori. */
+function applyWholeDocumentToggle() {
+  const whole = els.wholeCheckbox.checked;
+  els.pagesRow.classList.toggle('hidden', whole);
+  els.pageStartInput.required = !whole;
+  els.pageEndInput.required = !whole;
 }
 
 /** Richiamata da app.js ogni volta che si entra nella vista Manuali. */
@@ -207,11 +223,12 @@ function renderDetailGrid() {
     `;
     tile.addEventListener('click', () => openManualViewer(manual, { startPage: section.page_start }));
     if (isAdmin()) {
+      tile.title = 'Tieni premuto per modificare';
       tile.addEventListener(
         'contextmenu',
         (e) => {
           e.preventDefault();
-          handleDeleteSection(section);
+          openSectionModal(machine, section);
         },
         { passive: false }
       );
@@ -229,7 +246,7 @@ function renderDetailGrid() {
       <i data-lucide="plus" class="w-7 h-7" stroke-width="1.8"></i>
       <span class="ui-label text-center font-display font-semibold uppercase tracking-wide">Aggiungi</span>
     `;
-    addTile.addEventListener('click', () => openAddSectionModal(machine));
+    addTile.addEventListener('click', () => openSectionModal(machine));
     els.detailGrid.appendChild(addTile);
   }
 
@@ -240,11 +257,21 @@ function renderDetailGrid() {
   window.lucide?.createIcons();
 }
 
-async function handleDeleteSection(section) {
+async function handleDeleteFromModal() {
+  if (!editingSection) return;
+  const ok = await confirmDialog({
+    title: 'Eliminare il pulsante?',
+    message: `Il pulsante "${editingSection.label}" verrà eliminato. L'operazione non si può annullare.`,
+    confirmLabel: 'Elimina',
+    danger: true,
+  });
+  if (!ok) return;
+  setButtonBusy(els.deleteBtn, true);
   try {
-    await deleteManualSection(section);
+    await deleteManualSection(editingSection);
     feedback.deleteAction();
-    toastSuccess(`Pulsante "${section.label}" eliminato.`);
+    toastSuccess(`Pulsante "${editingSection.label}" eliminato.`);
+    closeOverlay(els.modal);
     await refreshManualsCache();
     renderDetailGrid();
     renderList();
@@ -252,12 +279,16 @@ async function handleDeleteSection(section) {
     console.error(err);
     feedback.errorAction();
     toastError(err.message || 'Impossibile eliminare il pulsante.');
+  } finally {
+    setButtonBusy(els.deleteBtn, false);
   }
 }
 
-// ---------------------------------------------------------------- modale "Aggiungi pulsante" --
+// ---------------------------------------------------------------- modale "Aggiungi/Modifica pulsante" --
 
-function openAddSectionModal(machine) {
+/** Stessa modale per creare (`section` assente) e modificare (`section` valorizzata) un pulsante. */
+function openSectionModal(machine, section = null) {
+  editingSection = section;
   const operatorManuals = getOperatorManualsForMachine(machine.id);
 
   els.form.reset();
@@ -279,6 +310,27 @@ function openAddSectionModal(machine) {
   els.submitBtn.disabled = !hasManuals;
   els.submitBtn.classList.toggle('opacity-50', !hasManuals);
 
+  if (section) {
+    els.modalTitle.textContent = 'Modifica pulsante';
+    els.submitBtn.textContent = 'Salva modifiche';
+    els.deleteBtn.classList.remove('hidden');
+    els.labelInput.value = section.label;
+    els.manualSelect.value = section.operator_manual_id;
+    els.wholeCheckbox.checked = section.page_start == null && section.page_end == null;
+    els.pageStartInput.value = section.page_start ?? '';
+    els.pageEndInput.value = section.page_end ?? '';
+    if (section.icon_storage_path) {
+      els.iconPreview.src = getSectionIconUrl(section.icon_storage_path);
+      els.iconPreview.classList.remove('hidden');
+      els.iconPlaceholder.classList.add('hidden');
+    }
+  } else {
+    els.modalTitle.textContent = 'Nuovo pulsante';
+    els.submitBtn.textContent = 'Aggiungi';
+    els.deleteBtn.classList.add('hidden');
+  }
+  applyWholeDocumentToggle();
+
   openOverlay(els.modal);
 }
 
@@ -287,32 +339,50 @@ async function handleCreateSection(e) {
   if (!currentMachine) return;
   const label = els.labelInput.value.trim();
   const operatorManualId = els.manualSelect.value;
-  const pageStart = Number(els.pageStartInput.value);
-  const pageEnd = Number(els.pageEndInput.value);
+  const wholeDocument = els.wholeCheckbox.checked;
+  let pageStart = null;
+  let pageEnd = null;
 
   if (!label || !operatorManualId) return;
-  if (!Number.isFinite(pageStart) || !Number.isFinite(pageEnd) || pageStart < 1 || pageEnd < pageStart) {
-    toastError('Controlla l\'intervallo di pagine: la pagina finale deve essere uguale o successiva a quella iniziale.');
-    return;
+  if (!wholeDocument) {
+    pageStart = Number(els.pageStartInput.value);
+    pageEnd = Number(els.pageEndInput.value);
+    if (!Number.isFinite(pageStart) || !Number.isFinite(pageEnd) || pageStart < 1 || pageEnd < pageStart) {
+      toastError('Controlla l\'intervallo di pagine: la pagina finale deve essere uguale o successiva a quella iniziale.');
+      return;
+    }
   }
 
   setButtonBusy(els.submitBtn, true);
   try {
-    let iconStoragePath = null;
-    if (pendingIconFile) iconStoragePath = await uploadSectionIcon(pendingIconFile);
+    let newIconStoragePath;
+    if (pendingIconFile) newIconStoragePath = await uploadSectionIcon(pendingIconFile);
 
-    const sortOrder = getSectionsForOperatorManual(operatorManualId).length;
-    await createManualSection({
-      machineId: currentMachine.id,
-      operatorManualId,
-      label,
-      iconStoragePath,
-      pageStart,
-      pageEnd,
-      sortOrder,
-    });
-    feedback.confirmAction();
-    toastSuccess(`Pulsante "${label}" aggiunto.`);
+    if (editingSection) {
+      await updateManualSection(editingSection.id, {
+        operatorManualId,
+        label,
+        pageStart,
+        pageEnd,
+        newIconStoragePath,
+        previousIconStoragePath: editingSection.icon_storage_path,
+      });
+      feedback.confirmAction();
+      toastSuccess(`Pulsante "${label}" aggiornato.`);
+    } else {
+      const sortOrder = getSectionsForOperatorManual(operatorManualId).length;
+      await createManualSection({
+        machineId: currentMachine.id,
+        operatorManualId,
+        label,
+        iconStoragePath: newIconStoragePath || null,
+        pageStart,
+        pageEnd,
+        sortOrder,
+      });
+      feedback.confirmAction();
+      toastSuccess(`Pulsante "${label}" aggiunto.`);
+    }
     closeOverlay(els.modal);
     await refreshManualsCache();
     renderDetailGrid();
@@ -320,7 +390,7 @@ async function handleCreateSection(e) {
   } catch (err) {
     console.error(err);
     feedback.errorAction();
-    toastError(err.message || 'Impossibile aggiungere il pulsante.');
+    toastError(err.message || `Impossibile ${editingSection ? 'salvare le modifiche' : 'aggiungere il pulsante'}.`);
   } finally {
     setButtonBusy(els.submitBtn, false);
   }
