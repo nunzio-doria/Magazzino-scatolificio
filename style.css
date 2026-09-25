@@ -451,7 +451,6 @@ input.peer:checked ~ span:first-of-type {
   inset: 0;
 }
 #view-manuals.manuals-detail-open .manuals-panel-detail {
-  position: relative;
   transform: translateX(0);
   pointer-events: auto;
   box-shadow: -14px 0 30px -8px rgba(0, 0, 0, 0.35);
