@@ -193,14 +193,6 @@ function openMachineDetail(machine) {
   currentMachine = machine;
   reorderMode = false;
   els.detailTitle.textContent = machine.nome;
-  // #view-manuals ricava la propria altezza dai figli nel flusso normale: appena
-  // sotto passiamo ANCHE l'elenco a position:absolute (serve per l'effetto di
-  // parallasse), quindi in quel momento non gliene resterebbe più nessuno da cui
-  // calcolarla. La misuriamo e la fissiamo ORA, mentre l'elenco è ancora nel
-  // flusso e la fornisce correttamente, cosí i due pannelli assoluti (inset:0)
-  // hanno un contenitore reale a cui agganciarsi invece di accorciarsi al loro
-  // solo contenuto.
-  if (els.view) els.view.style.minHeight = `${els.view.offsetHeight}px`;
   renderDetailGrid();
   els.view?.classList.add('manuals-detail-open');
   window.lucide?.createIcons();
@@ -209,7 +201,6 @@ function openMachineDetail(machine) {
 function closeMachineDetail({ immediate = false } = {}) {
   if (reorderMode) exitReorderMode({ save: true });
   els.view?.classList.remove('manuals-detail-open');
-  if (els.view) els.view.style.minHeight = '';
   if (immediate) currentMachine = null;
 }
 

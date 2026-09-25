@@ -439,24 +439,21 @@ input.peer:checked ~ span:first-of-type {
   inset: 0;
   transform: translateX(100%);
   pointer-events: none;
-  /* Senza uno sfondo proprio, gli spazi vuoti tra le card del dettaglio (che
-     variano: una macchina con 1 solo pulsante lascia vuota gran parte della
-     griglia) lasciano trasparire l'elenco sfumato dietro, invece di coprirlo
-     del tutto a riposo — sembrava un'animazione bloccata a metà. */
-  background-color: var(--paper);
 }
-/* L'elenco macchine resta "dietro": si sposta di poco e si affievolisce leggermente
-   (parallasse) SOLO durante la transizione (coperto subito dallo sfondo qui sopra
-   una volta a riposo) — invece di sparire di colpo, l'occhio percepisce meglio che
-   è ancora lì, un passo indietro, non che si è ricaricata la vista. */
+/* L'elenco macchine resta "dietro": si sposta di poco (parallasse) e sfuma fino a
+   sparire del tutto a transizione conclusa — deve arrivare a opacity 0 pieno,
+   altrimenti (i due pannelli non hanno uno sfondo pieno a copertura intera, e il
+   dettaglio è quasi sempre più basso dell'elenco) le righe più in basso restano
+   visibili sotto la card della macchina aperta anche a schermo fermo. */
 #view-manuals.manuals-detail-open #manuals-list-panel {
   transform: translateX(-28%);
-  opacity: 0.5;
+  opacity: 0;
   pointer-events: none;
   position: absolute;
   inset: 0;
 }
 #view-manuals.manuals-detail-open .manuals-panel-detail {
+  position: relative;
   transform: translateX(0);
   pointer-events: auto;
   box-shadow: -14px 0 30px -8px rgba(0, 0, 0, 0.35);
