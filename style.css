@@ -50,11 +50,13 @@
   --dur-fast: 160ms;
   --dur-base: 240ms;
   --dur-slow: 340ms;
+  --dur-page: 380ms; /* cambio di "pagina" (elenco macchine → dettaglio, in Manuali) */
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);      /* comparse e movimenti in entrata */
   --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1); /* rimbalzo: tocchi e feedback */
   --ease-inout: cubic-bezier(0.65, 0, 0.35, 1);    /* aperture e chiusure a fisarmonica */
   --ease-in: cubic-bezier(0.4, 0, 0.7, 0.2);       /* uscite */
   --ease-sheet: cubic-bezier(0.32, 0.72, 0, 1);    /* cassetti delle modali */
+  --ease-page: cubic-bezier(0.22, 1, 0.36, 1);     /* decelerazione: cambi di "pagina" */
   --tr-colors: color var(--dur-fast) ease, background-color var(--dur-fast) ease, border-color var(--dur-fast) ease, box-shadow var(--dur-fast) ease;
 }
 
@@ -430,18 +432,20 @@ input.peer:checked ~ span:first-of-type {
    #view-manuals a .manuals-detail-open i due pannelli si scambiano posto. --- */
 #view-manuals { position: relative; overflow-x: clip; }
 .manuals-panel {
-  transition: transform var(--dur-slow) var(--ease-inout), opacity var(--dur-slow) var(--ease-inout);
+  transition: transform var(--dur-page) var(--ease-page), opacity var(--dur-page) var(--ease-page);
 }
 .manuals-panel-detail {
   position: absolute;
   inset: 0;
-  transform: translateX(24px);
-  opacity: 0;
+  transform: translateX(100%);
   pointer-events: none;
 }
+/* L'elenco macchine resta "dietro": si sposta di poco e si affievolisce leggermente
+   (parallasse), invece di sparire di colpo — l'occhio percepisce meglio che è ancora
+   lì, un passo indietro, non che si è ricaricata la vista. */
 #view-manuals.manuals-detail-open #manuals-list-panel {
-  transform: translateX(-24px);
-  opacity: 0;
+  transform: translateX(-28%);
+  opacity: 0.5;
   pointer-events: none;
   position: absolute;
   inset: 0;
@@ -449,22 +453,74 @@ input.peer:checked ~ span:first-of-type {
 #view-manuals.manuals-detail-open .manuals-panel-detail {
   position: relative;
   transform: translateX(0);
-  opacity: 1;
   pointer-events: auto;
+  box-shadow: -14px 0 30px -8px rgba(0, 0, 0, 0.35);
 }
 @media (prefers-reduced-motion: reduce) {
   .manuals-panel { transition-duration: 1ms; }
+}
+
+/* Le icone del dettaglio compaiono a cascata solo DOPO che il pannello si è
+   assestato (stesso valore di --dur-page): se partissero insieme allo scorrimento,
+   il loro stesso piccolo movimento si sommerebbe a quello del pannello ancora in
+   corsa, risultando confuso invece che pulito. */
+#manuals-detail-grid .list-item-in {
+  animation-delay: calc(var(--dur-page) + var(--i, 0) * 30ms);
 }
 
 /* Griglia pulsanti dell'indice macchina: tile quadrata, icona grande e
    centrata, etichetta su 2 righe al massimo. */
 .manual-section-tile {
   aspect-ratio: 1 / 1;
+  position: relative;
 }
 .manual-section-tile-icon {
   width: 44%;
   height: 44%;
   object-fit: contain;
+}
+
+/* Modalità "Riordina" (Admin, Manuali): ogni tile mostra una maniglia e oscilla
+   leggermente, come i grip delle springboard — segnala chiaramente che si può
+   trascinare, senza dover leggere l'avviso in testo per capirlo. */
+#manuals-detail-grid.reorder-mode .manual-section-tile {
+  animation: reorder-wobble 260ms ease-in-out infinite;
+  cursor: grab;
+}
+#manuals-detail-grid.reorder-mode .manual-section-tile:nth-child(even) {
+  animation-direction: reverse;
+}
+@keyframes reorder-wobble {
+  0%, 100% { transform: rotate(-1deg); }
+  50% { transform: rotate(1deg); }
+}
+.reorder-handle {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+}
+.manual-section-tile.reorder-dragging {
+  animation: none !important;
+  cursor: grabbing;
+  box-shadow: 0 14px 28px rgba(0, 0, 0, 0.4);
+  scale: 1.05;
+  opacity: 0.98;
+}
+.reorder-placeholder {
+  border: 2px dashed var(--accent-edge, rgba(255, 255, 255, 0.3));
+  background: rgba(255, 255, 255, 0.04);
+  animation: none !important;
+}
+@media (prefers-reduced-motion: reduce) {
+  #manuals-detail-grid.reorder-mode .manual-section-tile { animation: none; }
 }
 
 /* Empty state illustrati: entrano con un piccolo respiro invece di

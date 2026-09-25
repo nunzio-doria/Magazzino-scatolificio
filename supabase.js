@@ -603,6 +603,20 @@ export async function deleteManualSection(section) {
 }
 
 /**
+ * Salva in blocco il nuovo ordine dei pulsanti di una macchina dopo un riordino via
+ * trascinamento: `orderedIds` è l'elenco degli id nel nuovo ordine, a cui viene
+ * assegnato sort_order 0,1,2... in sequenza. Le policy RLS in scrittura sono solo
+ * admin, quindi un operatore che provasse comunque la chiamata la vedrebbe rifiutata.
+ */
+export async function updateManualSectionsOrder(orderedIds) {
+  const results = await Promise.all(
+    orderedIds.map((id, index) => supabase.from('machine_manual_sections').update({ sort_order: index }).eq('id', id))
+  );
+  const failed = results.find((r) => r.error);
+  if (failed) throw failed.error;
+}
+
+/**
  * Aggiorna un pulsante/sezione esistente (stessa schermata usata per crearlo). Solo admin.
  * Se `newIconStoragePath` è presente (l'admin ha scelto una nuova icona), sostituisce anche
  * il file precedente (`previousIconStoragePath`), eliminandolo dallo storage.

@@ -448,8 +448,13 @@
           <span id="manuals-detail-icon-wrap" class="shrink-0 w-11 h-11 rounded-xl bg-graphite-700/50 flex items-center justify-center">
             <i data-lucide="cog" class="w-5 h-5 text-graphite-400" stroke-width="1.8"></i>
           </span>
-          <p id="manuals-detail-title" class="font-display font-bold text-lg uppercase tracking-wide truncate"></p>
+          <p id="manuals-detail-title" class="font-display font-bold text-lg uppercase tracking-wide truncate flex-1"></p>
+          <button type="button" id="manuals-detail-reorder-toggle" data-admin-only aria-label="Riordina pulsanti"
+            class="hidden press-spring shrink-0 w-11 h-11 rounded-lg bg-graphite-800 border border-graphite-700 text-graphite-400 hover:text-amber-400 hover:border-amber-400 flex items-center justify-center transition-colors">
+            <i data-lucide="move" class="w-[18px] h-[18px]" stroke-width="1.8"></i>
+          </button>
         </div>
+        <p id="manuals-reorder-hint" class="hidden ui-note text-amber-400/90 text-center -mt-2 mb-3">Trascina i pulsanti per riordinarli, poi tocca <i data-lucide="check" class="inline w-3.5 h-3.5 align-[-2px]" stroke-width="2.4"></i> per salvare</p>
 
         <div id="manuals-detail-grid" class="grid grid-cols-3 gap-3"></div>
         <p id="manuals-detail-empty" class="hidden text-sm text-graphite-500 text-center py-6">Nessuna sezione ancora disponibile per questa macchina.</p>
