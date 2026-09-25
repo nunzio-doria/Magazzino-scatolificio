@@ -461,6 +461,12 @@ input.peer:checked ~ span:first-of-type {
 @media (prefers-reduced-motion: reduce) {
   .manuals-panel { transition-duration: 1ms; }
 }
+/* Usata solo per un istante da closeMachineDetail({immediate:true}): azzera la
+   transizione così il pannello torna alla lista di scatto, senza animazione,
+   invece di scivolarci mentre magari la scheda Manuali sta ancora comparendo. */
+#view-manuals.manuals-reset-instant .manuals-panel {
+  transition: none !important;
+}
 
 /* Le icone del dettaglio compaiono a cascata solo DOPO che il pannello si è
    assestato (stesso valore di --dur-page): se partissero insieme allo scorrimento,

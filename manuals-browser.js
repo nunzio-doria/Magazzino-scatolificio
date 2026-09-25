@@ -38,6 +38,7 @@ export function initManualsBrowser() {
   els.detailBack = document.getElementById('manuals-detail-back');
   els.detailIconWrap = document.getElementById('manuals-detail-icon-wrap');
   els.detailTitle = document.getElementById('manuals-detail-title');
+  els.detailSubtitle = document.getElementById('manuals-detail-subtitle');
   els.detailGrid = document.getElementById('manuals-detail-grid');
   els.detailEmpty = document.getElementById('manuals-detail-empty');
   els.detailSpareBtn = document.getElementById('manuals-detail-spare-parts');
@@ -200,8 +201,15 @@ function openMachineDetail(machine) {
 
 function closeMachineDetail({ immediate = false } = {}) {
   if (reorderMode) exitReorderMode({ save: true });
-  els.view?.classList.remove('manuals-detail-open');
-  if (immediate) currentMachine = null;
+  if (immediate && els.view) {
+    els.view.classList.add('manuals-reset-instant');
+    els.view.classList.remove('manuals-detail-open');
+    void els.view.offsetWidth; // forza il reflow: applica il reset prima di riabilitare le transizioni
+    els.view.classList.remove('manuals-reset-instant');
+    currentMachine = null;
+  } else {
+    els.view?.classList.remove('manuals-detail-open');
+  }
 }
 
 function renderDetailGrid() {
@@ -262,7 +270,7 @@ function renderDetailGrid() {
     const addTile = document.createElement('button');
     addTile.type = 'button';
     addTile.setAttribute('aria-label', `Aggiungi pulsante per ${machine.nome}`);
-    addTile.className = 'manual-section-tile list-item-in press-spring rounded-2xl flex flex-col items-center justify-center gap-2 p-2 border-2 border-dashed border-graphite-700 text-graphite-500 hover:text-amber-300 hover:border-amber-500/40 transition-colors';
+    addTile.className = 'manual-section-tile list-item-in press-spring rounded-2xl flex flex-col items-center justify-center gap-2 p-2 border-2 border-dashed border-amber-500/40 bg-amber-400/5 text-amber-400 hover:text-amber-300 hover:border-amber-500/70 hover:bg-amber-400/10 transition-colors';
     addTile.style.setProperty('--i', staggerIndex(sections.length));
     addTile.innerHTML = `
       <i data-lucide="plus" class="w-7 h-7" stroke-width="1.8"></i>
@@ -275,6 +283,14 @@ function renderDetailGrid() {
   const isEmpty = sections.length === 0 && !isAdmin();
   els.detailGrid.classList.toggle('hidden', isEmpty);
   els.detailEmpty?.classList.toggle('hidden', !isEmpty);
+  if (els.detailSubtitle) {
+    els.detailSubtitle.textContent =
+      sections.length === 0
+        ? isAdmin()
+          ? 'Nessun pulsante ancora: tocca Aggiungi per crearne uno'
+          : 'Nessun pulsante ancora disponibile'
+        : `${sections.length} pulsante${sections.length === 1 ? '' : 'i'} disponibil${sections.length === 1 ? 'e' : 'i'}`;
+  }
 
   updateReorderToggleVisibility(sections.length);
   window.lucide?.createIcons();
