@@ -633,13 +633,15 @@ function renderCurrentList() {
  * correnti per locazione, una card per scaffale.
  */
 function renderShelves() {
+  const isRicambi = currentCategory === 'pezzi_ricambio';
   renderGroupedCards({
     wrapEl: els.shelfView,
     openSet: openShelves,
     groupKeyFn: (p) => p.locazione,
-    subtitleFields: (p) => [p.macchina, p.punto_utilizzo_standard, p.linea],
+    titleField: isRicambi ? (p) => p.punto_utilizzo_standard || p.codice_articolo : (p) => p.codice_articolo,
+    subtitleFields: isRicambi ? (p) => [p.codice_articolo, p.macchina, p.linea] : (p) => [p.macchina, p.punto_utilizzo_standard, p.linea],
     unassignedLabel: 'Non assegnata',
-    iconName: 'box',
+    iconName: 'shelving-unit',
   });
 }
 
@@ -650,11 +652,13 @@ function renderShelves() {
  * Disponibile solo per le categorie in MACHINE_VIEW_CATEGORIES.
  */
 function renderByMachine() {
+  const isRicambi = currentCategory === 'pezzi_ricambio';
   renderGroupedCards({
     wrapEl: els.machineView,
     openSet: openMachines,
     groupKeyFn: (p) => p.macchina,
-    subtitleFields: (p) => [p.locazione, p.punto_utilizzo_standard, p.linea],
+    titleField: isRicambi ? (p) => p.punto_utilizzo_standard || p.codice_articolo : (p) => p.codice_articolo,
+    subtitleFields: isRicambi ? (p) => [p.codice_articolo, p.locazione, p.linea] : (p) => [p.locazione, p.punto_utilizzo_standard, p.linea],
     unassignedLabel: 'Nessuna macchina assegnata',
     iconName: 'wrench',
   });
@@ -669,7 +673,7 @@ function renderByMachine() {
  * tramite l'openSet passato dal chiamante (Set separati per scaffalatura
  * e macchina, cosí non si mescolano tra loro).
  */
-function renderGroupedCards({ wrapEl, openSet, groupKeyFn, subtitleFields, unassignedLabel, iconName }) {
+function renderGroupedCards({ wrapEl, openSet, groupKeyFn, titleField, subtitleFields, unassignedLabel, iconName }) {
   wrapEl.innerHTML = '';
   wrapEl.classList.remove('hidden');
 
@@ -698,7 +702,7 @@ function renderGroupedCards({ wrapEl, openSet, groupKeyFn, subtitleFields, unass
           <button type="button" data-product-id="${p.id}" style="--i:${i}"
             class="shelf-item w-full text-left flex items-center justify-between gap-3 px-4 py-2.5 border-t border-graphite-700 first:border-t-0">
             <div class="min-w-0">
-              <p class="font-display font-bold text-graphite-100 truncate text-sm">${escapeHtml(p.codice_articolo)}</p>
+              <p class="font-display font-bold text-graphite-100 truncate text-sm">${escapeHtml(titleField(p))}</p>
               ${subtitleParts.length ? `<p class="ui-note text-graphite-500 mt-0.5 truncate">${escapeHtml(subtitleParts.join(' · '))}</p>` : ''}
             </div>
             <span class="shrink-0 inline-block px-2 py-0.5 rounded-full text-xs font-mono font-semibold ${
