@@ -200,9 +200,14 @@ export function initManuals() {
   els.error = document.getElementById('manual-viewer-error');
   els.errorText = document.getElementById('manual-viewer-error-text');
 
-  els.pageIndicator = document.getElementById('manual-viewer-page-indicator');
+  els.pageInput = document.getElementById('manual-viewer-page-input');
+  els.pageTotal = document.getElementById('manual-viewer-page-total');
+  els.pageForm = document.getElementById('manual-viewer-page-form');
   els.zoomInBtn = document.getElementById('manual-viewer-zoom-in');
   els.zoomOutBtn = document.getElementById('manual-viewer-zoom-out');
+
+  els.scrollbarTrack = document.getElementById('manual-viewer-scrollbar');
+  els.scrollbarThumb = document.getElementById('manual-viewer-scrollbar-thumb');
 
   els.resultsBar = document.getElementById('manual-viewer-results-bar');
   els.resultsLabel = document.getElementById('manual-viewer-results-label');
@@ -224,8 +229,15 @@ export function initManuals() {
     e.preventDefault();
     runSearch(els.searchInput.value);
   });
+  els.pageForm?.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const target = Math.round(Number(els.pageInput.value));
+    if (Number.isFinite(target)) scrollToPage(Math.min(Math.max(1, target), state.numPages || 1));
+    els.pageInput.blur();
+  });
 
   initPinchZoom();
+  initCustomScrollbar();
 }
 
 function closeViewer() {
@@ -255,7 +267,7 @@ function teardownPages() {
 /**
  * Apre il visualizzatore per un manuale già noto (riga machine_manuals).
  * @param {{ file_name: string, storage_path: string, bucket?: string }} manual `bucket` distingue manuali ricambi/operatore (vedi supabase.js); se assente si usa il bucket manuali ricambi.
- * @param {{ searchTerm?: string, startPage?: number }} opts `startPage` apre il manuale già scorso a quella pagina (usato dai pulsanti/sezioni); ignorato se è presente `searchTerm`.
+ * @param {{ searchTerm?: string, startPage?: number, title?: string }} opts `startPage` apre il manuale già scorso a quella pagina (usato dai pulsanti/sezioni); ignorato se è presente `searchTerm`. `title` sostituisce il nome del file mostrato in alto (es. il nome del pulsante da cui si è aperto), altrimenti si vede il nome del file.
  * @param {{ searchTerm?: string }} [opts] se presente, cerca subito il codice e scorre alla prima pagina trovata
  */
 export async function openManualViewer(manual, opts = {}) {
@@ -263,7 +275,7 @@ export async function openManualViewer(manual, opts = {}) {
   const token = ++state.loadToken;
   openOverlay(els.modal);
   els.error?.classList.add('hidden');
-  els.title.textContent = manual.file_name;
+  els.title.textContent = opts.title || manual.file_name;
   if (els.searchInput) els.searchInput.value = opts.searchTerm || '';
   setLoading(true);
   teardownPages();
@@ -362,7 +374,100 @@ async function computeFitScale(token) {
 }
 
 function updatePageIndicator() {
-  if (els.pageIndicator) els.pageIndicator.textContent = `Pagina ${state.visiblePage} di ${state.numPages}`;
+  if (els.pageTotal) els.pageTotal.textContent = `di ${state.numPages || '—'}`;
+  if (els.pageInput && document.activeElement !== els.pageInput) {
+    els.pageInput.value = state.visiblePage;
+    els.pageInput.max = state.numPages || '';
+  }
+}
+
+// --- SCROLLBAR PERSONALIZZATA (binario sempre sul bordo destro, trascinabile) ---
+
+const scrollbarState = { dragging: false, pointerId: null, startY: 0, startScrollTop: 0, raf: 0 };
+
+function initCustomScrollbar() {
+  const track = els.scrollbarTrack;
+  const thumb = els.scrollbarThumb;
+  const wrap = els.canvasWrap;
+  if (!track || !thumb || !wrap) return;
+
+  wrap.addEventListener('scroll', () => {
+    if (scrollbarState.raf) return;
+    scrollbarState.raf = requestAnimationFrame(() => {
+      scrollbarState.raf = 0;
+      updateCustomScrollbar();
+    });
+  });
+
+  // Le dimensioni del contenuto cambiano con zoom, apertura di un nuovo manuale e
+  // allargamento della finestra di pagine: un ResizeObserver sul contenuto intercetta
+  // tutti questi casi da solo, senza dover richiamare l'aggiornamento da ogni punto
+  // del codice che tocca le pagine.
+  if (window.ResizeObserver) {
+    new ResizeObserver(() => updateCustomScrollbar()).observe(els.pagesWrap);
+  }
+
+  thumb.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    scrollbarState.dragging = true;
+    scrollbarState.pointerId = e.pointerId;
+    scrollbarState.startY = e.clientY;
+    scrollbarState.startScrollTop = wrap.scrollTop;
+    thumb.classList.add('dragging');
+    thumb.setPointerCapture(e.pointerId);
+  });
+  thumb.addEventListener('pointermove', (e) => {
+    if (!scrollbarState.dragging || e.pointerId !== scrollbarState.pointerId) return;
+    const trackHeight = track.clientHeight;
+    const thumbHeight = thumb.offsetHeight;
+    const scrollable = wrap.scrollHeight - wrap.clientHeight;
+    const range = Math.max(1, trackHeight - thumbHeight);
+    const deltaPx = e.clientY - scrollbarState.startY;
+    wrap.scrollTop = scrollbarState.startScrollTop + (deltaPx / range) * scrollable;
+  });
+  const endDrag = (e) => {
+    if (!scrollbarState.dragging) return;
+    scrollbarState.dragging = false;
+    thumb.classList.remove('dragging');
+    try {
+      thumb.releasePointerCapture(e.pointerId);
+    } catch (err) {
+      /* già rilasciato */
+    }
+  };
+  thumb.addEventListener('pointerup', endDrag);
+  thumb.addEventListener('pointercancel', endDrag);
+
+  // Tocco/click sul binario (non sulla maniglia): salta subito a quel punto, come una
+  // scrollbar nativa da scrivania.
+  track.addEventListener('pointerdown', (e) => {
+    if (e.target !== track) return;
+    const trackRect = track.getBoundingClientRect();
+    const thumbHeight = thumb.offsetHeight;
+    const targetTop = Math.min(Math.max(0, e.clientY - trackRect.top - thumbHeight / 2), trackRect.height - thumbHeight);
+    const range = Math.max(1, trackRect.height - thumbHeight);
+    const scrollable = wrap.scrollHeight - wrap.clientHeight;
+    wrap.scrollTop = (targetTop / range) * scrollable;
+  });
+}
+
+/** Dimensiona e posiziona la maniglia in base allo scroll attuale; nasconde tutto se il contenuto non eccede l'area visibile. */
+function updateCustomScrollbar() {
+  const track = els.scrollbarTrack;
+  const thumb = els.scrollbarThumb;
+  const wrap = els.canvasWrap;
+  if (!track || !thumb || !wrap) return;
+  const scrollable = wrap.scrollHeight - wrap.clientHeight;
+  if (scrollable <= 4) {
+    track.classList.add('hidden');
+    return;
+  }
+  track.classList.remove('hidden');
+  const trackHeight = track.clientHeight;
+  const thumbHeight = Math.max(28, (wrap.clientHeight / wrap.scrollHeight) * trackHeight);
+  const thumbTop = (wrap.scrollTop / scrollable) * (trackHeight - thumbHeight);
+  thumb.style.height = `${thumbHeight}px`;
+  thumb.style.top = `${thumbTop}px`;
 }
 
 /**
@@ -385,6 +490,7 @@ async function buildWindow(centerPage, token) {
   state.windowEnd = end;
   state.visiblePage = centerPage >= start && centerPage <= end ? centerPage : start;
   updatePageIndicator();
+  updateCustomScrollbar();
 }
 
 /** Due segnaposto invisibili ai bordi della finestra: quando entrano in vista, la allargano. */

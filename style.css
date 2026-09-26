@@ -228,6 +228,13 @@ input, textarea {
   padding-left: var(--sal);
   padding-right: var(--sar);
 }
+/* Dettaglio di un macchinario in Manuali: schermata spesso quasi vuota sotto
+   i pochi pulsanti, dove il rilievo della barra risalta più che altrove —
+   qui soltanto lo si attenua, senza toccare lo stile della barra ovunque
+   altro nell'app. */
+body.manuals-detail-active .nav-glass {
+  box-shadow: 0 -2px 10px -6px rgba(13, 17, 23, 0.1);
+}
 .nav-glass::before {
   /* riflesso di luce dinamico: una banda chiara che attraversa la nav in loop */
   content: '';
@@ -1251,10 +1258,11 @@ button.custom-select-option:not(:disabled):active {
   animation: shake-error 480ms cubic-bezier(0.36, 0.07, 0.19, 0.97);
 }
 
-/* ---- Visualizzatore manuale PDF: niente scrollbar visibili nell'area di lettura.
-   La navigazione avviene trascinando il foglio col dito (pan nativo) o con lo scroll
-   del mouse; la scrollbar resta funzionante ma invisibile, così non si "ruba" spazio
-   né dà l'idea di dover essere trascinata per muoversi. ---- */
+/* ---- Visualizzatore manuale PDF: scrollbar nativa nascosta (era invisibile e
+   poco trascinabile col dito) a favore di quella personalizzata qui sotto:
+   binario sempre sul bordo destro, maniglia dimensionata e posizionata via JS
+   in base allo scroll (vedi updateCustomScrollbar in manuals.js), trascinabile
+   sia col dito che col mouse. ---- */
 #manual-viewer-canvas-wrap {
   scrollbar-width: none; /* Firefox */
   -ms-overflow-style: none; /* Edge legacy */
@@ -1262,6 +1270,31 @@ button.custom-select-option:not(:disabled):active {
 #manual-viewer-canvas-wrap::-webkit-scrollbar {
   display: none; /* Chrome/Safari/WebKit */
 }
+#manual-viewer-scrollbar {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  right: 3px;
+  width: 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  touch-action: none; /* il trascinamento della maniglia non deve far scorrere/pizzicare il PDF sotto */
+  z-index: 5;
+}
+#manual-viewer-scrollbar-thumb {
+  position: absolute;
+  left: 0;
+  right: 0;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.32);
+  cursor: grab;
+  transition: background-color var(--dur-fast) ease;
+}
+#manual-viewer-scrollbar-thumb:hover,
+#manual-viewer-scrollbar-thumb.dragging {
+  background: rgba(255, 255, 255, 0.55);
+}
+#manual-viewer-scrollbar-thumb.dragging { cursor: grabbing; }
 
 /* ---- Visualizzatore manuale PDF: evidenziazione delle occorrenze del codice cercato ---- */
 .manual-highlight {

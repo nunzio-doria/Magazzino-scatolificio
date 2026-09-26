@@ -464,7 +464,7 @@
 
         <div class="flex justify-end mt-4">
           <button type="button" id="manuals-detail-spare-parts"
-            class="press-spring inline-flex items-center gap-1.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-white font-display font-bold uppercase tracking-wide text-xs px-3.5 py-2.5 shadow-lg shadow-amber-500/20">
+            class="press-spring inline-flex items-center gap-1.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-white font-display font-bold uppercase tracking-wide text-xs px-3.5 py-2.5 shadow-sm shadow-amber-500/10">
             <i data-lucide="cog" class="w-4 h-4" stroke-width="2.2"></i>
             Spare parts
           </button>
@@ -1102,31 +1102,38 @@
 
   <!-- Ricerca manuale di un altro codice all'interno dello stesso PDF -->
   <form id="manual-viewer-search-form" class="flex gap-2 px-4 py-2 border-b border-graphite-800 shrink-0">
-    <input id="manual-viewer-search-input" type="text" placeholder="Cerca un codice nel manuale…" autocomplete="off"
+    <input id="manual-viewer-search-input" type="text" placeholder="Inserisci parola chiave…" autocomplete="off"
       class="flex-1 min-w-0 rounded-lg bg-graphite-800 border border-graphite-700 px-3.5 py-2 text-sm focus:border-amber-400 outline-none transition-colors">
     <button type="submit" aria-label="Cerca" class="shrink-0 w-10 rounded-lg bg-graphite-800 border border-graphite-700 hover:border-amber-400 text-graphite-300 hover:text-amber-400 flex items-center justify-center transition-colors">
       <i data-lucide="search" class="w-4 h-4" stroke-width="2"></i>
     </button>
   </form>
 
-  <!-- Area di lettura: pagine incolonnate in scroll continuo (niente pulsanti per cambiare
-       pagina). touch-action: pan-x pan-y lascia il pan nativo con un dito in ENTRAMBE le
-       direzioni (si trascina il foglio, niente scrollbar da agganciare) ma disattiva il
-       pinch-zoom nativo del browser qui dentro: il pinch a due dita è gestito da manuals.js
-       e scala SOLO il PDF, mai il resto dell'interfaccia. -->
-  <div id="manual-viewer-canvas-wrap" class="relative flex-1 overflow-auto bg-graphite-950 px-2 py-3" style="touch-action: pan-x pan-y;">
-    <div id="manual-viewer-pages" class="mx-auto flex flex-col items-center gap-3" style="width: max-content; transform-origin: top center;"></div>
-    <div id="manual-viewer-loading" class="hidden absolute inset-0 flex flex-col items-center justify-center gap-2 bg-graphite-950">
-      <i data-lucide="loader-circle" class="w-7 h-7 text-amber-400 animate-spin" stroke-width="2"></i>
-      <p id="manual-viewer-loading-text" class="text-xs text-graphite-500">Apertura manuale…</p>
+  <!-- Area di lettura: pagine incolonnate in scroll continuo. touch-action: pan-x pan-y
+       lascia il pan nativo con un dito in ENTRAMBE le direzioni ma disattiva il pinch-zoom
+       nativo del browser qui dentro: il pinch a due dita è gestito da manuals.js e scala
+       SOLO il PDF, mai il resto dell'interfaccia. La scrollbar nativa resta nascosta
+       (style.css) a favore di quella personalizzata qui sotto, sempre visibile e
+       trascinabile anche col dito. -->
+  <div class="relative flex-1 overflow-hidden">
+    <div id="manual-viewer-canvas-wrap" class="absolute inset-0 overflow-auto bg-graphite-950 px-2 py-3" style="touch-action: pan-x pan-y;">
+      <div id="manual-viewer-pages" class="mx-auto flex flex-col items-center gap-3" style="width: max-content; transform-origin: top center;"></div>
+      <div id="manual-viewer-loading" class="hidden absolute inset-0 flex flex-col items-center justify-center gap-2 bg-graphite-950">
+        <i data-lucide="loader-circle" class="w-7 h-7 text-amber-400 animate-spin" stroke-width="2"></i>
+        <p id="manual-viewer-loading-text" class="text-xs text-graphite-500">Apertura manuale…</p>
+      </div>
+      <div id="manual-viewer-error" class="hidden absolute inset-0 flex flex-col items-center justify-center gap-2 px-6 text-center bg-graphite-950">
+        <i data-lucide="file-warning" class="w-7 h-7 text-rose-600" stroke-width="1.8"></i>
+        <p id="manual-viewer-error-text" class="text-sm text-graphite-300">—</p>
+      </div>
     </div>
-    <div id="manual-viewer-error" class="hidden absolute inset-0 flex flex-col items-center justify-center gap-2 px-6 text-center bg-graphite-950">
-      <i data-lucide="file-warning" class="w-7 h-7 text-rose-600" stroke-width="1.8"></i>
-      <p id="manual-viewer-error-text" class="text-sm text-graphite-300">—</p>
+    <!-- Non è figlia dell'area che scorre: resta ferma sul bordo destro invece di scorrere via col PDF. -->
+    <div id="manual-viewer-scrollbar" class="hidden">
+      <div id="manual-viewer-scrollbar-thumb"></div>
     </div>
   </div>
 
-  <!-- Zoom (utile su desktop/mouse; su touch si usa il pinch) + indicatore di pagina in sola lettura -->
+  <!-- Zoom (utile su desktop/mouse; su touch si usa il pinch) + pagina corrente, digitabile per saltarci direttamente -->
   <div class="flex items-center justify-between gap-2 px-3 py-2.5 border-t border-graphite-800 shrink-0 bg-graphite-900">
     <div class="flex items-center gap-1">
       <button id="manual-viewer-zoom-out" type="button" aria-label="Riduci zoom" class="w-10 h-10 rounded-lg flex items-center justify-center text-graphite-400 hover:text-amber-300 hover:bg-graphite-800 transition-colors">
@@ -1136,7 +1143,12 @@
         <i data-lucide="zoom-in" class="w-4 h-4" stroke-width="2"></i>
       </button>
     </div>
-    <span id="manual-viewer-page-indicator" class="ui-note whitespace-nowrap text-graphite-400">Pagina — di —</span>
+    <form id="manual-viewer-page-form" class="flex items-center gap-1.5">
+      <span class="ui-note text-graphite-400">Pagina</span>
+      <input id="manual-viewer-page-input" type="number" min="1" inputmode="numeric"
+        class="w-14 text-center rounded-md bg-graphite-800 border border-graphite-700 px-1 py-1 text-sm focus:border-amber-400 outline-none transition-colors">
+      <span id="manual-viewer-page-total" class="ui-note whitespace-nowrap text-graphite-400">di —</span>
+    </form>
   </div>
 </div>
 

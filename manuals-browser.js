@@ -72,7 +72,7 @@ export function initManualsBrowser() {
       toastWarning(`Nessun manuale ricambi caricato per "${currentMachine.nome}". Puoi caricarlo da Impostazioni → Gestione macchine.`);
       return;
     }
-    openManualViewer(manual);
+    openManualViewer(manual, { title: 'Spare parts' });
   });
 
   els.reorderToggle?.addEventListener('click', toggleReorderMode);
@@ -138,6 +138,7 @@ export function resetManualsBrowser() {
   currentMachine = null;
   reorderMode = false;
   reorderSaving = false;
+  document.body.classList.remove('manuals-detail-active');
 }
 
 // ---------------------------------------------------------------- elenco --
@@ -196,11 +197,13 @@ function openMachineDetail(machine) {
   els.detailTitle.textContent = machine.nome;
   renderDetailGrid();
   els.view?.classList.add('manuals-detail-open');
+  document.body.classList.add('manuals-detail-active');
   window.lucide?.createIcons();
 }
 
 function closeMachineDetail({ immediate = false } = {}) {
   if (reorderMode) exitReorderMode({ save: true });
+  document.body.classList.remove('manuals-detail-active');
   if (immediate && els.view) {
     els.view.classList.add('manuals-reset-instant');
     els.view.classList.remove('manuals-detail-open');
@@ -250,7 +253,7 @@ function renderDetailGrid() {
     if (reorderMode) {
       makeTileDraggable(tile);
     } else {
-      tile.addEventListener('click', () => openManualViewer(manual, { startPage: section.page_start }));
+      tile.addEventListener('click', () => openManualViewer(manual, { startPage: section.page_start, title: section.label }));
       if (isAdmin()) {
         tile.title = 'Tieni premuto per modificare';
         tile.addEventListener(
@@ -270,7 +273,7 @@ function renderDetailGrid() {
     const addTile = document.createElement('button');
     addTile.type = 'button';
     addTile.setAttribute('aria-label', `Aggiungi pulsante per ${machine.nome}`);
-    addTile.className = 'manual-section-tile list-item-in press-spring rounded-2xl flex flex-col items-center justify-center gap-2 p-2 border-2 border-dashed border-amber-500/40 bg-amber-400/5 text-amber-400 hover:text-amber-300 hover:border-amber-500/70 hover:bg-amber-400/10 transition-colors';
+    addTile.className = 'manual-section-tile list-item-in press-spring card-plate rounded-2xl flex flex-col items-center justify-center gap-2 p-2 border-2 border-dashed border-amber-400 text-amber-400 hover:text-amber-300 hover:border-amber-300 transition-colors';
     addTile.style.setProperty('--i', staggerIndex(sections.length));
     addTile.innerHTML = `
       <i data-lucide="plus" class="w-7 h-7" stroke-width="1.8"></i>
