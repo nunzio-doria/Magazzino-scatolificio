@@ -1,18 +1,46 @@
 // =============================================================
-// manuals.js — Manuali ricambi (PDF) delle macchine: cache condivisa
-// (usata da machines.js in Impostazioni e da products.js in Ricambi
-// tecnici) + visualizzatore PDF interno con ricerca del codice.
+// manuals.js — Visualizzatore PDF dei manuali delle macchine: file
+// principale. Rendering/scroll a finestra, zoom (pulsanti e pinch) e
+// scrollbar personalizzata restano qui; la ricerca per parola chiave è in
+// manuals-search.js, la cache dei manuali (usata anche da machines.js e
+// products.js) è in manuals-data.js — entrambe riesportate da qui perché
+// altri file già le importano da "./manuals.js".
 //
 // Il PDF viene sempre aperto DENTRO l'app: pagine incolonnate in scroll
-// continuo (niente pulsanti per cambiare pagina), pinch-to-zoom che scala
-// solo il PDF e mai il resto dell'interfaccia, testo selezionabile con
-// pressione prolungata (vero text layer di pdf.js) ed evidenziazione
-// puntuale del codice cercato.
+// continuo, pinch-to-zoom che scala solo il PDF e mai il resto
+// dell'interfaccia, testo selezionabile con pressione prolungata (vero
+// text layer di pdf.js) ed evidenziazione puntuale del codice cercato.
 // =============================================================
 
-import { listMachineManuals, listOperatorManuals, listManualSections, getManualSignedUrl, normalizeMachineName } from './supabase.js';
-import { toastError, toastWarning } from './toast.js';
+import { getManualSignedUrl } from './supabase.js';
+import { toastWarning } from './toast.js';
 import { openOverlay, closeOverlay } from './ui-utils.js';
+import { runSearch, drawHighlights, stepResult } from './manuals-search.js';
+import {
+  refreshManualsCache,
+  getManualForMachine,
+  getManualsForMachine,
+  getManualForMachineName,
+  isManualsTableMissing,
+  getAnyManualForMachine,
+  getOperatorManualsForMachine,
+  isOperatorManualsTableMissing,
+  getSectionsForOperatorManual,
+  isSectionsTableMissing,
+} from './manuals-data.js';
+
+export {
+  refreshManualsCache,
+  getManualForMachine,
+  getManualsForMachine,
+  getManualForMachineName,
+  isManualsTableMissing,
+  getAnyManualForMachine,
+  getOperatorManualsForMachine,
+  isOperatorManualsTableMissing,
+  getSectionsForOperatorManual,
+  isSectionsTableMissing,
+};
 
 const PDFJS_VERSION = '3.11.174';
 const MIN_ZOOM = 0.3;
@@ -28,18 +56,10 @@ const MAX_CANVAS_PIXELS = 4_000_000;
 const WINDOW_RADIUS = 5; // pagine prima/dopo il centro alla prima apertura
 const WINDOW_EXTEND = 10; // pagine aggiunte quando si scorre vicino a un bordo della finestra
 const WINDOW_MAX = 40; // oltre questa dimensione, si liberano le pagine dal lato opposto
-const SEARCH_BATCH = 16; // pagine analizzate in parallelo per blocco durante la ricerca del codice
 
-const els = {};
-let manualsByMachineId = new Map(); // machine_id -> Map<linea, riga machine_manuals> (linea '' = generale)
-let manualsByMachineName = new Map(); // nome macchina normalizzato (minuscolo) -> Map<linea, riga>
-let manualsTableMissing = false;
-let operatorManualsByMachineId = new Map(); // machine_id -> Array<riga machine_operator_manuals> (più di uno per macchina)
-let operatorManualsTableMissing = false;
-let sectionsByOperatorManualId = new Map(); // operator_manual_id -> Array<riga machine_manual_sections>, in ordine
-let sectionsTableMissing = false;
+export const els = {};
 
-const state = {
+export const state = {
   pdfDoc: null,
   manual: null,
   numPages: 0,
@@ -60,105 +80,6 @@ const state = {
   edgeObserver: null, // osserva le due "sentinelle" ai bordi della finestra per allargarla scorrendo
   pinch: null, // { startDist, startZoom } durante un gesto a due dita
 };
-
-// --- CACHE MANUALI (condivisa con machines.js e products.js) -----------
-
-/** Ricarica dal database le mappe machine_id/nome → { linea → manuale } (ricambi) e machine_id → [manuali] (operatore). Va richiamata dopo ogni upload/eliminazione. */
-export async function refreshManualsCache() {
-  try {
-    const [{ manuals, tableMissing }, { manuals: opManuals, tableMissing: opTableMissing }, { sections, tableMissing: sectionsMissing }] = await Promise.all([
-      listMachineManuals(),
-      listOperatorManuals(),
-      listManualSections(),
-    ]);
-    manualsByMachineId = new Map();
-    manualsByMachineName = new Map();
-    manuals.forEach((row) => {
-      if (!manualsByMachineId.has(row.machine_id)) manualsByMachineId.set(row.machine_id, new Map());
-      manualsByMachineId.get(row.machine_id).set(row.linea || '', row);
-
-      const nomeKey = normalizeMachineName(row.machines?.nome).toLowerCase();
-      if (nomeKey) {
-        if (!manualsByMachineName.has(nomeKey)) manualsByMachineName.set(nomeKey, new Map());
-        manualsByMachineName.get(nomeKey).set(row.linea || '', row);
-      }
-    });
-    manualsTableMissing = tableMissing;
-
-    operatorManualsByMachineId = new Map();
-    opManuals.forEach((row) => {
-      if (!operatorManualsByMachineId.has(row.machine_id)) operatorManualsByMachineId.set(row.machine_id, []);
-      operatorManualsByMachineId.get(row.machine_id).push(row);
-    });
-    operatorManualsTableMissing = opTableMissing;
-
-    sectionsByOperatorManualId = new Map();
-    sections.forEach((row) => {
-      if (!sectionsByOperatorManualId.has(row.operator_manual_id)) sectionsByOperatorManualId.set(row.operator_manual_id, []);
-      sectionsByOperatorManualId.get(row.operator_manual_id).push(row);
-    });
-    sectionsTableMissing = sectionsMissing;
-  } catch (err) {
-    console.warn('Impossibile caricare l\'elenco dei manuali.', err);
-  }
-  return manualsByMachineId;
-}
-
-/**
- * Manuale (riga machine_manuals) per una macchina (per id), con ripiego sul
- * manuale "generale" (linea vuota) se non esiste uno specifico per `linea`.
- */
-export function getManualForMachine(machineId, linea = '') {
-  const byLinea = machineId && manualsByMachineId.get(machineId);
-  if (!byLinea) return null;
-  return byLinea.get(linea || '') || byLinea.get('') || null;
-}
-
-/** Tutte le varianti (per linea) caricate per una macchina, dato il suo id. Chiave '' = generale. */
-export function getManualsForMachine(machineId) {
-  return manualsByMachineId.get(machineId) || new Map();
-}
-
-/**
- * Manuale per una macchina dato il suo nome testuale (es. `products.macchina`)
- * e la linea del pezzo (es. `products.linea`), con ripiego sul manuale
- * generale della stessa macchina se non ce n'è uno specifico per la linea.
- */
-export function getManualForMachineName(nome, linea = '') {
-  const key = normalizeMachineName(nome).toLowerCase();
-  const byLinea = key && manualsByMachineName.get(key);
-  if (!byLinea) return null;
-  return byLinea.get(linea || '') || byLinea.get('') || null;
-}
-
-export function isManualsTableMissing() {
-  return manualsTableMissing;
-}
-
-/** Il "miglior" manuale ricambi disponibile per una macchina, per chi non ha una linea specifica da cercare (vista Manuali): il generale se c'è, altrimenti il primo caricato. */
-export function getAnyManualForMachine(machineId) {
-  const byLinea = machineId && manualsByMachineId.get(machineId);
-  if (!byLinea || byLinea.size === 0) return null;
-  return byLinea.get('') || byLinea.values().next().value;
-}
-
-/** Tutti i manuali operatore caricati per una macchina (nell'ordine di caricamento), dato il suo id. */
-export function getOperatorManualsForMachine(machineId) {
-  return operatorManualsByMachineId.get(machineId) || [];
-}
-
-export function isOperatorManualsTableMissing() {
-  return operatorManualsTableMissing;
-}
-
-/** Tutte le sezioni/pulsanti (in ordine) definiti per un manuale operatore. */
-export function getSectionsForOperatorManual(operatorManualId) {
-  return sectionsByOperatorManualId.get(operatorManualId) || [];
-}
-
-export function isSectionsTableMissing() {
-  return sectionsTableMissing;
-}
 
 // --- CARICAMENTO LIBRERIA PDF.JS (CDN, caricata solo al primo utilizzo) --
 
@@ -336,7 +257,7 @@ export async function openManualForMachineName(nomeMacchina, linea, codiceArtico
     toastWarning('Nessun manuale caricato per questa macchina/linea. Puoi caricarlo da Impostazioni → Gestione macchine.');
     return;
   }
-  await openManualViewer(manual, { searchTerm: codiceArticolo });
+  await openManualViewer(manual, { searchTerm: codiceArticolo, title: 'Manuale ricambi' });
 }
 
 // --- COSTRUZIONE PAGINE (placeholder + rendering pigro allo scroll) -----
@@ -792,7 +713,7 @@ async function renderPageEntry(entry) {
   window.lucide?.createIcons();
 }
 
-async function renderAllRenderedPages() {
+export async function renderAllRenderedPages() {
   await Promise.all(state.pages.filter((p) => p.rendered).map((p) => renderPageEntry(p)));
 }
 
@@ -936,38 +857,8 @@ function touchDistance(touches) {
   return Math.hypot(dx, dy);
 }
 
-// --- RICERCA DEL CODICE NEL TESTO DEL PDF --------------------------------
-
-function updateResultsBar() {
-  const hasResults = state.matches.length > 0;
-  els.resultsBar?.classList.toggle('hidden', !hasResults);
-  if (!hasResults) return;
-  if (els.resultsLabel) {
-    els.resultsLabel.textContent = `"${state.searchTerm}" — pagina ${state.matchIndex + 1} di ${state.matches.length}`;
-  }
-}
-
-async function stepResult(direction) {
-  if (!state.matches.length) return;
-  state.matchIndex = (state.matchIndex + direction + state.matches.length) % state.matches.length;
-  // Feedback immediato al tocco: senza questo, se la pagina di destinazione non è
-  // ancora renderizzata, sembra che il pulsante non abbia risposto al tocco.
-  setResultsNavBusy(true);
-  await scrollToPage(state.matches[state.matchIndex]);
-  setResultsNavBusy(false);
-  updateResultsBar();
-}
-
-function setResultsNavBusy(busy) {
-  [els.prevResultBtn, els.nextResultBtn].forEach((btn) => {
-    btn?.toggleAttribute('disabled', busy);
-    btn?.classList.toggle('opacity-40', busy);
-  });
-  if (busy && els.resultsLabel) els.resultsLabel.textContent = 'Caricamento…';
-}
-
 /** Scorre alla pagina `pageNum`: se non è nella finestra attualmente caricata, la ricostruisce lì attorno. */
-async function scrollToPage(pageNum) {
+export async function scrollToPage(pageNum) {
   const token = state.loadToken;
   let entry = findPageEntry(pageNum);
   if (!entry) {
@@ -983,148 +874,4 @@ async function scrollToPage(pageNum) {
   if (!entry.rendered) await renderPageEntry(entry);
   if (token !== state.loadToken) return;
   entry.wrapper.scrollIntoView({ behavior: 'smooth', block: 'start' });
-}
-
-function yieldToBrowser() {
-  return new Promise((resolve) => requestAnimationFrame(() => resolve()));
-}
-
-function setSearchBusy(busy) {
-  els.searchInput?.toggleAttribute('disabled', busy);
-  const submitBtn = els.searchForm?.querySelector('button[type="submit"]');
-  submitBtn?.toggleAttribute('disabled', busy);
-  submitBtn?.classList.toggle('opacity-50', busy);
-  els.prevResultBtn?.toggleAttribute('disabled', busy);
-  els.nextResultBtn?.toggleAttribute('disabled', busy);
-  if (busy) {
-    els.resultsBar?.classList.remove('hidden');
-    if (els.resultsLabel) els.resultsLabel.textContent = 'Ricerca in corso…';
-  }
-}
-
-/**
- * Cerca `term` in TUTTO il manuale (indipendentemente da quali pagine sono attualmente
- * caricate) ed evidenzia/scorre alla prima pagina trovata. Su manuali da centinaia di
- * pagine, elaborare tutto in un solo colpo bloccava l'interfaccia: qui si procede a
- * blocchi paralleli, lasciando "respirare" il browser tra un blocco e l'altro, e con un
- * indicatore "Ricerca in corso…" così si vede chiaramente che sta lavorando.
- */
-async function runSearch(term, { silent = false } = {}) {
-  const clean = (term || '').trim();
-  const searchToken = ++state.searchToken;
-  if (!state.pdfDoc || !clean) {
-    state.searchTerm = '';
-    state.matches = [];
-    state.matchIndex = -1;
-    updateResultsBar();
-    await renderAllRenderedPages(); // toglie eventuali evidenziazioni residue
-    return;
-  }
-  state.searchTerm = clean;
-  const lower = clean.toLowerCase();
-  const matches = [];
-
-  setSearchBusy(true);
-  try {
-    for (let start = 1; start <= state.numPages; start += SEARCH_BATCH) {
-      if (searchToken !== state.searchToken) return; // è partita un'altra ricerca nel frattempo
-      const end = Math.min(state.numPages, start + SEARCH_BATCH - 1);
-      const batch = await Promise.all(
-        Array.from({ length: end - start + 1 }, (_, i) => start + i).map(async (p) => {
-          const page = await state.pdfDoc.getPage(p);
-          const content = await page.getTextContent();
-          const text = content.items.map((it) => it.str).join(' ').toLowerCase();
-          return text.includes(lower) ? p : null;
-        })
-      );
-      batch.forEach((p) => {
-        if (p) matches.push(p);
-      });
-      // Avanzamento reale (non un generico "in corso"): compare nello spinner grande se
-      // il manuale si sta aprendo ora, o nella barra risultati se si sta cercando a
-      // manuale già aperto — a seconda di quale dei due è visibile in questo momento.
-      const progress = `Ricerca di "${clean}"… ${end}/${state.numPages}`;
-      if (els.loading && !els.loading.classList.contains('hidden') && els.loadingText) {
-        els.loadingText.textContent = progress;
-      }
-      if (els.resultsLabel) els.resultsLabel.textContent = progress;
-      await yieldToBrowser(); // niente più freeze: il browser può ridisegnare lo spinner tra un blocco e l'altro
-    }
-  } finally {
-    setSearchBusy(false);
-  }
-  if (searchToken !== state.searchToken) return;
-
-  state.matches = matches;
-  state.matchIndex = matches.length ? 0 : -1;
-  updateResultsBar();
-  if (matches.length) {
-    await scrollToPage(matches[0]);
-    await renderAllRenderedPages(); // per far comparire l'evidenziazione anche sulle pagine già a schermo
-  } else {
-    if (!silent) toastError(`Nessuna pagina contiene "${clean}".`);
-    state.searchTerm = ''; // niente evidenziazioni residue di una ricerca senza risultati
-    await renderAllRenderedPages();
-  }
-}
-
-/**
- * Evidenzia con un riquadro stretto (largo quanto il codice, non l'intera riga) ogni
- * occorrenza di `term` nel testo della pagina.
- */
-function drawHighlights(entry, content, viewport, term) {
-  const lower = term.toLowerCase();
-  let full = '';
-  const spans = []; // { start, end, item }
-  content.items.forEach((item) => {
-    const start = full.length;
-    full += `${item.str} `;
-    spans.push({ start, end: full.length - 1, item });
-  });
-  const fullLower = full.toLowerCase();
-  let idx = fullLower.indexOf(lower);
-  while (idx !== -1) {
-    const matchEnd = idx + lower.length;
-    spans.forEach(({ start, end, item }) => {
-      if (start < matchEnd && end > idx && item.str.trim()) {
-        const localStart = Math.max(0, idx - start);
-        const localEnd = Math.min(item.str.length, matchEnd - start);
-        if (localEnd > localStart) drawHighlightBox(entry, item, viewport, localStart, localEnd);
-      }
-    });
-    idx = fullLower.indexOf(lower, idx + 1);
-  }
-}
-
-function drawHighlightBox(entry, item, viewport, localStart, localEnd) {
-  const pdfjsLib = window.pdfjsLib;
-  if (!pdfjsLib?.Util) return;
-  const tx = pdfjsLib.Util.transform(viewport.transform, item.transform);
-  const scaleX = Math.hypot(tx[0], tx[1]) || 1;
-  const fontHeight = Math.hypot(tx[2], tx[3]) || 10;
-  const totalWidth = Math.max((item.width || 0) * scaleX, 1);
-  const charWidthFromItem = totalWidth / Math.max(item.str.length, 1);
-
-  // Tetto di sicurezza indipendente da item.width: in alcuni cataloghi (esportati da
-  // software CAD/PDM) il singolo comando di testo del PDF contiene, oltre al codice,
-  // un lunghissimo riempimento a spazi per allineare una colonna lontana — e quello
-  // spazio fa parte della STESSA larghezza dichiarata dall'elemento, quindi nessuna
-  // media per-carattere calcolata su di essa può darci una misura corretta. Qui si
-  // stima invece la larghezza di un carattere dalla dimensione del font stesso (un
-  // carattere è tipicamente largo circa il 55-65% della sua altezza) e non si supera
-  // mai quella stima: elimina i riquadri enormi indipendentemente dalla causa.
-  const estimatedCharWidth = fontHeight * 0.62;
-  const charWidth = Math.min(charWidthFromItem, estimatedCharWidth * 1.5);
-
-  const x = tx[4] + charWidth * localStart;
-  const width = Math.max(charWidth * (localEnd - localStart), 4);
-  const top = tx[5] - fontHeight;
-
-  const box = document.createElement('div');
-  box.className = 'manual-highlight';
-  box.style.left = `${x}px`;
-  box.style.top = `${top}px`;
-  box.style.width = `${width}px`;
-  box.style.height = `${fontHeight * 1.15}px`;
-  entry.highlightEl.appendChild(box);
 }

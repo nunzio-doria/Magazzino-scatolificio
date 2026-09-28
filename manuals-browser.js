@@ -11,7 +11,7 @@
 // =============================================================
 
 import { listMachinesWithCounts, createManualSection, updateManualSection, deleteManualSection, uploadSectionIcon, getSectionIconUrl, updateManualSectionsOrder } from './supabase.js';
-import { refreshManualsCache, getOperatorManualsForMachine, getSectionsForOperatorManual, getAnyManualForMachine, openManualViewer } from './manuals.js';
+import { refreshManualsCache, getOperatorManualsForMachine, getSectionsForOperatorManual, getAnyManualForMachine, getManualsForMachine, openManualViewer } from './manuals.js';
 import { staggerIndex, setButtonBusy, openOverlay, closeOverlay, enableSheetDrag } from './ui-utils.js';
 import { confirmDialog } from './ui-modal.js';
 import { toastError, toastSuccess, toastWarning } from './toast.js';
@@ -41,7 +41,7 @@ export function initManualsBrowser() {
   els.detailSubtitle = document.getElementById('manuals-detail-subtitle');
   els.detailGrid = document.getElementById('manuals-detail-grid');
   els.detailEmpty = document.getElementById('manuals-detail-empty');
-  els.detailSpareBtn = document.getElementById('manuals-detail-spare-parts');
+  els.spareWrap = document.getElementById('manuals-detail-spare-parts-wrap');
   els.reorderToggle = document.getElementById('manuals-detail-reorder-toggle');
   els.reorderHint = document.getElementById('manuals-reorder-hint');
 
@@ -65,15 +65,6 @@ export function initManualsBrowser() {
   if (!els.list) return; // markup non presente (non dovrebbe succedere)
 
   els.detailBack?.addEventListener('click', closeMachineDetail);
-  els.detailSpareBtn?.addEventListener('click', () => {
-    if (!currentMachine) return;
-    const manual = getAnyManualForMachine(currentMachine.id);
-    if (!manual) {
-      toastWarning(`Nessun manuale ricambi caricato per "${currentMachine.nome}". Puoi caricarlo da Impostazioni → Gestione macchine.`);
-      return;
-    }
-    openManualViewer(manual, { title: 'Spare parts' });
-  });
 
   els.reorderToggle?.addEventListener('click', toggleReorderMode);
 
@@ -196,6 +187,7 @@ function openMachineDetail(machine) {
   reorderMode = false;
   els.detailTitle.textContent = machine.nome;
   renderDetailGrid();
+  renderSpareButtons(machine);
   els.view?.classList.add('manuals-detail-open');
   document.body.classList.add('manuals-detail-active');
   window.lucide?.createIcons();
@@ -296,6 +288,59 @@ function renderDetailGrid() {
   }
 
   updateReorderToggleVisibility(sections.length);
+  window.lucide?.createIcons();
+}
+
+// ---------------------------------------------------------------- Spare Parts --
+
+const SPARE_BTN_CLASS =
+  'press-spring inline-flex items-center gap-1.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-white font-display font-bold uppercase tracking-wide text-xs px-3.5 py-2.5 shadow-sm shadow-amber-500/10';
+
+function spareLineLabel(linea) {
+  if (!linea) return 'Generale';
+  const num = linea.replace(/^l/i, '').trim();
+  return num ? `Linea ${num}` : linea;
+}
+
+function openSpareManual(machine, manual, title) {
+  if (!manual) {
+    toastWarning(`Nessun manuale ricambi caricato per "${machine.nome}". Puoi caricarlo da Impostazioni → Gestione macchine.`);
+    return;
+  }
+  openManualViewer(manual, { title });
+}
+
+/**
+ * Un solo pulsante "Spare parts" se la macchina ha al più un manuale ricambi
+ * (comportamento invariato); se ne ha più di uno (una linea assegnata a testa,
+ * es. Saldatrice L1/L2) si estende con un pulsante per linea, etichettato per
+ * esteso, invece di poterne aprire uno solo.
+ */
+function renderSpareButtons(machine) {
+  const wrap = els.spareWrap;
+  if (!wrap) return;
+  const manuals = getManualsForMachine(machine.id);
+  wrap.innerHTML = '';
+
+  if (manuals.size <= 1) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.id = 'manuals-detail-spare-parts';
+    btn.className = SPARE_BTN_CLASS;
+    btn.innerHTML = '<i data-lucide="cog" class="w-4 h-4" stroke-width="2.2"></i> Spare parts';
+    btn.addEventListener('click', () => openSpareManual(machine, getAnyManualForMachine(machine.id), 'Spare parts'));
+    wrap.appendChild(btn);
+  } else {
+    manuals.forEach((manual, linea) => {
+      const label = spareLineLabel(linea);
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = SPARE_BTN_CLASS;
+      btn.innerHTML = `<i data-lucide="cog" class="w-4 h-4" stroke-width="2.2"></i> Spare parts — ${escapeHtml(label)}`;
+      btn.addEventListener('click', () => openSpareManual(machine, manual, `Spare parts — ${label}`));
+      wrap.appendChild(btn);
+    });
+  }
   window.lucide?.createIcons();
 }
 

@@ -80,23 +80,61 @@ async function withConnectionRetries(task, onAttempt) {
 const IDLE_TIMEOUT_MS = 10 * 60 * 1000; // 10 minuti senza interazione
 const IDLE_WARNING_MS = 60 * 1000; // avviso 60s prima della disconnessione
 const ACTIVITY_EVENTS = ['pointerdown', 'keydown', 'touchstart', 'wheel'];
+const LAST_ACTIVITY_KEY = 'magazzino_last_activity_at';
 
 let idleTimer = null;
 let idleWarningTimer = null;
 let activityListenersAttached = false;
 
+/** Ultimo istante di attività, in localStorage: a differenza di un contatore in
+ *  memoria, sopravvive allo schermo bloccato o all'app messa in background, che
+ *  mettono in pausa i normali setTimeout — è per questo che il logout automatico
+ *  prima non scattava mai su un dispositivo condiviso lasciato acceso: ogni
+ *  riaccensione dello schermo faceva ripartire il conto da zero invece di
+ *  controllare quanto tempo REALE fosse davvero trascorso. */
+function recordActivityNow() {
+  try {
+    localStorage.setItem(LAST_ACTIVITY_KEY, String(Date.now()));
+  } catch (err) {
+    /* storage pieno o non disponibile: il timer resta comunque valido finché la pagina non viene messa in pausa */
+  }
+}
+
+function msSinceLastActivity() {
+  try {
+    const raw = localStorage.getItem(LAST_ACTIVITY_KEY);
+    if (!raw) return 0;
+    const last = Number(raw);
+    return Number.isFinite(last) ? Date.now() - last : 0;
+  } catch (err) {
+    return 0;
+  }
+}
+
 /**
- * Avvia (o riavvia da zero) il conto alla rovescia di inattività. Va
- * richiamato ad ogni interazione dell'utente mentre è autenticato.
+ * Avvia (o riavvia) il conto alla rovescia di inattività, calcolandolo sul tempo
+ * REALE trascorso dall'ultima attività registrata: se il dispositivo è stato
+ * bloccato/in background più a lungo del timeout, disconnette subito invece di
+ * ripartire da capo. Va richiamato ad ogni interazione dell'utente mentre è
+ * autenticato, e al ritorno in primo piano.
  * @param {() => void} onTimeout callback da eseguire allo scadere del tempo
  */
 function resetIdleTimer(onTimeout) {
+  const elapsed = msSinceLastActivity();
+  recordActivityNow();
   clearTimeout(idleTimer);
   clearTimeout(idleWarningTimer);
-  idleWarningTimer = setTimeout(() => {
-    toastWarning('Disconnessione automatica tra 60s per inattività — tocca lo schermo per restare collegato.', 6000);
-  }, IDLE_TIMEOUT_MS - IDLE_WARNING_MS);
-  idleTimer = setTimeout(onTimeout, IDLE_TIMEOUT_MS);
+  if (elapsed >= IDLE_TIMEOUT_MS) {
+    onTimeout();
+    return;
+  }
+  const remaining = IDLE_TIMEOUT_MS - elapsed;
+  if (remaining > IDLE_WARNING_MS) {
+    idleWarningTimer = setTimeout(() => {
+      toastWarning('Disconnessione automatica tra 60s per inattività — tocca lo schermo per restare collegato.', 6000);
+    }, remaining - IDLE_WARNING_MS);
+  }
+  idleTimer = setTimeout(onTimeout, remaining);
 }
 
 function stopIdleTimer() {
@@ -104,6 +142,11 @@ function stopIdleTimer() {
   clearTimeout(idleWarningTimer);
   idleTimer = null;
   idleWarningTimer = null;
+  try {
+    localStorage.removeItem(LAST_ACTIVITY_KEY);
+  } catch (err) {
+    /* non blocca il logout se lo storage non è disponibile */
+  }
 }
 
 /**
@@ -200,6 +243,7 @@ export function initAuth(onAuthed, onSignedOut) {
     authState.session = null;
     authState.profile = null;
     stopIdleTimer();
+    onSignedOut();
     toastWarning('Sessione terminata automaticamente per inattività.');
   };
   attachActivityListeners(() => !!authState.session, handleIdleTimeout);
