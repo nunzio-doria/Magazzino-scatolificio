@@ -80,9 +80,9 @@ export async function runSearch(term, { silent = false } = {}) {
 
   setSearchBusy(true);
   try {
-    for (let start = 1; start <= state.numPages; start += SEARCH_BATCH) {
+    for (let start = state.rangeStart; start <= state.rangeEnd; start += SEARCH_BATCH) {
       if (searchToken !== state.searchToken) return; // è partita un'altra ricerca nel frattempo
-      const end = Math.min(state.numPages, start + SEARCH_BATCH - 1);
+      const end = Math.min(state.rangeEnd, start + SEARCH_BATCH - 1);
       const batch = await Promise.all(
         Array.from({ length: end - start + 1 }, (_, i) => start + i).map(async (p) => {
           const page = await state.pdfDoc.getPage(p);
@@ -98,7 +98,7 @@ export async function runSearch(term, { silent = false } = {}) {
       // Avanzamento reale (non un generico "in corso"): compare nello spinner grande se
       // il manuale si sta aprendo ora, o nella barra risultati se si sta cercando a
       // manuale già aperto — a seconda di quale dei due è visibile in questo momento.
-      const progress = `Ricerca di "${clean}"… ${end}/${state.numPages}`;
+      const progress = `Ricerca di "${clean}"… ${end}/${state.rangeEnd}`;
       if (els.loading && !els.loading.classList.contains('hidden') && els.loadingText) {
         els.loadingText.textContent = progress;
       }

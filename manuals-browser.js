@@ -308,7 +308,7 @@ function renderDetailGrid() {
     } else {
       // Admin: tenendo premuto sull'icona si entra in modalità modifica.
       if (isAdmin()) attachLongPress(tile, () => enterReorderMode());
-      tile.addEventListener('click', () => openManualViewer(manual, { startPage: section.page_start, title: section.label }));
+      tile.addEventListener('click', () => openManualViewer(manual, { startPage: section.page_start, endPage: section.page_end, title: section.label }));
     }
     els.detailGrid.appendChild(tile);
   });
@@ -368,8 +368,8 @@ function openSpareManual(machine, manual, title) {
 
 /**
  * Un unico pulsante "Spare parts", sempre, anche con più manuali ricambi (una
- * linea a testa, es. Saldatrice L1/L2). Il tocco apre il manuale predefinito;
- * tenendo premuto lo stesso pulsante si estende mostrando, al suo interno, un
+ * linea a testa, es. Saldatrice L1/L2). Con un solo manuale il tocco lo apre; con
+ * più manuali il tocco estende lo stesso pulsante mostrando, al suo interno, un
  * accesso per ciascuna linea.
  */
 function renderSpareButtons(machine) {
@@ -433,17 +433,8 @@ function renderSpareButtons(machine) {
     }
   }
 
-  attachLongPress(main, () => {
-    feedback.modeSelect();
-    setExpanded(!expanded);
-  });
-  main.addEventListener('click', () => {
-    if (expanded) {
-      setExpanded(false);
-      return;
-    }
-    openSpareManual(machine, getAnyManualForMachine(machine.id), 'Spare parts');
-  });
+  // Più manuali ricambi: un solo tocco estende/richiude il pulsante, la scelta della linea sta al suo interno.
+  main.addEventListener('click', () => setExpanded(!expanded));
 
   wrap.appendChild(group);
   window.lucide?.createIcons();
@@ -457,6 +448,11 @@ function updateReorderToggleVisibility(sectionsCount) {
   els.reorderToggle.classList.toggle('hidden', !reorderMode);
   els.reorderToggle.disabled = reorderSaving;
   els.reorderToggle.innerHTML = `<i data-lucide="${reorderMode ? 'check' : 'move'}" class="w-[18px] h-[18px]" stroke-width="${reorderMode ? '2.4' : '1.8'}"></i>`;
+  // bg-graphite-800 / text-graphite-400 vanno TOLTI in modalità modifica: erano in conflitto
+  // con bg-amber-400 e la spunta bianca finiva su sfondo bianco (invisibile).
+  els.reorderToggle.classList.toggle('bg-graphite-800', !reorderMode);
+  els.reorderToggle.classList.toggle('border-graphite-700', !reorderMode);
+  els.reorderToggle.classList.toggle('text-graphite-400', !reorderMode);
   els.reorderToggle.classList.toggle('bg-amber-400', reorderMode);
   els.reorderToggle.classList.toggle('border-amber-400', reorderMode);
   els.reorderToggle.classList.toggle('text-white', reorderMode);
@@ -464,6 +460,7 @@ function updateReorderToggleVisibility(sectionsCount) {
   els.detailBack.classList.toggle('opacity-40', reorderMode);
   els.detailBack.classList.toggle('pointer-events-none', reorderMode);
   els.reorderHint?.classList.toggle('hidden', !reorderMode);
+  window.lucide?.createIcons(); // l'icona è appena stata riscritta: senza questo (es. durante il salvataggio) resterebbe vuota
 }
 
 function toggleReorderMode() {

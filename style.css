@@ -446,7 +446,6 @@ input.peer:checked ~ span:first-of-type {
   inset: 0;
   transform: translateX(100%);
   pointer-events: none;
-  background-color: var(--paper); /* copre l'elenco sottostante durante lo scambio */
 }
 /* L'elenco macchine resta "dietro": si sposta di poco (parallasse) e sfuma fino a
    sparire del tutto a transizione conclusa — deve arrivare a opacity 0 pieno,

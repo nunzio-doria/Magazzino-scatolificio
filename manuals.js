@@ -49,13 +49,10 @@ const MAX_ZOOM = 3;
 // soglia, soprattutto con più pagine ad alta risoluzione tenute in memoria insieme, iOS/Safari
 // può svuotare silenziosamente il canvas (appare tutto nero): meglio restare ben al di sotto.
 const MAX_CANVAS_PIXELS = 4_000_000;
-// Su manuali da centinaia di pagine, creare un segnaposto per OGNI pagina (con relativa
-// chiamata a getPage) bloccava l'interfaccia per secondi prima di mostrare qualsiasi cosa.
-// Ora si carica solo una "finestra" di pagine attorno al punto di interesse (il risultato
-// della ricerca, o l'inizio del manuale), che si allarga da sola scorrendo verso i bordi.
-const WINDOW_RADIUS = 5; // pagine prima/dopo il centro alla prima apertura
-const WINDOW_EXTEND = 10; // pagine aggiunte quando si scorre vicino a un bordo della finestra
-const WINDOW_MAX = 40; // oltre questa dimensione, si liberano le pagine dal lato opposto
+// Ogni pagina dell'intervallo aperto (l'intera sezione, o tutto il manuale) ha da subito il
+// suo segnaposto, senza chiamare getPage: la dimensione arriva dalla pagina di riferimento
+// e si corregge da sola quando la pagina viene davvero renderizzata. Così la lunghezza dello
+// scroll è sempre quella vera e non ci sono più finestre che si allargano o si trimmano.
 
 export const els = {};
 
@@ -69,15 +66,13 @@ export const state = {
   matches: [], // numeri di pagina (in ordine) che contengono il termine cercato
   matchIndex: -1,
   searchToken: 0, // invalida una ricerca in corso se ne parte un'altra prima che finisca
-  pages: [], // SOLO le pagine attualmente nella finestra caricata: { pageNum, page, wrapper, canvas, textLayerEl, highlightEl, rendered, renderToken }
-  windowStart: 0, // primo numero di pagina attualmente caricato
-  windowEnd: 0, // ultimo numero di pagina attualmente caricato
-  extending: false, // true mentre extendWindow() sta aggiungendo pagine (evita richieste doppie)
+  rangeStart: 1, // prima pagina navigabile (l'inizio della sezione, o 1)
+  rangeEnd: 1, // ultima pagina navigabile (la fine della sezione, o l'ultima del manuale)
+  pages: [], // una voce per OGNI pagina dell'intervallo, in ordine: { pageNum, page, baseW, baseH, wrapper, canvas, textLayerEl, highlightEl, rendered, rendering, renderToken }
   loadToken: 0, // invalida i render in corso quando si apre un altro manuale prima che il precedente finisca
   visiblePage: 1,
   observer: null,
   freeObserver: null,
-  edgeObserver: null, // osserva le due "sentinelle" ai bordi della finestra per allargarla scorrendo
   pinch: null, // { startDist, startZoom } durante un gesto a due dita
 };
 
@@ -153,10 +148,11 @@ export function initManuals() {
   els.pageForm?.addEventListener('submit', (e) => {
     e.preventDefault();
     const target = Math.round(Number(els.pageInput.value));
-    if (Number.isFinite(target)) scrollToPage(Math.min(Math.max(1, target), state.numPages || 1));
+    if (Number.isFinite(target)) scrollToPage(target);
     els.pageInput.blur();
   });
 
+  els.canvasWrap?.addEventListener('scroll', scheduleVisiblePageUpdate, { passive: true });
   initPinchZoom();
   initCustomScrollbar();
 }
@@ -172,15 +168,9 @@ function teardownPages() {
   state.observer = null;
   state.freeObserver?.disconnect();
   state.freeObserver = null;
-  state.edgeObserver?.disconnect();
-  state.edgeObserver = null;
   els.pagesWrap.innerHTML = '';
   els.pagesWrap.style.transform = 'none';
-  els.topSentinel = null;
-  els.bottomSentinel = null;
   state.pages = [];
-  state.windowStart = 0;
-  state.windowEnd = 0;
 }
 
 // --- API PUBBLICA: apertura del visualizzatore --------------------------
@@ -188,7 +178,7 @@ function teardownPages() {
 /**
  * Apre il visualizzatore per un manuale già noto (riga machine_manuals).
  * @param {{ file_name: string, storage_path: string, bucket?: string }} manual `bucket` distingue manuali ricambi/operatore (vedi supabase.js); se assente si usa il bucket manuali ricambi.
- * @param {{ searchTerm?: string, startPage?: number, title?: string }} opts `startPage` apre il manuale già scorso a quella pagina (usato dai pulsanti/sezioni); ignorato se è presente `searchTerm`. `title` sostituisce il nome del file mostrato in alto (es. il nome del pulsante da cui si è aperto), altrimenti si vede il nome del file.
+ * @param {{ searchTerm?: string, startPage?: number, endPage?: number, title?: string }} opts `startPage`/`endPage` limitano il visualizzatore a quelle pagine (usato dai pulsanti/sezioni): non si può scorrere fuori dall'intervallo; ignorati se è presente `searchTerm`. `title` sostituisce il nome del file mostrato in alto (es. il nome del pulsante da cui si è aperto), altrimenti si vede il nome del file.
  * @param {{ searchTerm?: string }} [opts] se presente, cerca subito il codice e scorre alla prima pagina trovata
  */
 export async function openManualViewer(manual, opts = {}) {
@@ -219,21 +209,29 @@ export async function openManualViewer(manual, opts = {}) {
     if (token !== state.loadToken) return;
 
     if (opts.searchTerm) {
-      // La ricerca scandisce l'intero documento (indipendentemente dalla finestra di
-      // pagine caricate) e, se trova un risultato, costruisce da sola la finestra
-      // giusta tramite scrollToPage → buildWindow.
+      // Ricerca su tutto il manuale: prima si preparano i segnaposto di tutte le pagine,
+      // poi runSearch scorre da sola al primo risultato.
+      state.rangeStart = 1;
+      state.rangeEnd = state.numPages;
+      await buildPages(1, token);
+      if (token !== state.loadToken) return;
       await runSearch(opts.searchTerm, { silent: true });
       if (token !== state.loadToken) return;
       if (!state.matches.length) {
         toastWarning(`Codice "${opts.searchTerm}" non trovato nel manuale — apro comunque il manuale.`);
-        await buildWindow(1, token);
       }
     } else if (opts.startPage) {
-      const target = Math.min(Math.max(1, Math.round(opts.startPage)), state.numPages);
-      await scrollToPage(target);
+      // Sezione: l'intervallo è bloccato tra pagina iniziale e finale (entrambe incluse).
+      const first = Math.min(Math.max(1, Math.round(opts.startPage)), state.numPages);
+      const last = opts.endPage ? Math.min(Math.max(first, Math.round(opts.endPage)), state.numPages) : state.numPages;
+      state.rangeStart = first;
+      state.rangeEnd = last;
+      await buildPages(first, token);
       if (token !== state.loadToken) return;
     } else {
-      await buildWindow(1, token);
+      state.rangeStart = 1;
+      state.rangeEnd = state.numPages;
+      await buildPages(1, token);
     }
   } catch (err) {
     console.error(err);
@@ -280,9 +278,10 @@ function showError(message) {
   els.canvasWrap?.classList.add('invisible');
 }
 
-/** Trova la pagina, tra quelle attualmente caricate, con questo numero. */
+/** Trova la voce di una pagina (le pagine sono contigue, quindi basta l'indice). */
 function findPageEntry(pageNum) {
-  return state.pages.find((entry) => entry.pageNum === pageNum);
+  const entry = state.pages[pageNum - state.rangeStart];
+  return entry && entry.pageNum === pageNum ? entry : undefined;
 }
 
 /** Calcola la scala "adatta alla larghezza" leggendo solo la pagina 1 (veloce, non l'intero documento). */
@@ -295,10 +294,11 @@ async function computeFitScale(token) {
 }
 
 function updatePageIndicator() {
-  if (els.pageTotal) els.pageTotal.textContent = `di ${state.numPages || '—'}`;
+  if (els.pageTotal) els.pageTotal.textContent = `di ${state.rangeEnd || state.numPages || '—'}`;
   if (els.pageInput && document.activeElement !== els.pageInput) {
     els.pageInput.value = state.visiblePage;
-    els.pageInput.max = state.numPages || '';
+    els.pageInput.min = state.rangeStart || 1;
+    els.pageInput.max = state.rangeEnd || '';
   }
 }
 
@@ -391,64 +391,17 @@ function updateCustomScrollbar() {
   thumb.style.top = `${thumbTop}px`;
 }
 
-/**
- * Ricostruisce da zero la finestra di pagine caricate, centrata su `centerPage`
- * (5 pagine prima, 5 dopo — WINDOW_RADIUS). Con manuali da centinaia di pagine è
- * questo, e non l'intero documento, a restare sempre leggero e immediato.
- */
-async function buildWindow(centerPage, token) {
-  teardownPages(); // pulisce le pagine/observer della finestra precedente (non tocca il documento)
-  setupSentinels();
-  setupWindowObservers();
-
-  const start = Math.max(1, centerPage - WINDOW_RADIUS);
-  const end = Math.min(state.numPages, centerPage + WINDOW_RADIUS);
-  for (let p = start; p <= end; p++) {
-    if (token !== state.loadToken) return;
-    await addPageEntry(p);
-  }
-  state.windowStart = start;
-  state.windowEnd = end;
-  state.visiblePage = centerPage >= start && centerPage <= end ? centerPage : start;
-  updatePageIndicator();
-  updateCustomScrollbar();
-}
-
-/** Due segnaposto invisibili ai bordi della finestra: quando entrano in vista, la allargano. */
-function setupSentinels() {
-  els.topSentinel = document.createElement('div');
-  els.topSentinel.className = 'w-full h-px';
-  els.bottomSentinel = document.createElement('div');
-  els.bottomSentinel.className = 'w-full h-px';
-  els.pagesWrap.appendChild(els.topSentinel);
-  els.pagesWrap.appendChild(els.bottomSentinel);
-
-  state.edgeObserver = new IntersectionObserver(
-    (entries) => {
-      entries.forEach((entry) => {
-        if (!entry.isIntersecting) return;
-        if (entry.target === els.topSentinel) extendWindow('up');
-        else if (entry.target === els.bottomSentinel) extendWindow('down');
-      });
-    },
-    { root: els.canvasWrap, rootMargin: '800px 0px 800px 0px' }
-  );
-  state.edgeObserver.observe(els.topSentinel);
-  state.edgeObserver.observe(els.bottomSentinel);
-}
-
 function setupWindowObservers() {
   state.observer = new IntersectionObserver(onPagesIntersect, {
     root: els.canvasWrap,
     rootMargin: '600px 0px 600px 0px', // pre-carica circa uno schermo prima/dopo
-    threshold: [0, 0.5],
+    threshold: [0],
   });
 
   // Observer separato, con un margine molto più ampio, dedicato SOLO a liberare la
   // memoria delle pagine ormai lontane. Deve essere più largo di quello sopra: se
   // avessero lo stesso margine, una pagina appena fuori dai 600px verrebbe liberata e
-  // poi ri-renderizzata a ogni minimo scroll avanti/indietro (è quello che causava i
-  // rallentamenti e i crash della scheda).
+  // poi ri-renderizzata a ogni minimo scroll avanti/indietro.
   state.freeObserver = new IntersectionObserver(onPagesLeaveFreeZone, {
     root: els.canvasWrap,
     rootMargin: '2400px 0px 2400px 0px',
@@ -456,122 +409,103 @@ function setupWindowObservers() {
   });
 }
 
-/** Crea il segnaposto di una pagina (dimensioni corrette da subito) e la inserisce in coda o in testa alla finestra. */
-async function addPageEntry(p, { prepend = false } = {}) {
-  const page = await state.pdfDoc.getPage(p);
-  const vp = page.getViewport({ scale: state.fitScale * state.zoom });
+/** Applica al segnaposto la dimensione della pagina alla scala corrente. */
+function sizeEntry(entry) {
+  const scale = state.fitScale * state.zoom;
+  entry.wrapper.style.width = `${Math.round(entry.baseW * scale)}px`;
+  entry.wrapper.style.height = `${Math.round(entry.baseH * scale)}px`;
+}
 
-  const wrapper = document.createElement('div');
-  wrapper.className = 'manual-page relative bg-white shadow-lift rounded';
-  wrapper.dataset.page = String(p);
-  wrapper.style.width = `${Math.round(vp.width)}px`;
-  wrapper.style.height = `${Math.round(vp.height)}px`;
+/**
+ * Quando la dimensione reale di una pagina differisce da quella ipotizzata, la corregge
+ * e, se la pagina è già SOPRA l'area visibile, compensa lo scroll di quanto è cambiata
+ * la sua altezza: chi sta leggendo non deve vedere la pagina scivolare.
+ */
+function resizeEntryKeepingView(entry, baseW, baseH) {
+  const wrap = els.canvasWrap;
+  const above = entry.wrapper.getBoundingClientRect().bottom <= wrap.getBoundingClientRect().top;
+  const oldHeight = entry.wrapper.offsetHeight;
+  entry.baseW = baseW;
+  entry.baseH = baseH;
+  sizeEntry(entry);
+  if (above) wrap.scrollTop += entry.wrapper.offsetHeight - oldHeight;
+}
 
-  // Spinner segnaposto: visibile finché la pagina non è stata renderizzata almeno
-  // una volta (o dopo essere stata liberata dalla memoria), così si capisce sempre
-  // se una pagina sta ancora caricando invece di sembrare "bloccata".
-  const spinner = document.createElement('div');
-  spinner.className = 'manual-page-spinner absolute inset-0 flex items-center justify-center pointer-events-none';
-  spinner.innerHTML = '<i data-lucide="loader-circle" class="w-6 h-6 text-amber-400/70 animate-spin" stroke-width="2"></i>';
-  wrapper.appendChild(spinner);
+/**
+ * Crea i segnaposto di TUTTE le pagine dell'intervallo (state.rangeStart..rangeEnd) e
+ * porta la vista sulla pagina `targetPage`. Nessuna finestra mobile, nessuna pagina che
+ * si aggiunge o sparisce mentre si scorre: l'intervallo è quello e basta.
+ */
+async function buildPages(targetPage, token) {
+  teardownPages();
+  setupWindowObservers();
 
-  const entry = { pageNum: p, page, wrapper, spinner, rendered: false };
-  if (prepend) {
-    els.pagesWrap.insertBefore(wrapper, els.topSentinel.nextSibling);
-    state.pages.unshift(entry);
-  } else {
-    els.pagesWrap.insertBefore(wrapper, els.bottomSentinel);
+  const target = Math.min(Math.max(targetPage, state.rangeStart), state.rangeEnd);
+  const refPage = await state.pdfDoc.getPage(target);
+  if (token !== state.loadToken) return;
+  const base = refPage.getViewport({ scale: 1 });
+
+  const frag = document.createDocumentFragment();
+  for (let p = state.rangeStart; p <= state.rangeEnd; p++) {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'manual-page relative bg-white shadow-lift rounded';
+    wrapper.dataset.page = String(p);
+    // Spinner segnaposto: visibile finché la pagina non è stata renderizzata (o dopo
+    // essere stata liberata dalla memoria), così si capisce sempre che sta caricando.
+    const spinner = document.createElement('div');
+    spinner.className = 'manual-page-spinner absolute inset-0 flex items-center justify-center pointer-events-none';
+    spinner.innerHTML = '<span class="block w-6 h-6 rounded-full border-2 border-amber-400/70 border-t-transparent animate-spin"></span>';
+    wrapper.appendChild(spinner);
+    const entry = { pageNum: p, page: p === target ? refPage : null, baseW: base.width, baseH: base.height, wrapper, spinner, rendered: false, rendering: false };
+    sizeEntry(entry);
+    frag.appendChild(wrapper);
     state.pages.push(entry);
   }
+  els.pagesWrap.appendChild(frag);
+  state.pages.forEach((entry) => {
+    state.observer.observe(entry.wrapper);
+    state.freeObserver.observe(entry.wrapper);
+  });
 
-  state.observer?.observe(wrapper);
-  state.freeObserver?.observe(wrapper);
-  window.lucide?.createIcons();
-  return entry;
-}
-
-/** Allarga la finestra di WINDOW_EXTEND pagine verso l'alto o il basso, quando l'utente scorre vicino a un bordo. */
-async function extendWindow(direction) {
-  if (state.extending) return;
-  if (direction === 'up' && state.windowStart <= 1) return;
-  if (direction === 'down' && state.windowEnd >= state.numPages) return;
-
-  state.extending = true;
-  const token = state.loadToken;
-  try {
-    if (direction === 'up') {
-      const newStart = Math.max(1, state.windowStart - WINDOW_EXTEND);
-      const prevScrollHeight = els.canvasWrap.scrollHeight;
-      const prevScrollTop = els.canvasWrap.scrollTop;
-      for (let p = state.windowStart - 1; p >= newStart; p--) {
-        if (token !== state.loadToken) return;
-        await addPageEntry(p, { prepend: true });
-      }
-      state.windowStart = newStart;
-      // Compensa lo scroll: aggiungere pagine SOPRA a quelle già a schermo non deve
-      // far "saltare" la vista di quanto è alto ciò che è stato appena inserito.
-      els.canvasWrap.scrollTop = prevScrollTop + (els.canvasWrap.scrollHeight - prevScrollHeight);
-    } else {
-      const newEnd = Math.min(state.numPages, state.windowEnd + WINDOW_EXTEND);
-      for (let p = state.windowEnd + 1; p <= newEnd; p++) {
-        if (token !== state.loadToken) return;
-        await addPageEntry(p);
-      }
-      state.windowEnd = newEnd;
-    }
-    trimWindowIfNeeded();
-  } finally {
-    state.extending = false;
-  }
-}
-
-/** Oltre WINDOW_MAX pagine caricate insieme, libera quelle dal lato più lontano dalla pagina visibile. */
-function trimWindowIfNeeded() {
-  while (state.windowEnd - state.windowStart + 1 > WINDOW_MAX) {
-    const distStart = state.visiblePage - state.windowStart;
-    const distEnd = state.windowEnd - state.visiblePage;
-    if (distStart > distEnd) removeFirstPageEntry();
-    else removeLastPageEntry();
-  }
-}
-
-function removeFirstPageEntry() {
-  const entry = state.pages.shift();
-  if (!entry) return;
-  state.observer?.unobserve(entry.wrapper);
-  state.freeObserver?.unobserve(entry.wrapper);
-  freePageCanvas(entry);
-  const removedHeight = entry.wrapper.getBoundingClientRect().height;
-  entry.wrapper.remove();
-  els.canvasWrap.scrollTop -= removedHeight; // idem: rimuovere pagine sopra sposta la vista, va compensato
-  state.windowStart = state.pages[0]?.pageNum ?? state.windowStart;
-}
-
-function removeLastPageEntry() {
-  const entry = state.pages.pop();
-  if (!entry) return;
-  state.observer?.unobserve(entry.wrapper);
-  state.freeObserver?.unobserve(entry.wrapper);
-  freePageCanvas(entry);
-  entry.wrapper.remove();
-  state.windowEnd = state.pages[state.pages.length - 1]?.pageNum ?? state.windowEnd;
+  await scrollToPage(target);
+  updateCustomScrollbar();
 }
 
 function onPagesIntersect(entries) {
-  let bestRatio = 0;
-  let bestPage = null;
-  entries.forEach((entry) => {
-    const pageNum = Number(entry.target.dataset.page);
-    if (entry.isIntersecting) {
-      renderPageEntry(findPageEntry(pageNum));
-      if (entry.intersectionRatio >= bestRatio) {
-        bestRatio = entry.intersectionRatio;
-        bestPage = pageNum;
-      }
+  entries.forEach((e) => {
+    const entry = findPageEntry(Number(e.target.dataset.page));
+    if (!entry) return;
+    if (e.isIntersecting) {
+      renderPageEntry(entry);
+    } else if (entry.rendering && !entry.rendered) {
+      // Scroll veloce: una pagina ormai superata smette di lavorare invece di intasare la coda.
+      freePageCanvas(entry);
     }
   });
-  if (bestPage != null) state.visiblePage = bestPage;
-  updatePageIndicator();
+}
+
+/** Pagina corrente = quella che contiene un punto a circa un terzo dell'altezza visibile (non dipende da quali pagine sono già renderizzate). */
+let visiblePageRaf = 0;
+function scheduleVisiblePageUpdate() {
+  if (visiblePageRaf || !state.pages.length) return;
+  visiblePageRaf = requestAnimationFrame(() => {
+    visiblePageRaf = 0;
+    const wrap = els.canvasWrap;
+    if (!wrap || !state.pages.length) return;
+    const y = wrap.scrollTop + wrap.clientHeight / 3;
+    let lo = 0;
+    let hi = state.pages.length - 1;
+    while (lo < hi) {
+      const mid = (lo + hi + 1) >> 1;
+      if (state.pages[mid].wrapper.offsetTop <= y) lo = mid;
+      else hi = mid - 1;
+    }
+    const page = state.pages[lo].pageNum;
+    if (page !== state.visiblePage) {
+      state.visiblePage = page;
+      updatePageIndicator();
+    }
+  });
 }
 
 /** Libera le pagine ormai lontane (fuori dal margine ampio di state.freeObserver). */
@@ -586,8 +520,9 @@ function onPagesLeaveFreeZone(entries) {
 /** Libera il canvas/text-layer di una pagina uscita dal margine di precarico. Verrà
  * ri-renderizzata automaticamente quando rientrerà in vista. */
 function freePageCanvas(entry) {
-  if (!entry || (!entry.rendered && !entry.renderTask)) return;
+  if (!entry || (!entry.rendered && !entry.renderTask && !entry.rendering)) return;
   entry.rendered = false;
+  entry.rendering = false;
   entry.renderToken = (entry.renderToken || 0) + 1; // scarta un eventuale render ancora in corso
   if (entry.renderTask) {
     // Annulla il render in corso PRIMA di svuotare il canvas: scrivere sul canvas
@@ -609,10 +544,22 @@ function freePageCanvas(entry) {
 }
 
 /** Rende (o ri-rende, es. dopo uno zoom) il canvas + text layer + evidenziazioni di una pagina. */
-async function renderPageEntry(entry) {
+async function renderPageEntry(entry, { force = false } = {}) {
   if (!entry || !state.pdfDoc) return;
+  // Una pagina già renderizzata, o in corso di rendering, non va rifatta a ogni passaggio
+  // nell'observer (azzerare il canvas la farebbe lampeggiare in bianco): solo con force (zoom, evidenziazioni).
+  if (!force && (entry.rendered || entry.rendering)) return;
   const myToken = (entry.renderToken || 0) + 1;
   entry.renderToken = myToken;
+  entry.rendering = true;
+  try {
+    await renderPageEntryInner(entry, myToken);
+  } finally {
+    if (entry.renderToken === myToken) entry.rendering = false;
+  }
+}
+
+async function renderPageEntryInner(entry, myToken) {
 
   // Se questa stessa pagina ha già un render in corso (es. richiesta due volte di fila
   // durante uno scroll veloce), annullalo prima di riusare il canvas: lasciare che
@@ -627,11 +574,19 @@ async function renderPageEntry(entry) {
     entry.renderTask = null;
   }
 
+  if (!entry.page) {
+    const pdfDoc = state.pdfDoc;
+    const page = await pdfDoc.getPage(entry.pageNum);
+    if (myToken !== entry.renderToken || pdfDoc !== state.pdfDoc || !entry.wrapper.isConnected) return;
+    entry.page = page;
+  }
+  const realBase = entry.page.getViewport({ scale: 1 });
+  if (Math.abs(realBase.width - entry.baseW) > 0.5 || Math.abs(realBase.height - entry.baseH) > 0.5) {
+    resizeEntryKeepingView(entry, realBase.width, realBase.height);
+  }
+
   const scale = state.fitScale * state.zoom;
   const viewport = entry.page.getViewport({ scale });
-
-  entry.wrapper.style.width = `${Math.round(viewport.width)}px`;
-  entry.wrapper.style.height = `${Math.round(viewport.height)}px`;
 
   if (!entry.canvas) {
     entry.canvas = document.createElement('canvas');
@@ -714,7 +669,7 @@ async function renderPageEntry(entry) {
 }
 
 export async function renderAllRenderedPages() {
-  await Promise.all(state.pages.filter((p) => p.rendered).map((p) => renderPageEntry(p)));
+  await Promise.all(state.pages.filter((p) => p.rendered).map((p) => renderPageEntry(p, { force: true })));
 }
 
 // --- ZOOM (pulsanti +/- e pinch a due dita isolato al solo PDF) ---------
@@ -753,15 +708,9 @@ async function applyZoom(newZoom, anchor) {
   }
 
   state.zoom = clamped;
-  await renderAllRenderedPages();
-  // Anche le pagine non ancora renderizzate hanno bisogno delle nuove dimensioni segnaposto:
-  state.pages.forEach((entry) => {
-    if (!entry.rendered) {
-      const vp = entry.page.getViewport({ scale: state.fitScale * state.zoom });
-      entry.wrapper.style.width = `${Math.round(vp.width)}px`;
-      entry.wrapper.style.height = `${Math.round(vp.height)}px`;
-    }
-  });
+  // Tutte le pagine (anche quelle non ancora renderizzate) ricevono subito le nuove
+  // dimensioni, così il layout è coerente prima di riposizionare lo scroll.
+  state.pages.forEach(sizeEntry);
 
   if (anchorEntry?.wrapper) {
     // Ora che la pagina ha le nuove dimensioni, calcola dove si trova ORA lo stesso
@@ -773,6 +722,7 @@ async function applyZoom(newZoom, anchor) {
     wrap.scrollLeft += targetClientX - anchorClientX;
     wrap.scrollTop += targetClientY - anchorClientY;
   }
+  await renderAllRenderedPages();
 }
 
 /** Trova la pagina la cui area (verticale) contiene il punto `clientY` dato. */
@@ -857,21 +807,20 @@ function touchDistance(touches) {
   return Math.hypot(dx, dy);
 }
 
-/** Scorre alla pagina `pageNum`: se non è nella finestra attualmente caricata, la ricostruisce lì attorno. */
+/** Scorre alla pagina `pageNum` (sempre dentro l'intervallo aperto: una sezione non permette di uscirne). */
 export async function scrollToPage(pageNum) {
   const token = state.loadToken;
-  let entry = findPageEntry(pageNum);
-  if (!entry) {
-    await buildWindow(pageNum, token);
-    if (token !== state.loadToken) return;
-    entry = findPageEntry(pageNum);
-    if (!entry) return;
-  }
-  // Renderizza PRIMA di scorrere: se lo scroll "smooth" fosse già in corso mentre la
-  // pagina riceve canvas e text layer (con il relativo micro-cambio di layout), il
-  // browser può interrompere l'animazione a metà strada — è quello che faceva
-  // "atterrare" all'inizio della finestra (5 pagine prima) invece che sul risultato.
-  if (!entry.rendered) await renderPageEntry(entry);
+  if (!state.pages.length) return;
+  const target = Math.min(Math.max(Math.round(pageNum) || state.rangeStart, state.rangeStart), state.rangeEnd);
+  const entry = findPageEntry(target);
+  if (!entry) return;
+  // Salto istantaneo: i segnaposto hanno già l'altezza giusta, quindi la posizione è esatta
+  // e non c'è nessuna animazione che un cambio di layout possa interrompere a metà.
+  const wrap = els.canvasWrap;
+  const top = entry.wrapper.getBoundingClientRect().top - wrap.getBoundingClientRect().top + wrap.scrollTop - 8;
+  wrap.scrollTo({ top: Math.max(0, top), behavior: 'instant' });
+  state.visiblePage = target;
+  updatePageIndicator();
+  await renderPageEntry(entry);
   if (token !== state.loadToken) return;
-  entry.wrapper.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
