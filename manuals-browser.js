@@ -26,6 +26,51 @@ let pendingIconFile = null;
 let editingSection = null; // null = si sta creando un nuovo pulsante; altrimenti quello in modifica
 let reorderMode = false;
 let reorderSaving = false;
+let spareOutsideHandler = null; // chiude il pulsante Spare parts esteso al tocco fuori
+
+const LONG_PRESS_MS = 450;
+const LONG_PRESS_TOLERANCE_PX = 10;
+
+/**
+ * Pressione prolungata via Pointer Events: scatta dopo LONG_PRESS_MS se il dito
+ * non si sposta (altrimenti è uno scroll/trascinamento e il timer si annulla).
+ * Il click che segue il rilascio dopo uno scatto viene soppresso. Va chiamata
+ * PRIMA di registrare il listener di click dell'elemento.
+ */
+function attachLongPress(el, onLongPress) {
+  let timer = null;
+  let startX = 0;
+  let startY = 0;
+  let fired = false;
+  const clear = () => {
+    if (timer) clearTimeout(timer);
+    timer = null;
+  };
+  el.addEventListener('pointerdown', (e) => {
+    if (e.button > 0) return;
+    fired = false;
+    startX = e.clientX;
+    startY = e.clientY;
+    clear();
+    timer = setTimeout(() => {
+      timer = null;
+      fired = true;
+      onLongPress(e);
+    }, LONG_PRESS_MS);
+  });
+  el.addEventListener('pointermove', (e) => {
+    if (timer && Math.hypot(e.clientX - startX, e.clientY - startY) > LONG_PRESS_TOLERANCE_PX) clear();
+  });
+  ['pointerup', 'pointercancel', 'pointerleave'].forEach((type) => el.addEventListener(type, clear));
+  el.addEventListener('click', (e) => {
+    if (!fired) return;
+    fired = false;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+  });
+  // Su Android/desktop la pressione prolungata apre anche il menu contestuale: va evitato.
+  el.addEventListener('contextmenu', (e) => e.preventDefault());
+}
 
 export function initManualsBrowser() {
   els.skeleton = document.getElementById('manuals-browser-skeleton');
@@ -188,6 +233,10 @@ function openMachineDetail(machine) {
   els.detailTitle.textContent = machine.nome;
   renderDetailGrid();
   renderSpareButtons(machine);
+  // #view-manuals prende l'altezza solo dai figli nel flusso: aprendo il dettaglio
+  // anche l'elenco diventa assoluto e la vista collasserebbe. Si fissa l'altezza
+  // attuale (elenco ancora nel flusso) PRIMA di aggiungere la classe.
+  if (els.view) els.view.style.minHeight = `${els.view.offsetHeight}px`;
   els.view?.classList.add('manuals-detail-open');
   document.body.classList.add('manuals-detail-active');
   window.lucide?.createIcons();
@@ -196,6 +245,7 @@ function openMachineDetail(machine) {
 function closeMachineDetail({ immediate = false } = {}) {
   if (reorderMode) exitReorderMode({ save: true });
   document.body.classList.remove('manuals-detail-active');
+  if (els.view) els.view.style.minHeight = '';
   if (immediate && els.view) {
     els.view.classList.add('manuals-reset-instant');
     els.view.classList.remove('manuals-detail-open');
@@ -225,8 +275,8 @@ function renderDetailGrid() {
   els.detailGrid.classList.toggle('pointer-events-none', reorderSaving);
 
   sections.forEach(({ section, manual }, i) => {
-    const tile = document.createElement('button');
-    tile.type = 'button';
+    const tile = document.createElement(reorderMode ? 'div' : 'button');
+    if (!reorderMode) tile.type = 'button';
     tile.dataset.sectionId = section.id;
     tile.className = `manual-section-tile${reorderMode ? '' : ' list-item-in'} press-spring card-plate rounded-2xl flex flex-col items-center justify-center gap-2 p-2 border-2 border-graphite-700`;
     tile.style.setProperty('--i', staggerIndex(i));
@@ -240,23 +290,25 @@ function renderDetailGrid() {
         }
       </span>
       <span class="ui-label text-center leading-tight font-display font-semibold uppercase tracking-wide line-clamp-2">${escapeHtml(section.label)}</span>
-      ${reorderMode ? '<span class="reorder-handle"><i data-lucide="grip-vertical" class="w-3.5 h-3.5" stroke-width="2.4"></i></span>' : ''}
     `;
     if (reorderMode) {
+      // Modalità modifica: la tile vibra, si trascina, e la matita apre la modale di questa stessa icona.
+      const editBtn = document.createElement('button');
+      editBtn.type = 'button';
+      editBtn.dataset.editBtn = '1';
+      editBtn.className = 'reorder-handle';
+      editBtn.setAttribute('aria-label', `Modifica ${section.label}`);
+      editBtn.innerHTML = '<i data-lucide="pencil" class="w-3.5 h-3.5" stroke-width="2.4"></i>';
+      editBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        openSectionModal(machine, section);
+      });
+      tile.appendChild(editBtn);
       makeTileDraggable(tile);
     } else {
+      // Admin: tenendo premuto sull'icona si entra in modalità modifica.
+      if (isAdmin()) attachLongPress(tile, () => enterReorderMode());
       tile.addEventListener('click', () => openManualViewer(manual, { startPage: section.page_start, title: section.label }));
-      if (isAdmin()) {
-        tile.title = 'Tieni premuto per modificare';
-        tile.addEventListener(
-          'contextmenu',
-          (e) => {
-            e.preventDefault();
-            openSectionModal(machine, section);
-          },
-          { passive: false }
-        );
-      }
     }
     els.detailGrid.appendChild(tile);
   });
@@ -293,8 +345,12 @@ function renderDetailGrid() {
 
 // ---------------------------------------------------------------- Spare Parts --
 
-const SPARE_BTN_CLASS =
-  'press-spring inline-flex items-center gap-1.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-white font-display font-bold uppercase tracking-wide text-xs px-3.5 py-2.5 shadow-sm shadow-amber-500/10';
+const SPARE_GROUP_CLASS =
+  'spare-group inline-flex flex-col items-stretch rounded-xl bg-amber-400 shadow-sm shadow-amber-500/10 overflow-hidden';
+const SPARE_MAIN_CLASS =
+  'press-spring inline-flex items-center justify-center gap-1.5 hover:bg-amber-300 text-white font-display font-bold uppercase tracking-wide text-xs px-3.5 py-2.5';
+const SPARE_ROW_CLASS =
+  'press-spring flex items-center gap-1.5 text-left hover:bg-amber-300 text-white font-display font-bold uppercase tracking-wide text-xs px-3.5 py-2.5 border-t border-white/25';
 
 function spareLineLabel(linea) {
   if (!linea) return 'Generale';
@@ -311,46 +367,94 @@ function openSpareManual(machine, manual, title) {
 }
 
 /**
- * Un solo pulsante "Spare parts" se la macchina ha al più un manuale ricambi
- * (comportamento invariato); se ne ha più di uno (una linea assegnata a testa,
- * es. Saldatrice L1/L2) si estende con un pulsante per linea, etichettato per
- * esteso, invece di poterne aprire uno solo.
+ * Un unico pulsante "Spare parts", sempre, anche con più manuali ricambi (una
+ * linea a testa, es. Saldatrice L1/L2). Il tocco apre il manuale predefinito;
+ * tenendo premuto lo stesso pulsante si estende mostrando, al suo interno, un
+ * accesso per ciascuna linea.
  */
 function renderSpareButtons(machine) {
   const wrap = els.spareWrap;
   if (!wrap) return;
-  const manuals = getManualsForMachine(machine.id);
+  if (spareOutsideHandler) document.removeEventListener('pointerdown', spareOutsideHandler, true);
+  spareOutsideHandler = null;
   wrap.innerHTML = '';
 
-  if (manuals.size <= 1) {
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.id = 'manuals-detail-spare-parts';
-    btn.className = SPARE_BTN_CLASS;
-    btn.innerHTML = '<i data-lucide="cog" class="w-4 h-4" stroke-width="2.2"></i> Spare parts';
-    btn.addEventListener('click', () => openSpareManual(machine, getAnyManualForMachine(machine.id), 'Spare parts'));
-    wrap.appendChild(btn);
-  } else {
-    manuals.forEach((manual, linea) => {
-      const label = spareLineLabel(linea);
-      const btn = document.createElement('button');
-      btn.type = 'button';
-      btn.className = SPARE_BTN_CLASS;
-      btn.innerHTML = `<i data-lucide="cog" class="w-4 h-4" stroke-width="2.2"></i> Spare parts — ${escapeHtml(label)}`;
-      btn.addEventListener('click', () => openSpareManual(machine, manual, `Spare parts — ${label}`));
-      wrap.appendChild(btn);
-    });
+  const manuals = getManualsForMachine(machine.id);
+  const multi = manuals.size > 1;
+
+  const group = document.createElement('div');
+  group.className = SPARE_GROUP_CLASS;
+  const main = document.createElement('button');
+  main.type = 'button';
+  main.id = 'manuals-detail-spare-parts';
+  main.className = SPARE_MAIN_CLASS;
+  main.innerHTML =
+    '<i data-lucide="cog" class="w-4 h-4" stroke-width="2.2"></i> Spare parts' +
+    (multi ? ' <i data-lucide="chevron-up" class="spare-chevron w-3.5 h-3.5 opacity-80" stroke-width="2.6"></i>' : '');
+  group.appendChild(main);
+
+  if (!multi) {
+    main.addEventListener('click', () => openSpareManual(machine, getAnyManualForMachine(machine.id), 'Spare parts'));
+    wrap.appendChild(group);
+    window.lucide?.createIcons();
+    return;
   }
+
+  const list = document.createElement('div');
+  list.className = 'spare-group-list hidden';
+  manuals.forEach((manual, linea) => {
+    const label = spareLineLabel(linea);
+    const row = document.createElement('button');
+    row.type = 'button';
+    row.className = SPARE_ROW_CLASS;
+    row.innerHTML = `<i data-lucide="file-text" class="w-4 h-4" stroke-width="2.2"></i> ${escapeHtml(label)}`;
+    row.addEventListener('click', () => {
+      setExpanded(false);
+      openSpareManual(machine, manual, `Spare parts — ${label}`);
+    });
+    list.appendChild(row);
+  });
+  group.appendChild(list);
+
+  let expanded = false;
+  function setExpanded(value) {
+    expanded = value;
+    list.classList.toggle('hidden', !value);
+    group.dataset.open = value ? 'true' : 'false';
+    main.setAttribute('aria-expanded', value ? 'true' : 'false');
+    if (spareOutsideHandler) document.removeEventListener('pointerdown', spareOutsideHandler, true);
+    spareOutsideHandler = null;
+    if (value) {
+      spareOutsideHandler = (e) => {
+        if (!group.contains(e.target)) setExpanded(false);
+      };
+      document.addEventListener('pointerdown', spareOutsideHandler, true);
+      group.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    }
+  }
+
+  attachLongPress(main, () => {
+    feedback.modeSelect();
+    setExpanded(!expanded);
+  });
+  main.addEventListener('click', () => {
+    if (expanded) {
+      setExpanded(false);
+      return;
+    }
+    openSpareManual(machine, getAnyManualForMachine(machine.id), 'Spare parts');
+  });
+
+  wrap.appendChild(group);
   window.lucide?.createIcons();
 }
 
 // ---------------------------------------------------------------- riordino (Admin) --
 
-/** Il pulsante "Riordina" ha senso solo per l'Admin e con almeno 2 pulsanti da scambiare. */
+/** In modalità modifica compare la spunta per salvare e uscire; fuori da essa si entra tenendo premuta un'icona. */
 function updateReorderToggleVisibility(sectionsCount) {
   if (!els.reorderToggle) return;
-  const canReorder = isAdmin() && sectionsCount > 1;
-  els.reorderToggle.classList.toggle('hidden', !canReorder && !reorderMode);
+  els.reorderToggle.classList.toggle('hidden', !reorderMode);
   els.reorderToggle.disabled = reorderSaving;
   els.reorderToggle.innerHTML = `<i data-lucide="${reorderMode ? 'check' : 'move'}" class="w-[18px] h-[18px]" stroke-width="${reorderMode ? '2.4' : '1.8'}"></i>`;
   els.reorderToggle.classList.toggle('bg-amber-400', reorderMode);
@@ -369,6 +473,7 @@ function toggleReorderMode() {
 }
 
 function enterReorderMode() {
+  if (reorderMode || reorderSaving) return;
   reorderMode = true;
   feedback.modeSelect();
   renderDetailGrid();
@@ -422,9 +527,12 @@ function makeTileDraggable(tile) {
   let offsetX = 0;
   let offsetY = 0;
   let pointerId = null;
+  let originX = 0;
+  let originY = 0;
 
   const start = (e) => {
-    if (dragging) return;
+    if (dragging || e.button > 0) return;
+    if (e.target.closest?.('[data-edit-btn]')) return; // la matita non avvia il trascinamento
     dragging = true;
     pointerId = e.pointerId;
     try {
@@ -438,19 +546,27 @@ function makeTileDraggable(tile) {
     placeholder = document.createElement('div');
     placeholder.className = 'manual-section-tile reorder-placeholder';
     tile.after(placeholder);
-    tile.classList.add('reorder-dragging');
+    tile.style.animation = 'none';
     tile.style.position = 'fixed';
     tile.style.width = `${rect.width}px`;
     tile.style.height = `${rect.height}px`;
-    tile.style.left = `${rect.left}px`;
-    tile.style.top = `${rect.top}px`;
+    tile.style.left = '0px';
+    tile.style.top = '0px';
     tile.style.zIndex = '60';
+    // Se un antenato ha transform (il pannello scorrevole), position:fixed si ancora
+    // a lui e non alla finestra: si misura l'origine reale e la si sottrae.
+    const origin = tile.getBoundingClientRect();
+    originX = origin.left;
+    originY = origin.top;
+    tile.style.left = `${rect.left - originX}px`;
+    tile.style.top = `${rect.top - originY}px`;
+    tile.classList.add('reorder-dragging');
   };
 
   const move = (e) => {
     if (!dragging || e.pointerId !== pointerId) return;
-    tile.style.left = `${e.clientX - offsetX}px`;
-    tile.style.top = `${e.clientY - offsetY}px`;
+    tile.style.left = `${e.clientX - offsetX - originX}px`;
+    tile.style.top = `${e.clientY - offsetY - originY}px`;
     tile.style.visibility = 'hidden';
     const below = document.elementFromPoint(e.clientX, e.clientY);
     tile.style.visibility = '';
@@ -473,6 +589,7 @@ function makeTileDraggable(tile) {
     placeholder?.replaceWith(tile);
     placeholder = null;
     tile.classList.remove('reorder-dragging');
+    tile.style.animation = '';
     tile.style.position = '';
     tile.style.width = '';
     tile.style.height = '';

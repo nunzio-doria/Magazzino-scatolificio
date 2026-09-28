@@ -446,6 +446,7 @@ input.peer:checked ~ span:first-of-type {
   inset: 0;
   transform: translateX(100%);
   pointer-events: none;
+  background-color: var(--paper); /* copre l'elenco sottostante durante lo scambio */
 }
 /* L'elenco macchine resta "dietro": si sposta di poco (parallasse) e sfuma fino a
    sparire del tutto a transizione conclusa — deve arrivare a opacity 0 pieno,
@@ -460,7 +461,6 @@ input.peer:checked ~ span:first-of-type {
   inset: 0;
 }
 #view-manuals.manuals-detail-open .manuals-panel-detail {
-  position: relative;
   transform: translateX(0);
   pointer-events: auto;
 }
@@ -500,6 +500,17 @@ input.peer:checked ~ span:first-of-type {
 #manuals-detail-grid.reorder-mode .manual-section-tile {
   animation: reorder-wobble 260ms ease-in-out infinite;
   cursor: grab;
+  /* Senza touch-action:none il browser prende il gesto per uno scroll e annulla il
+     puntatore (pointercancel): l'icona si solleva ma non si muove. */
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+#manuals-detail-grid .manual-section-tile {
+  -webkit-touch-callout: none;
+  user-select: none;
+  -webkit-user-select: none;
 }
 #manuals-detail-grid.reorder-mode .manual-section-tile:nth-child(even) {
   animation-direction: reverse;
@@ -510,16 +521,18 @@ input.peer:checked ~ span:first-of-type {
 }
 .reorder-handle {
   position: absolute;
-  top: 6px;
-  right: 6px;
-  width: 22px;
-  height: 22px;
+  top: 4px;
+  right: 4px;
+  width: 30px;
+  height: 30px;
   border-radius: 999px;
-  background: rgba(0, 0, 0, 0.35);
+  background: #fbbf24; /* amber-400 */
   display: flex;
   align-items: center;
   justify-content: center;
   color: #fff;
+  cursor: pointer;
+  touch-action: manipulation;
 }
 .manual-section-tile.reorder-dragging {
   animation: none !important;
@@ -535,6 +548,16 @@ input.peer:checked ~ span:first-of-type {
 }
 @media (prefers-reduced-motion: reduce) {
   #manuals-detail-grid.reorder-mode .manual-section-tile { animation: none; }
+}
+
+/* Pulsante Spare parts esteso (più manuali ricambi): la lista si apre dentro lo
+   stesso pulsante, la freccia si capovolge. */
+.spare-chevron { transition: transform 180ms ease; }
+.spare-group[data-open="true"] .spare-chevron { transform: rotate(180deg); }
+.spare-group-list:not(.hidden) { animation: spare-open 160ms ease-out; }
+@keyframes spare-open {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: none; }
 }
 
 /* Empty state illustrati: entrano con un piccolo respiro invece di
