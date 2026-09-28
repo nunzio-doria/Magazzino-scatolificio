@@ -107,6 +107,7 @@ export function initScanner() {
 
   resetAll();
   loadIdlePanel();
+  bindScanModalBack();
 }
 
 function updateOfflineBadge(count) {
@@ -143,6 +144,14 @@ function openScanModal() {
 }
 
 /** Chiude del tutto la finestra ed esce dalla modalità deposito/prelievo. */
+// Tasto indietro del telefono: stessa chiusura del pulsante Annulla (ferma la fotocamera, azzera la modalità).
+function bindScanModalBack() {
+  els.scanModal?.addEventListener('overlay-back', (e) => {
+    e.preventDefault();
+    closeScanModal();
+  });
+}
+
 function closeScanModal() {
   if (!els.scanModal.dataset.modalOpen) return; // già chiusa
   collapseCamera();

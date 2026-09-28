@@ -236,6 +236,7 @@ function renderGroupedCards({ wrapEl, openSet, groupKeyFn, titleField, subtitleF
   wrapEl.innerHTML = '';
   wrapEl.classList.remove('hidden');
 
+  const searching = (els.searchInput?.value || '').trim().length > 0;
   const groups = new Map(); // chiave di raggruppamento -> prodotti
   for (const p of state.currentList) {
     const key = groupKeyFn(p) || unassignedLabel;
@@ -251,7 +252,9 @@ function renderGroupedCards({ wrapEl, openSet, groupKeyFn, titleField, subtitleF
     const items = groups.get(key);
     const totQty = items.reduce((sum, p) => sum + (p.quantita_disponibile || 0), 0);
     const lowCount = items.filter((p) => p.quantita_disponibile < p.scorta_minima).length;
-    const isOpen = openSet.has(key);
+    // Durante una ricerca (per codice, descrizione, macchina...) gli scaffali si aprono da soli:
+    // il risultato si vede a colpo d'occhio, senza dover aprire ogni scaffale a mano.
+    const isOpen = searching || openSet.has(key);
 
     const itemsHtml = items
       .map((p, i) => {

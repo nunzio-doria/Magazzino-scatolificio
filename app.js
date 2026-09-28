@@ -17,6 +17,9 @@ import { initOfflineSync } from './offline-queue.js';
 import { processTransaction, adjustCachedProductQuantity, bumpProductsVersion } from './supabase.js';
 import { toastSuccess, toastError } from './toast.js';
 import { closeAllOverlays } from './ui-utils.js';
+import { initNavHistory, pushLayer, resetLayers } from './nav-history.js';
+import { getPdfCacheInfo, clearPdfCache } from './pdf-cache.js';
+import { confirmDialog } from './ui-modal.js';
 
 const VIEWS = ['scanner', 'products', 'manuals', 'dashboard', 'settings'];
 // Titolo mostrato in alto nell'header: stessi nomi della barra di navigazione
@@ -62,9 +65,11 @@ function onAuthed(profile) {
     initManuals();
     initManualsBrowser();
     initHistoryAdmin();
+    initNavHistory();
     initNav();
     initFeedbackSettings();
     initSettingsRefreshButton();
+    initPdfCacheButton();
     initOfflineSync(
       async (payload) => {
         const result = await processTransaction(payload);
@@ -107,6 +112,7 @@ function onSignedOut() {
   // al login successivo, magari di un altro utente). Solo se l'app è già
   // stata avviata: al primo caricamento senza sessione non c'è nulla da chiudere.
   if (modulesInitialized) {
+    resetLayers();
     closeAllOverlays();
     teardownScanner();
     teardownProducts();
@@ -123,6 +129,37 @@ function onSignedOut() {
   document.getElementById('app-shell').classList.add('hidden');
   document.getElementById('auth-view').classList.remove('hidden');
   document.getElementById('login-password').value = '';
+}
+
+/** Impostazioni → Cache PDF: mostra lo spazio occupato e permette di svuotarlo (operatore e admin). */
+function initPdfCacheButton() {
+  const btn = document.getElementById('settings-pdf-cache-btn');
+  const status = document.getElementById('settings-pdf-cache-status');
+  if (!btn) return;
+  const showInfo = () => {
+    const { count, bytes } = getPdfCacheInfo();
+    if (status) {
+      status.textContent = count
+        ? `${count} ${count === 1 ? 'manuale salvato' : 'manuali salvati'} · ${(bytes / (1024 * 1024)).toFixed(1).replace('.', ',')} MB`
+        : 'Nessun manuale salvato.';
+    }
+    btn.disabled = count === 0;
+  };
+  btn.addEventListener('click', async () => {
+    const ok = await confirmDialog({
+      title: 'Svuotare la cache PDF?',
+      message: 'I manuali salvati sul telefono verranno eliminati e scaricati di nuovo alla prossima apertura.',
+      confirmLabel: 'Svuota',
+      danger: true,
+    });
+    if (!ok) return;
+    await clearPdfCache();
+    showInfo();
+    toastSuccess('Cache PDF svuotata.', 2500);
+  });
+  document.getElementById('settings-btn')?.addEventListener('click', showInfo);
+  document.querySelector('[data-nav-target="settings"]')?.addEventListener('click', showInfo);
+  showInfo();
 }
 
 function initNav() {
@@ -202,7 +239,7 @@ function triggerNavTap(btn) {
  *   richiamata solo quando il cambio vista parte davvero (non se è già la
  *   vista corrente, e con un po' di ritardo se prima deve finire una transizione).
  */
-export function switchView(view, { animate = true, onStart } = {}) {
+export function switchView(view, { animate = true, onStart, fromBack = false } = {}) {
   // Solo la Dashboard/Report resta riservata all'admin: il Magazzino è
   // visibile anche all'operatore in sola lettura (CRUD già disabilitato
   // in products.js tramite isAdmin() sui singoli controlli).
@@ -210,13 +247,16 @@ export function switchView(view, { animate = true, onStart } = {}) {
   if (isTransitioning) {
     // Non si sovrappongono due transizioni: si ricorda solo l'ultimo tocco
     // (se torna alla vista già in arrivo, la richiesta in coda decade).
-    pendingSwitch = view === currentView ? null : { view, opts: { animate, onStart } };
+    pendingSwitch = view === currentView ? null : { view, opts: { animate, onStart, fromBack } };
     return;
   }
   if (view === currentView) return;
   onStart?.();
 
   const previousView = currentView;
+  // Ogni cambio di sezione è un passo della cronologia: il tasto indietro del telefono
+  // riporta alla sezione precedente (Manuali → Impostazioni → indietro = Manuali).
+  if (!fromBack && previousView) pushLayer(() => switchView(previousView, { fromBack: true }));
   const fromIndex = previousView ? VIEWS.indexOf(previousView) : -1;
   const toIndex = VIEWS.indexOf(view);
   const forward = fromIndex === -1 ? true : toIndex > fromIndex; // direzione: avanti = scivola da destra

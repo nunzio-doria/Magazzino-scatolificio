@@ -13,6 +13,7 @@
 import { listMachinesWithCounts, createManualSection, updateManualSection, deleteManualSection, uploadSectionIcon, getSectionIconUrl, updateManualSectionsOrder } from './supabase.js';
 import { refreshManualsCache, getOperatorManualsForMachine, getSectionsForOperatorManual, getAnyManualForMachine, getManualsForMachine, openManualViewer } from './manuals.js';
 import { staggerIndex, setButtonBusy, openOverlay, closeOverlay, enableSheetDrag } from './ui-utils.js';
+import { pushLayer, releaseLayer } from './nav-history.js';
 import { confirmDialog } from './ui-modal.js';
 import { toastError, toastSuccess, toastWarning } from './toast.js';
 import { isAdmin } from './auth.js';
@@ -26,6 +27,9 @@ let pendingIconFile = null;
 let editingSection = null; // null = si sta creando un nuovo pulsante; altrimenti quello in modifica
 let reorderMode = false;
 let reorderSaving = false;
+let detailLayer = null; // voce di cronologia del dettaglio macchina (tasto indietro del telefono)
+let reorderLayer = null; // voce di cronologia della modalità modifica
+let listScrollY = 0; // posizione dell'elenco macchine prima di aprire un dettaglio
 let spareOutsideHandler = null; // chiude il pulsante Spare parts esteso al tocco fuori
 
 const LONG_PRESS_MS = 450;
@@ -174,6 +178,8 @@ export function resetManualsBrowser() {
   currentMachine = null;
   reorderMode = false;
   reorderSaving = false;
+  detailLayer = null; // (le voci di cronologia le azzera resetLayers al logout)
+  reorderLayer = null;
   document.body.classList.remove('manuals-detail-active');
 }
 
@@ -233,19 +239,20 @@ function openMachineDetail(machine) {
   els.detailTitle.textContent = machine.nome;
   renderDetailGrid();
   renderSpareButtons(machine);
-  // #view-manuals prende l'altezza solo dai figli nel flusso: aprendo il dettaglio
-  // anche l'elenco diventa assoluto e la vista collasserebbe. Si fissa l'altezza
-  // attuale (elenco ancora nel flusso) PRIMA di aggiungere la classe.
-  if (els.view) els.view.style.minHeight = `${els.view.offsetHeight}px`;
+  listScrollY = window.scrollY;
   els.view?.classList.add('manuals-detail-open');
+  window.scrollTo(0, 0); // il dettaglio è una schermata nuova: parte dall'alto
+  if (!detailLayer) detailLayer = pushLayer(() => closeMachineDetail());
   document.body.classList.add('manuals-detail-active');
   window.lucide?.createIcons();
 }
 
 function closeMachineDetail({ immediate = false } = {}) {
   if (reorderMode) exitReorderMode({ save: true });
+  releaseLayer(detailLayer);
+  detailLayer = null;
   document.body.classList.remove('manuals-detail-active');
-  if (els.view) els.view.style.minHeight = '';
+  const wasOpen = els.view?.classList.contains('manuals-detail-open');
   if (immediate && els.view) {
     els.view.classList.add('manuals-reset-instant');
     els.view.classList.remove('manuals-detail-open');
@@ -254,6 +261,8 @@ function closeMachineDetail({ immediate = false } = {}) {
     currentMachine = null;
   } else {
     els.view?.classList.remove('manuals-detail-open');
+    // Si rivede l'elenco esattamente dov'era stato lasciato
+    if (wasOpen) window.scrollTo(0, listScrollY);
   }
 }
 
@@ -472,6 +481,7 @@ function toggleReorderMode() {
 function enterReorderMode() {
   if (reorderMode || reorderSaving) return;
   reorderMode = true;
+  if (!reorderLayer) reorderLayer = pushLayer(() => exitReorderMode({ save: true }));
   feedback.modeSelect();
   renderDetailGrid();
   window.lucide?.createIcons();
@@ -480,6 +490,8 @@ function enterReorderMode() {
 /** Esce dalla modalità Riordina; se `save` è vero (caso normale: si tocca il segno di spunta,
  *  oppure si torna indietro con un riordino in corso) salva il nuovo ordine letto dal DOM. */
 async function exitReorderMode({ save }) {
+  releaseLayer(reorderLayer);
+  reorderLayer = null;
   const grid = els.detailGrid;
   if (!save || !grid || !currentMachine) {
     reorderMode = false;

@@ -13,6 +13,7 @@
 // =============================================================
 
 import { getManualSignedUrl } from './supabase.js';
+import { getCachedPdf, savePdf, removeCachedPdf } from './pdf-cache.js';
 import { toastWarning } from './toast.js';
 import { openOverlay, closeOverlay } from './ui-utils.js';
 import { runSearch, drawHighlights, stepResult } from './manuals-search.js';
@@ -134,6 +135,10 @@ export function initManuals() {
   els.searchInput = document.getElementById('manual-viewer-search-input');
 
   els.closeBtn?.addEventListener('click', closeViewer);
+  els.modal?.addEventListener('overlay-back', (e) => {
+    e.preventDefault();
+    closeViewer();
+  });
   els.modal?.addEventListener('click', (e) => {
     if (e.target === els.modal) closeViewer();
   });
@@ -193,8 +198,24 @@ export async function openManualViewer(manual, opts = {}) {
 
   try {
     const pdfjsLib = await ensurePdfJs();
-    const url = await getManualSignedUrl(manual.storage_path, manual.bucket);
-    const pdfDoc = await pdfjsLib.getDocument(url).promise;
+    // Prima la copia salvata sul telefono (istantanea, anche offline); solo se manca si scarica.
+    let pdfDoc = null;
+    const cachedBytes = await getCachedPdf(manual);
+    if (cachedBytes) {
+      try {
+        pdfDoc = await pdfjsLib.getDocument({ data: cachedBytes }).promise;
+      } catch (err) {
+        console.warn('Copia locale del PDF non leggibile, la riscarico.', err);
+        removeCachedPdf(manual);
+      }
+    }
+    if (!pdfDoc) {
+      const url = await getManualSignedUrl(manual.storage_path, manual.bucket);
+      pdfDoc = await pdfjsLib.getDocument(url).promise;
+      // Il PDF continua a scaricarsi in background mentre lo si legge; a scaricamento completo
+      // se ne salva una copia (senza un secondo download) per le aperture successive.
+      pdfDoc.getData().then((bytes) => savePdf(manual, bytes)).catch(() => {});
+    }
     if (token !== state.loadToken) return; // l'utente ha già aperto un altro manuale nel frattempo
 
     state.pdfDoc = pdfDoc;

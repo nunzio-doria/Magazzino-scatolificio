@@ -460,9 +460,16 @@ input.peer:checked ~ span:first-of-type {
   inset: 0;
 }
 #view-manuals.manuals-detail-open .manuals-panel-detail {
+  /* In flusso: l'altezza della vista (e quindi la scrollbar della pagina) è quella del
+     solo dettaglio, non più quella dell'elenco macchine rimasto dietro. */
+  position: relative;
   transform: translateX(0);
   pointer-events: auto;
 }
+/* L'elenco, ormai fuori dal flusso e invisibile, non deve allungare la pagina con il suo
+   contenuto: si ritaglia tutto ciò che sborda dalla vista. */
+#view-manuals.manuals-detail-open { overflow: clip; }
+#view-manuals.manuals-detail-open #manuals-list-panel { visibility: hidden; transition: transform var(--dur-page) var(--ease-page), opacity var(--dur-page) var(--ease-page), visibility 0s linear var(--dur-page); }
 @media (prefers-reduced-motion: reduce) {
   .manuals-panel { transition-duration: 1ms; }
 }

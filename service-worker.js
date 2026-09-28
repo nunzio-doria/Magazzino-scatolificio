@@ -18,7 +18,7 @@
 // non succede nulla di grave: semplicemente niente copia offline.
 // =============================================================
 
-const CACHE_NAME = 'magazzino-shell-v33';
+const CACHE_NAME = 'magazzino-shell-v35';
 const APP_SHELL = [
   './',
   './index.html',
@@ -45,6 +45,13 @@ const APP_SHELL = [
   './feedback.js',
   './ui-utils.js',
   './offline-queue.js',
+  './nav-history.js',
+  './pdf-cache.js',
+  './history-admin.js',
+  './manuals.js',
+  './manuals-browser.js',
+  './manuals-data.js',
+  './manuals-search.js',
   './icons/icon-192.png',
   './icons/icon-512.png',
   './icons/icon-192-maskable.png',
@@ -88,7 +95,8 @@ self.addEventListener('install', (event) => {
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((keys) =>
-      Promise.all(keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key)))
+      // La cache dei manuali PDF (pdf-cache.js) è dell'utente: sopravvive agli aggiornamenti dell'app
+      Promise.all(keys.filter((key) => key !== CACHE_NAME && !key.startsWith('magazzino-manuali-pdf')).map((key) => caches.delete(key)))
     )
   );
   self.clients.claim();

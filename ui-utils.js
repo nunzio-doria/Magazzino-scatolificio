@@ -1,4 +1,5 @@
 import feedback from './feedback.js';
+import { pushLayer, releaseLayer } from './nav-history.js';
 // =============================================================
 // ui-utils.js — Utility di interfaccia condivise tra le viste:
 // contatori numerici animati e anelli di progresso (KPI dashboard).
@@ -62,12 +63,22 @@ export function openOverlay(el) {
   void el.offsetWidth; // reflow: la transizione parte sempre
   lockBodyScroll();
   el.classList.add('modal-visible');
+  // Il tasto indietro del telefono chiude la modale invece di uscire dall'app. Un modulo può
+  // gestire lui la chiusura (pulizia extra) ascoltando 'overlay-back' e chiamando preventDefault().
+  el._navLayer = pushLayer(() => {
+    if (el.dispatchEvent(new CustomEvent('overlay-back', { cancelable: true }))) {
+      el.dispatchEvent(new CustomEvent('overlay-cancel'));
+      closeOverlay(el);
+    }
+  });
 }
 
 /** Chiude una modale con l'animazione standard. Sicura se già chiusa. */
 export function closeOverlay(el) {
   if (!el || !el.dataset.modalOpen) return;
   delete el.dataset.modalOpen;
+  releaseLayer(el._navLayer);
+  el._navLayer = null;
   el.classList.remove('modal-visible');
   unlockBodyScroll();
   el._hideTimer = setTimeout(() => el.classList.add('hidden'), modalCloseMs());

@@ -141,6 +141,7 @@ export function initProductsDetail() {
   });
 
   document.getElementById('product-codice-barre').addEventListener('input', updateBarcodePreview);
+  bindDetailBack();
 }
 
 /**
@@ -298,6 +299,17 @@ export function openDetail(product) {
   const openedId = product.id;
   refreshManualsCache().then(() => {
     if (detailProduct?.id === openedId) updateDetailManualButton();
+  });
+}
+
+function bindDetailBack() {
+  els.modal?.addEventListener('overlay-back', (e) => {
+    e.preventDefault();
+    closeModal();
+  });
+  els.detailModal?.addEventListener('overlay-back', (e) => {
+    e.preventDefault();
+    closeDetail();
   });
 }
 
