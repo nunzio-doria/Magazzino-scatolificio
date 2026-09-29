@@ -9,10 +9,6 @@
 const ITEMS = [
   { src: './carousel/cuscinetto.svg', alt: 'Cuscinetto' },
   { src: './carousel/cinghia.svg', alt: 'Cinghia industriale' },
-  { src: './carousel/barattolo-500g.svg', alt: 'Barattolo di latta da 500 g' },
-  { src: './carousel/marchio-soudronic.svg', alt: 'Soudronic' },
-  { src: './carousel/marchio-ocsam.svg', alt: 'Ocsam' },
-  { src: './carousel/marchio-can-o-mat.svg', alt: 'Can-O-Mat' },
 ];
 
 const TILE_W = 168;       // larghezza scheda (px) — deve coincidere con style.css
