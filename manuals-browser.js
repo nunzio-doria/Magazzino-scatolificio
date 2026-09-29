@@ -124,7 +124,14 @@ export function initManualsBrowser() {
   if (els.modal) enableSheetDrag(els.modal.querySelector('.modal-panel'), () => closeOverlay(els.modal));
 
   els.iconInput?.addEventListener('change', () => {
-    const file = els.iconInput.files?.[0] || null;
+    let file = els.iconInput.files?.[0] || null;
+    // Il selettore non filtra per tipo (cosi' Android apre l'archivio file del telefono,
+    // non solo la galleria): controllo qui che sia davvero un'immagine.
+    if (file && !(file.type || '').startsWith('image/') && !/\.(png|jpe?g|webp|gif|svg|bmp|avif|heic|heif)$/i.test(file.name || '')) {
+      toastWarning('Seleziona un file immagine (PNG, JPG, WEBP, SVG...)');
+      els.iconInput.value = '';
+      file = null;
+    }
     pendingIconFile = file;
     if (file) {
       els.iconPreview.src = URL.createObjectURL(file);
@@ -409,11 +416,8 @@ function renderSpareButtons(machine) {
     return;
   }
 
-  const listTrack = document.createElement('div');
-  listTrack.className = 'spare-group-list-track';
   const list = document.createElement('div');
-  list.className = 'spare-group-list';
-  listTrack.appendChild(list);
+  list.className = 'spare-group-list hidden';
   manuals.forEach((manual, linea) => {
     const label = spareLineLabel(linea);
     const row = document.createElement('button');
@@ -426,12 +430,12 @@ function renderSpareButtons(machine) {
     });
     list.appendChild(row);
   });
-  group.appendChild(listTrack);
+  group.appendChild(list);
 
   let expanded = false;
   function setExpanded(value) {
     expanded = value;
-    listTrack.classList.toggle('spare-group-list-open', value);
+    list.classList.toggle('hidden', !value);
     group.dataset.open = value ? 'true' : 'false';
     main.setAttribute('aria-expanded', value ? 'true' : 'false');
     if (spareOutsideHandler) document.removeEventListener('pointerdown', spareOutsideHandler, true);
