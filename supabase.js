@@ -321,6 +321,110 @@ export async function deleteMachine({ id, nome }) {
   return { articoliSvuotati: ids.length };
 }
 
+// --- SCAFFALI --------------------------------------------------
+// Stessa logica delle macchine (tabella `shelves`, vedi sql/create_shelves_table.sql):
+// products.locazione resta testo libero, gli scaffali "storici" usati solo dagli articoli
+// continuano a comparire negli elenchi anche se non sono (ancora) nella tabella.
+
+/** True se l'errore indica che la tabella `shelves` non esiste (ancora) sul database */
+function isMissingShelvesTable(error) {
+  const msg = `${error?.message || ''} ${error?.details || ''}`;
+  return error?.code === 'PGRST205' || error?.code === '42P01' || (/shelves/.test(msg) && /schema cache|does not exist/i.test(msg));
+}
+
+/** Elenco degli scaffali (tabella `shelves` + valori già usati dagli articoli), per la tendina del form articolo */
+export async function listDistinctLocazioni() {
+  const byKey = new Map(); // chiave minuscola -> nome (vince la forma scritta nella tabella)
+  const registered = await supabase.from('shelves').select('nome');
+  if (!registered.error) {
+    registered.data.forEach((r) => {
+      const n = normalizeMachineName(r.nome);
+      if (n) byKey.set(n.toLowerCase(), n);
+    });
+  } else if (!isMissingShelvesTable(registered.error)) {
+    throw registered.error;
+  }
+  const { data, error } = await supabase.from('products').select('locazione').not('locazione', 'is', null);
+  if (error) throw error;
+  data.forEach((r) => {
+    const n = normalizeMachineName(r.locazione);
+    if (n && !byKey.has(n.toLowerCase())) byKey.set(n.toLowerCase(), n);
+  });
+  return Array.from(byKey.values()).sort((a, b) => a.localeCompare(b, 'it', { numeric: true, sensitivity: 'base' }));
+}
+
+/**
+ * Scaffali con il numero di articoli associati, per la gestione in Impostazioni.
+ * @returns {Promise<{shelves: {id: string|null, nome: string, articoli: number}[], tableMissing: boolean}>}
+ */
+export async function listShelvesWithCounts() {
+  const [registered, products] = await Promise.all([
+    supabase.from('shelves').select('id, nome'),
+    supabase.from('products').select('locazione').not('locazione', 'is', null),
+  ]);
+  if (products.error) throw products.error;
+  const tableMissing = !!registered.error && isMissingShelvesTable(registered.error);
+  if (registered.error && !tableMissing) throw registered.error;
+
+  const byKey = new Map();
+  const add = (raw, countIt, id = null) => {
+    const nome = normalizeMachineName(raw);
+    if (!nome) return;
+    const key = nome.toLowerCase();
+    if (!byKey.has(key)) byKey.set(key, { id, nome, articoli: 0 });
+    if (id && !byKey.get(key).id) byKey.get(key).id = id;
+    if (countIt) byKey.get(key).articoli += 1;
+  };
+  (registered.data || []).forEach((r) => add(r.nome, false, r.id));
+  products.data.forEach((r) => add(r.locazione, true));
+  const shelves = Array.from(byKey.values()).sort((a, b) => a.nome.localeCompare(b.nome, 'it', { numeric: true, sensitivity: 'base' }));
+  return { shelves, tableMissing };
+}
+
+export async function createShelf(nome) {
+  const clean = normalizeMachineName(nome);
+  if (!clean) throw new Error('Scrivi il nome dello scaffale.');
+  if (clean.length > 60) throw new Error('Il nome è troppo lungo (massimo 60 caratteri).');
+  const { data, error } = await supabase.from('shelves').insert({ nome: clean }).select('id, nome').single();
+  if (error) {
+    if (error.code === '23505') throw new Error(`Lo scaffale "${clean}" è già presente.`);
+    if (error.code === '42501') throw new Error('Solo un amministratore può aggiungere scaffali.');
+    if (isMissingShelvesTable(error)) {
+      throw new Error('La tabella degli scaffali non è ancora stata creata sul database (vedi sql/create_shelves_table.sql).');
+    }
+    throw error;
+  }
+  return data;
+}
+
+/**
+ * Rimuove uno scaffale: lo toglie dalla tabella e svuota il campo "locazione" degli articoli
+ * che lo usavano (confronto senza maiuscole/spazi), altrimenti continuerebbe a comparire negli elenchi.
+ * @param {{ id: string|null, nome: string }} shelf
+ * @returns {Promise<{ articoliSvuotati: number }>}
+ */
+export async function deleteShelf({ id, nome }) {
+  const key = normalizeMachineName(nome).toLowerCase();
+
+  if (id) {
+    const { data, error } = await supabase.from('shelves').delete().eq('id', id).select('id');
+    if (error) {
+      if (isMissingShelvesTable(error)) throw new Error('La tabella degli scaffali non esiste ancora sul database.');
+      throw error;
+    }
+    if (!data || data.length === 0) throw new Error('Non è stato possibile rimuovere lo scaffale (solo un amministratore può farlo).');
+  }
+
+  const { data: rows, error: readErr } = await supabase.from('products').select('id, locazione').not('locazione', 'is', null);
+  if (readErr) throw readErr;
+  const ids = rows.filter((r) => normalizeMachineName(r.locazione).toLowerCase() === key).map((r) => r.id);
+  for (let i = 0; i < ids.length; i += 100) {
+    const { error } = await supabase.from('products').update({ locazione: null }).in('id', ids.slice(i, i + 100));
+    if (error) throw error;
+  }
+  return { articoliSvuotati: ids.length };
+}
+
 // --- MANUALI RICAMBI (PDF allegati alle macchine) -----------------
 // Un manuale per ogni coppia macchina+linea (tabella `machine_manuals`,
 // vincolo UNIQUE su machine_id+linea): un nuovo upload sulla stessa coppia

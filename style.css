@@ -566,6 +566,12 @@ input.peer:checked ~ span:first-of-type {
   to { opacity: 1; transform: none; }
 }
 
+/* Divisore tra "serie" di scaffali (SD001-004 vicine, poi SE001... staccata): lo spazio
+   in più prima dell'etichetta è quel che separa visivamente i due gruppi. */
+.shelf-series-divider {
+  margin-top: 0.875rem !important; /* più del normale space-y-2.5 (0.625rem) tra le card */
+}
+
 /* Empty state illustrati: entrano con un piccolo respiro invece di
    comparire di scatto quando una lista risulta vuota. */
 .empty-state-in {

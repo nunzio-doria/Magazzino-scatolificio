@@ -5,7 +5,7 @@
 // in un file più piccolo.
 // =============================================================
 
-import { createProduct, updateProduct, deleteProduct, listDistinctMacchine, createMachine } from './supabase.js';
+import { createProduct, updateProduct, deleteProduct, listDistinctMacchine, createMachine, listDistinctLocazioni, createShelf } from './supabase.js';
 import { getManualForMachineName, openManualForMachineName, refreshManualsCache } from './manuals.js';
 import { toastSuccess, toastError } from './toast.js';
 import { isAdmin } from './auth.js';
@@ -69,6 +69,9 @@ export function initProductsDetail() {
   els.macchinaBtn = document.getElementById('product-macchina-btn');
   els.macchinaValue = document.getElementById('product-macchina-value');
   els.macchinaHidden = document.getElementById('product-macchina');
+  els.locazioneBtn = document.getElementById('product-locazione-btn');
+  els.locazioneValue = document.getElementById('product-locazione-value');
+  els.locazioneHidden = document.getElementById('product-locazione');
   els.openManualBtn = document.getElementById('product-open-manual-btn');
   els.barcodePreviewWrap = document.getElementById('product-barcode-preview-wrap');
   els.barcodeSvg = document.getElementById('product-barcode-svg');
@@ -108,6 +111,35 @@ export function initProductsDetail() {
     getOptions: LINEA_OPTIONS,
     allowCustom: false,
     onChange: updateManualButtonVisibility,
+  });
+  attachFieldDropdown({
+    triggerBtn: els.locazioneBtn,
+    valueEl: els.locazioneValue,
+    hiddenInput: els.locazioneHidden,
+    getOptions: async () => {
+      try {
+        return await listDistinctLocazioni();
+      } catch (err) {
+        console.warn('Impossibile caricare l\'elenco degli scaffali registrati.', err);
+        return [];
+      }
+    },
+    // Si può scrivere il nome di uno scaffale nuovo e aggiungerlo: viene registrato nella
+    // tabella degli scaffali (solo admin, come tutto il form articolo) e selezionato.
+    allowCustom: true,
+    hideSearch: false,
+    onCreate: async (nome) => {
+      try {
+        const row = await createShelf(nome);
+        feedback.confirmAction();
+        toastSuccess(`Scaffale "${row.nome}" aggiunto.`);
+        return row.nome;
+      } catch (err) {
+        feedback.errorAction();
+        toastError(err.message || 'Impossibile aggiungere lo scaffale.');
+        return null;
+      }
+    },
   });
   attachFieldDropdown({
     triggerBtn: els.macchinaBtn,
@@ -152,13 +184,14 @@ export function initProductsDetail() {
  */
 function applyModalPermissions() {
   const readOnly = !isAdmin();
-  ['product-codice-articolo', 'product-punto-standard', 'product-locazione', 'product-quantita', 'product-scorta-minima', 'product-codice-barre'].forEach((id) => {
+  ['product-codice-articolo', 'product-punto-standard', 'product-quantita', 'product-scorta-minima', 'product-codice-barre'].forEach((id) => {
     const el = document.getElementById(id);
     if (el) el.disabled = readOnly;
   });
   els.categoriaSelectUI ? els.categoriaSelectUI.setDisabled(readOnly) : (els.categoriaSelect.disabled = readOnly);
   els.lineaBtn.disabled = readOnly;
   els.macchinaBtn.disabled = readOnly;
+  els.locazioneBtn.disabled = readOnly;
   els.scanBarcodeBtn.disabled = readOnly;
   if (readOnly) {
     els.deleteBtn.classList.add('hidden');
@@ -189,7 +222,10 @@ function openModal(product = null, { fromDetail = false } = {}) {
   els.macchinaValue.classList.toggle('text-graphite-400', !product?.macchina);
   els.macchinaValue.classList.toggle('text-graphite-100', !!product?.macchina);
   document.getElementById('product-punto-standard').value = product?.punto_utilizzo_standard || '';
-  document.getElementById('product-locazione').value = product?.locazione || '';
+  els.locazioneHidden.value = product?.locazione || '';
+  els.locazioneValue.textContent = product?.locazione || 'Seleziona…';
+  els.locazioneValue.classList.toggle('text-graphite-400', !product?.locazione);
+  els.locazioneValue.classList.toggle('text-graphite-100', !!product?.locazione);
   document.getElementById('product-quantita').value = product?.quantita_disponibile ?? 0;
   document.getElementById('product-scorta-minima').value = product?.scorta_minima ?? (state.currentCategory === 'cuscinetti' ? 5 : 0);
   document.getElementById('product-codice-barre').value = product?.codice_barre || '';
@@ -481,7 +517,7 @@ async function handleSubmit(e) {
     linea: els.lineaHidden.value || null,
     macchina: els.macchinaHidden.value || null,
     punto_utilizzo_standard: document.getElementById('product-punto-standard').value.trim() || null,
-    locazione: document.getElementById('product-locazione').value.trim() || null,
+    locazione: els.locazioneHidden.value || null,
     quantita_disponibile: parseInt(document.getElementById('product-quantita').value, 10) || 0,
     scorta_minima: parseInt(document.getElementById('product-scorta-minima').value, 10) || 0,
     codice_barre: document.getElementById('product-codice-barre').value.trim() || null,

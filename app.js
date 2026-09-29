@@ -8,6 +8,7 @@ import { initProducts, refresh as refreshProducts, enterProducts, resetProducts,
 import { initDashboard, enterDashboard, resetDashboard, refresh as refreshDashboard } from './dashboard.js';
 import { initUsers, refreshUsers } from './users.js';
 import { initMachines } from './machines.js';
+import { initShelves } from './shelves.js';
 import { initManuals } from './manuals.js';
 import { initManualsBrowser, enterManualsBrowser, resetManualsBrowser } from './manuals-browser.js';
 import { initHistoryAdmin } from './history-admin.js';
@@ -62,6 +63,7 @@ function onAuthed(profile) {
     initDashboard();
     initUsers();
     initMachines();
+    initShelves();
     initManuals();
     initManualsBrowser();
     initHistoryAdmin();

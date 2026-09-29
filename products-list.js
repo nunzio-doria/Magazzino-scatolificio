@@ -201,7 +201,16 @@ function renderShelves() {
     subtitleFields: isRicambi ? (p) => [p.codice_articolo, p.macchina, p.linea] : (p) => [p.macchina, p.punto_utilizzo_standard, p.linea],
     unassignedLabel: 'Non assegnata',
     iconName: 'shelving-unit',
+    // Solo per Cuscinetti/Cinghie/Ricambi tecnici: scaffali con la stessa sigla iniziale (SD002,
+    // SD003, SD004...) restano ravvicinati, e si stacca visivamente quando la sigla cambia (SE001...).
+    seriesFn: isRicambi || state.currentCategory === 'cuscinetti' || state.currentCategory === 'cinghie' ? shelfSeries : null,
   });
+}
+
+/** Sigla di serie di una locazione: la parte di lettere iniziale (SD002 → SD, A-12-3 → A). Nessuna lettera iniziale = nessuna serie. */
+function shelfSeries(key) {
+  const m = String(key).match(/^([A-Za-z]+)/);
+  return m ? m[1].toUpperCase() : null;
 }
 
 /**
@@ -232,7 +241,7 @@ function renderByMachine() {
  * tramite l'openSet passato dal chiamante (Set separati per scaffalatura
  * e macchina, cosí non si mescolano tra loro).
  */
-function renderGroupedCards({ wrapEl, openSet, groupKeyFn, titleField, subtitleFields, unassignedLabel, iconName }) {
+function renderGroupedCards({ wrapEl, openSet, groupKeyFn, titleField, subtitleFields, unassignedLabel, iconName, seriesFn = null }) {
   wrapEl.innerHTML = '';
   wrapEl.classList.remove('hidden');
 
@@ -248,7 +257,13 @@ function renderGroupedCards({ wrapEl, openSet, groupKeyFn, titleField, subtitleF
     a.localeCompare(b, 'it', { numeric: true, sensitivity: 'base' })
   );
 
+  let lastSeries; // undefined = non ancora iniziato (niente separatore prima della primissima card)
   sortedKeys.forEach((key, cardIndex) => {
+    if (seriesFn) {
+      const series = seriesFn(key);
+      if (lastSeries !== undefined && series !== lastSeries) wrapEl.appendChild(buildSeriesDivider(series));
+      lastSeries = series;
+    }
     const items = groups.get(key);
     const totQty = items.reduce((sum, p) => sum + (p.quantita_disponibile || 0), 0);
     const lowCount = items.filter((p) => p.quantita_disponibile < p.scorta_minima).length;
@@ -322,6 +337,21 @@ function renderGroupedCards({ wrapEl, openSet, groupKeyFn, titleField, subtitleF
   });
 
   window.lucide?.createIcons();
+}
+
+/**
+ * Separatore tra una serie e la successiva (es. SD... → SE...): un'etichetta con la
+ * sigla e una linea, più uno spazio verticale extra (margin-top maggiore del normale
+ * space-y-2.5 della lista) per staccare visivamente il gruppo che segue.
+ */
+function buildSeriesDivider(series) {
+  const el = document.createElement('div');
+  el.className = 'shelf-series-divider flex items-center gap-2 px-1';
+  el.innerHTML = `
+    <span class="shrink-0 text-[11px] font-display font-bold uppercase tracking-wide text-graphite-500">${series ? `Serie ${escapeHtml(series)}` : 'Senza sigla'}</span>
+    <span class="flex-1 h-px bg-graphite-800"></span>
+  `;
+  return el;
 }
 
 async function pickLineaFilter() {
