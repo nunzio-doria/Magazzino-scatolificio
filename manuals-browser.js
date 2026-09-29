@@ -409,8 +409,11 @@ function renderSpareButtons(machine) {
     return;
   }
 
+  const listTrack = document.createElement('div');
+  listTrack.className = 'spare-group-list-track';
   const list = document.createElement('div');
-  list.className = 'spare-group-list hidden';
+  list.className = 'spare-group-list';
+  listTrack.appendChild(list);
   manuals.forEach((manual, linea) => {
     const label = spareLineLabel(linea);
     const row = document.createElement('button');
@@ -423,12 +426,12 @@ function renderSpareButtons(machine) {
     });
     list.appendChild(row);
   });
-  group.appendChild(list);
+  group.appendChild(listTrack);
 
   let expanded = false;
   function setExpanded(value) {
     expanded = value;
-    list.classList.toggle('hidden', !value);
+    listTrack.classList.toggle('spare-group-list-open', value);
     group.dataset.open = value ? 'true' : 'false';
     main.setAttribute('aria-expanded', value ? 'true' : 'false');
     if (spareOutsideHandler) document.removeEventListener('pointerdown', spareOutsideHandler, true);
