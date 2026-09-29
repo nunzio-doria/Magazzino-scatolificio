@@ -473,13 +473,24 @@ if ('serviceWorker' in navigator) {
     try {
       const registration = await navigator.serviceWorker.register('./service-worker.js');
       swRegistration = registration;
+      const checkForUpdate = () => registration.update().catch(() => {});
       // Controlla subito se c'è una versione più recente (utile se l'app
       // resta aperta a lungo, o il browser non ha ancora rifatto il check).
-      registration.update().catch(() => {});
+      checkForUpdate();
       // E di nuovo ogni volta che l'utente torna sull'app dopo averla lasciata
       // in background: è il momento più naturale per aggiornarsi in silenzio.
       document.addEventListener('visibilitychange', () => {
-        if (document.visibilityState === 'visible') registration.update().catch(() => {});
+        if (document.visibilityState === 'visible') checkForUpdate();
+      });
+      // Riaprire l'icona dell'app (Android/PWA installata) spesso non è una
+      // vera nuova apertura: il sistema si limita a "risvegliare" la pagina
+      // già in memoria da prima, che continua a girare con il JS di allora —
+      // 'visibilitychange' non sempre scatta in questo caso. 'pageshow' con
+      // persisted=true è il segnale giusto per questo risveglio (bfcache):
+      // se un aggiornamento era stato pubblicato nel frattempo, lo si nota
+      // subito invece che solo alla prossima chiusura forzata dell'app.
+      window.addEventListener('pageshow', (e) => {
+        if (e.persisted) checkForUpdate();
       });
     } catch (err) {
       console.warn('Service worker non registrato:', err);
