@@ -294,18 +294,18 @@ function renderDetailGrid() {
     const tile = document.createElement(reorderMode ? 'div' : 'button');
     if (!reorderMode) tile.type = 'button';
     tile.dataset.sectionId = section.id;
-    tile.className = `manual-section-tile${reorderMode ? '' : ' list-item-in'} press-spring card-plate rounded-2xl flex flex-col items-center justify-center gap-2 p-2 border-2 border-graphite-700`;
+    tile.className = `manual-section-tile manual-section-tile--icon${reorderMode ? '' : ' list-item-in'} press-spring card-plate rounded-2xl flex flex-col items-center justify-center gap-2 p-2 border-2 border-graphite-700`;
     tile.style.setProperty('--i', staggerIndex(i));
     const iconUrl = section.icon_storage_path ? getSectionIconUrl(section.icon_storage_path) : null;
     tile.innerHTML = `
-      <span class="manual-section-tile-icon flex items-center justify-center">
+      <span class="manual-section-tile-icon${iconUrl ? '' : ' manual-section-tile-icon--fallback'} flex items-center justify-center">
         ${
           iconUrl
             ? `<img src="${escapeHtml(iconUrl)}" alt="" class="w-full h-full object-contain">`
             : '<i data-lucide="book-open" class="w-full h-full text-graphite-400" stroke-width="1.6"></i>'
         }
       </span>
-      <span class="ui-label text-center leading-tight font-display font-semibold uppercase tracking-wide line-clamp-2">${escapeHtml(section.label)}</span>
+      <span class="manual-section-tile-label ui-label text-center font-display font-semibold uppercase tracking-wide" title="${escapeHtml(section.label)}">${escapeHtml(section.label)}</span>
     `;
     if (reorderMode) {
       // Modalità modifica: la tile vibra, si trascina, e la matita apre la modale di questa stessa icona.

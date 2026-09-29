@@ -500,6 +500,46 @@ input.peer:checked ~ span:first-of-type {
   object-fit: contain;
 }
 
+/* Pulsanti con icona: l'immagine occupa quasi tutto il quadrato, il testo resta in basso. */
+#manuals-detail-grid .manual-section-tile--icon {
+  justify-content: space-between;
+  gap: 4px;
+  padding: 6px;
+}
+#manuals-detail-grid .manual-section-tile--icon .manual-section-tile-icon {
+  width: 100%;
+  height: auto;
+  flex: 1 1 0;
+  min-height: 0;
+}
+#manuals-detail-grid .manual-section-tile--icon .manual-section-tile-icon img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+/* Icona predefinita (libro) quando non c'è un'immagine: più piccola, non a tutto riquadro */
+#manuals-detail-grid .manual-section-tile-icon--fallback {
+  padding: 18%;
+  box-sizing: border-box;
+}
+/* Testo: mai fuori dal pulsante — va a capo anche dentro le parole lunghe,
+   al massimo 2 righe, poi taglia con i puntini. */
+.manual-section-tile-label {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  hyphens: auto;
+  line-height: 1.15;
+  flex-shrink: 0;
+}
+
 /* Modalità "Riordina" (Admin, Manuali): ogni tile mostra una maniglia e oscilla
    leggermente, come i grip delle springboard — segnala chiaramente che si può
    trascinare, senza dover leggere l'avviso in testo per capirlo. */
@@ -556,18 +596,15 @@ input.peer:checked ~ span:first-of-type {
   #manuals-detail-grid.reorder-mode .manual-section-tile { animation: none; }
 }
 
-/* Pulsante Spare parts esteso (più manuali ricambi): la lista si apre e si chiude
-   dentro lo stesso pulsante con un vero accordion (stessa tecnica grid-template-rows
-   delle tendine dei campi), la freccia si capovolge. */
+/* Pulsante Spare parts esteso (più manuali ricambi): la lista si apre dentro lo
+   stesso pulsante, la freccia si capovolge. */
 .spare-chevron { transition: transform 180ms ease; }
 .spare-group[data-open="true"] .spare-chevron { transform: rotate(180deg); }
-.spare-group-list-track {
-  display: grid;
-  grid-template-rows: 0fr;
-  transition: grid-template-rows var(--dur-base) var(--ease-inout);
+.spare-group-list:not(.hidden) { animation: spare-open 160ms ease-out; }
+@keyframes spare-open {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: none; }
 }
-.spare-group-list-open { grid-template-rows: 1fr; }
-.spare-group-list { min-height: 0; overflow: hidden; }
 
 /* Divisore tra "serie" di scaffali (SD001-004 vicine, poi SE001... staccata): lo spazio
    in più prima dell'etichetta è quel che separa visivamente i due gruppi. */
@@ -1125,9 +1162,6 @@ html { touch-action: manipulation; } /* niente ritardo/zoom col doppio tocco; pi
    altezza automatica) si allunga e i risultati non vengono mai tagliati. */
 #scanner-code-search-wrap .custom-select-panel-track { position: static; }
 #scanner-code-search-wrap.custom-select-open .custom-select-panel-track { margin-top: 6px; }
-/* Promuove l'INTERO campo (bottone + tendina) sopra a tutti i campi successivi del
-   form mentre è aperto, così non resta mai "sotto" a un bordo/separatore più in basso. */
-.custom-select-open { position: relative; z-index: 40; }
 
 /* Funzioni che richiedono la fotocamera: non esistono su dispositivi con
    mouse e tastiera (desktop), dove si nascondono del tutto. */
@@ -1266,6 +1300,9 @@ button.custom-select-option:not(:disabled):active {
 .custom-select-option-active {
   color: var(--accent-dark);
   font-weight: 700;
+}
+.custom-select-search-wrap {
+  box-shadow: 0 1px 0 0 #dde1e7; /* graphite-700 */
 }
 
 /* ---- Micro-animazione di comparsa della card risultato scanner -------- */
