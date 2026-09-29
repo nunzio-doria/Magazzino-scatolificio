@@ -149,7 +149,10 @@ export function attachFieldDropdown({ triggerBtn, valueEl, hiddenInput, getOptio
   scrollArea.className = 'max-h-60 overflow-y-auto';
 
   const searchWrap = document.createElement('div');
-  searchWrap.className = 'p-2 border-b border-graphite-700 sticky top-0 bg-graphite-800';
+  // Niente border-b: su Chrome Android un bordo su un elemento "sticky" lascia spesso una
+  // riga grigia residua qualche riga più sotto durante lo scroll (visto anche nella testata
+  // dell'app, vedi style.css). Un box-shadow si comporta bene con "sticky" e resta ancorato.
+  searchWrap.className = 'p-2 sticky top-0 bg-graphite-800 custom-select-search-wrap';
   const searchInput = document.createElement('input');
   searchInput.type = 'text';
   searchInput.placeholder = allowCustom ? 'Cerca o digita per aggiungere…' : 'Cerca…';
