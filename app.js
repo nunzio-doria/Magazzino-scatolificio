@@ -23,6 +23,7 @@ import { closeAllOverlays } from './ui-utils.js';
 import { initNavHistory, pushLayer, resetLayers } from './nav-history.js';
 import { getPdfCacheInfo, clearPdfCache } from './pdf-cache.js';
 import { confirmDialog } from './ui-modal.js';
+import './input-clear.js'; // tasto X in ogni campo di testo (si aggancia da solo)
 
 const VIEWS = ['scanner', 'products', 'manuals', 'dashboard', 'settings'];
 // Titolo mostrato in alto nell'header: stessi nomi della barra di navigazione
