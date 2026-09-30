@@ -830,14 +830,27 @@ button.lowstock-header:not(:disabled):active { transform: none; background: tran
   transition-duration: var(--dur-press);
   transform: scale(0.96);
 }
+/* Colori sempre visibili, così si capisce a colpo d'occhio cosa fa ciascun pulsante:
+   Deposito = verde, Prelievo = blu del tema. A riposo sfondo tenue e bordo chiaro;
+   da selezionato il colore pieno si allarga dal centro e il testo diventa bianco. */
+#mode-deposito {
+  color: var(--deposito);
+  border-color: var(--deposito-edge);
+  background-color: var(--deposito-tint);
+}
+#mode-prelievo {
+  color: var(--accent-dark);
+  border-color: var(--accent-edge);
+  background-color: var(--accent-tint);
+}
 .mode-active-deposito {
-  border-color: var(--deposito-edge) !important;
-  color: var(--deposito) !important;
+  border-color: var(--deposito) !important;
+  color: #ffffff !important;
   transform: scale(1.02);
 }
 .mode-active-prelievo {
-  border-color: var(--accent-edge) !important;
-  color: var(--accent-dark) !important;
+  border-color: var(--accent) !important;
+  color: #ffffff !important;
   transform: scale(1.02);
 }
 
@@ -932,7 +945,8 @@ button.category-tab-active:not(:disabled):active { background-color: transparent
 .mode-active-deposito::before, .mode-active-prelievo::before {
   clip-path: circle(75% at 50% 50%);
 }
-#mode-deposito { --rf-bg: var(--deposito-tint); }
+#mode-deposito { --rf-bg: var(--deposito); }
+#mode-prelievo { --rf-bg: var(--accent); }
 .scan-linea-btn { --rf-bg: var(--accent); }
 /* Sui riempimenti pieni il testo vira al bianco con un attimo di ritardo, cosí non
    resta bianco su bianco mentre il cerchio è ancora piccolo. */
