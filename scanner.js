@@ -110,8 +110,8 @@ export function initScanner() {
     resetResult();
   });
   els.confirmBtn.addEventListener('click', confirmTransaction);
-  els.qtyMinusBtn.addEventListener('click', () => stepQty(-1));
-  els.qtyPlusBtn.addEventListener('click', () => stepQty(1));
+  bindHoldRepeat(els.qtyMinusBtn, -1);
+  bindHoldRepeat(els.qtyPlusBtn, 1);
   els.stopCameraBtn.addEventListener('click', collapseCamera);
   els.switchCameraBtn.addEventListener('click', () =>
     switchCameraShared(handleDetectedCode, { focusHintEl: els.focusHint, switchBtnEl: els.switchCameraBtn, torchBtnEl: els.torchBtn })
@@ -442,6 +442,91 @@ function updateAfterPreview() {
 function stepQty(delta) {
   feedback.focusTap();
   setQty(parseInt(els.qtyInput.value, 10) + delta);
+}
+
+// ---- Pressione prolungata sui pulsanti +/− della quantità -------------------
+// Stessa logica dei controlli analoghi (stepper iOS, NumberPicker Android,
+// campi numerici dei desktop): un tocco = ±1; tenendo premuto, dopo una breve
+// attesa parte la ripetizione, che accelera in due modi: gli intervalli tra
+// uno scatto e l'altro si accorciano gradualmente, e dopo qualche secondo il
+// passo passa a ×5 e poi ×10 (arrotondando ai multipli, così si legge 5, 10,
+// 15… invece di numeri sfalsati). Rilasciando, tutto si ferma; un nuovo
+// tocco riparte da capo.
+const HOLD_DELAY_MS = 400; // attesa prima che parta la ripetizione (evita scatti involontari su un tocco lungo)
+const HOLD_START_MS = 170; // intervallo del primo scatto ripetuto
+const HOLD_MIN_MS = 55; // intervallo minimo (limite di velocità: sopra è illeggibile)
+const HOLD_DECAY = 0.9; // ogni scatto l'intervallo diventa il 90% del precedente
+const HOLD_TIERS = [ // [tempo dall'inizio pressione (ms), passo]
+  [0, 1],
+  [2600, 5],
+  [4800, 10],
+];
+
+function holdStepFor(elapsedMs) {
+  let tier = 0;
+  HOLD_TIERS.forEach(([from], i) => {
+    if (elapsedMs >= from) tier = i;
+  });
+  return { tier, step: HOLD_TIERS[tier][1] };
+}
+
+function bindHoldRepeat(btn, dir) {
+  let timer = null;
+  let startedAt = 0;
+  let interval = HOLD_START_MS;
+  let lastTier = 0;
+
+  function stop() {
+    clearTimeout(timer);
+    timer = null;
+  }
+
+  function tick() {
+    const { tier, step } = holdStepFor(performance.now() - startedAt);
+    const cur = parseInt(els.qtyInput.value, 10) || 1;
+    // Con passo > 1 si allinea al multiplo successivo/precedente (13 → 15 → 20; 13 → 10 → 5)
+    const next = step === 1 ? cur + dir * step : dir > 0 ? (Math.floor(cur / step) + 1) * step : (Math.ceil(cur / step) - 1) * step;
+    const clamped = Math.max(1, next);
+    if (clamped === cur) {
+      stop(); // già al minimo: inutile continuare a ripetere
+      return;
+    }
+    setQty(clamped);
+    if (tier > lastTier) {
+      lastTier = tier;
+      feedback.qtyTierUp();
+    } else {
+      feedback.qtyTick(tier);
+    }
+    interval = Math.max(HOLD_MIN_MS, interval * HOLD_DECAY);
+    timer = setTimeout(tick, interval);
+  }
+
+  btn.addEventListener('pointerdown', (e) => {
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    stop();
+    try {
+      btn.setPointerCapture(e.pointerId);
+    } catch (err) {
+      // non essenziale: senza cattura il rilascio fuori dal pulsante è comunque gestito da pointerleave
+    }
+    stepQty(dir); // il primo scatto è immediato, come un normale tocco
+    startedAt = performance.now();
+    interval = HOLD_START_MS;
+    lastTier = 0;
+    timer = setTimeout(tick, HOLD_DELAY_MS);
+  });
+  ['pointerup', 'pointercancel', 'lostpointercapture', 'pointerleave'].forEach((ev) => btn.addEventListener(ev, stop));
+  window.addEventListener('blur', stop);
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) stop();
+  });
+  // Tasto lungo su touch = menu contestuale/selezione: va evitato, altrimenti interrompe la ripetizione
+  btn.addEventListener('contextmenu', (e) => e.preventDefault());
+  // Tastiera / tecnologie assistive: Invio o Spazio generano un click senza pointer (detail 0)
+  btn.addEventListener('click', (e) => {
+    if (e.detail === 0) stepQty(dir);
+  });
 }
 
 function renderResult(product) {

@@ -1334,6 +1334,7 @@ html { touch-action: manipulation; } /* niente ritardo/zoom col doppio tocco; pi
 
 .btn-mode { background: var(--mode, var(--accent)); color: #fff; transition: background-color var(--dur-fast) ease, transform var(--dur-fast) ease; }
 .btn-mode:hover { background: var(--mode-dark, var(--accent-dark)); }
+.qty-btn { touch-action: manipulation; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; } /* tenuto premuto: niente zoom/selezione/menu */
 .qty-btn:hover { border-color: var(--mode, var(--accent)); color: var(--mode, var(--accent)); }
 
 .scan-after { background: var(--mode-tint, #eef0f3); color: var(--mode-dark, var(--accent-dark)); transition: background-color var(--dur-fast) ease, color var(--dur-fast) ease; }

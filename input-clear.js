@@ -13,7 +13,11 @@
 // - svuotando si emette l'evento "input" come se si fosse cancellato a mano, così
 //   filtri e ricerche si aggiornano da soli; il focus resta com'era (se la tastiera
 //   era aperta resta aperta, se no non si apre)
+// - il tocco sulla X dà un feedback aptico e sonoro (feedback.clearInput), che rispetta
+//   le preferenze suoni/vibrazione delle Impostazioni
 // =============================================================
+
+import feedback from './feedback.js';
 
 const CLEARABLE = new Set(['text', 'email', 'number', 'tel', 'url', 'search']);
 const MIN_WIDTH = 96; // sotto questa larghezza la X non ci sta senza coprire il testo
@@ -79,6 +83,7 @@ function enhance(input) {
   btn.addEventListener('pointerdown', (e) => e.preventDefault());
   btn.addEventListener('click', () => {
     if (input.value === '') return;
+    feedback.clearInput();
     input.value = '';
     input.dispatchEvent(new Event('input', { bubbles: true }));
   });

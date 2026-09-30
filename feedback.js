@@ -18,6 +18,7 @@ const STORAGE_KEY = 'magazzino-feedback-settings';
 
 let settings = loadSettings();
 let audioCtx = null;
+let lastTickAt = 0; // per limitare la frequenza dei tick del selettore quantità
 
 function loadSettings() {
   try {
@@ -190,6 +191,35 @@ const feedback = {
   focusTap() {
     tone(950, 25, { type: 'sine', gain: 0.05 });
     vibrate(8);
+  },
+
+  /** Svuotamento di un campo di testo con la X: "cancellino" breve, discendente */
+  clearInput() {
+    sequence([
+      [620, 35, 0, { type: 'sine', gain: 0.08 }],
+      [410, 55, 30, { type: 'sine', gain: 0.08 }],
+    ]);
+    vibrate(12);
+  },
+
+  /** Singolo scatto del selettore quantità tenuto premuto: tick leggerissimo.
+   *  Con la pressione prolungata i tick sono ravvicinati, quindi si limita la
+   *  frequenza (al massimo uno ogni ~70 ms) e la nota sale un po' con la velocità. */
+  qtyTick(tier = 0) {
+    const now = performance.now();
+    if (now - lastTickAt < 70) return;
+    lastTickAt = now;
+    tone(760 + tier * 140, 18, { type: 'sine', gain: 0.045 });
+    vibrate(6);
+  },
+
+  /** Il selettore quantità passa a un passo più grande (x5, x10): scatto più marcato */
+  qtyTierUp() {
+    sequence([
+      [700, 40, 0, { type: 'triangle', gain: 0.09 }],
+      [1000, 60, 45, { type: 'triangle', gain: 0.09 }],
+    ]);
+    vibrate([18, 30, 18]);
   },
 
   /** Cambio sezione nella barra di navigazione inferiore */
