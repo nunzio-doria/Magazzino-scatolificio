@@ -1267,10 +1267,14 @@
         <i data-lucide="x" class="w-6 h-6" stroke-width="2.5"></i>
       </button>
     </div>
-    <div class="flex gap-2 px-5 pt-3 pb-1 shrink-0">
-      <button type="button" data-movements-tab="tutti" class="history-tab history-tab-active flex-1 rounded-lg py-2 px-1 whitespace-nowrap text-xs font-display font-semibold uppercase tracking-wide border border-graphite-700 min-h-[44px]">Tutti</button>
-      <button type="button" data-movements-tab="deposito" class="history-tab flex-1 rounded-lg py-2 px-1 whitespace-nowrap text-xs font-display font-semibold uppercase tracking-wide border border-graphite-700 min-h-[44px]">Depositi</button>
-      <button type="button" data-movements-tab="prelievo" class="history-tab flex-1 rounded-lg py-2 px-1 whitespace-nowrap text-xs font-display font-semibold uppercase tracking-wide border border-graphite-700 min-h-[44px]">Prelievi</button>
+    <div class="px-5 pt-3 pb-1 shrink-0">
+      <!-- Stesso controllo segmentato di Cuscinetti/Cinghie/Ricambi: il rettangolo blu scorre tra i tre pulsanti -->
+      <div id="movements-seg" class="seg flex w-full rounded-lg border border-graphite-700 bg-graphite-800 p-0.5" role="tablist">
+        <span class="seg-indicator" aria-hidden="true"></span>
+        <button type="button" data-movements-tab="tutti" class="category-tab category-tab-active flex-1 min-w-0 rounded-md min-h-[44px] px-1.5 py-1.5 flex items-center justify-center text-center leading-tight text-xs font-display font-semibold uppercase tracking-wide">Tutti</button>
+        <button type="button" data-movements-tab="deposito" class="category-tab flex-1 min-w-0 rounded-md min-h-[44px] px-1.5 py-1.5 flex items-center justify-center text-center leading-tight text-xs font-display font-semibold uppercase tracking-wide">Depositi</button>
+        <button type="button" data-movements-tab="prelievo" class="category-tab flex-1 min-w-0 rounded-md min-h-[44px] px-1.5 py-1.5 flex items-center justify-center text-center leading-tight text-xs font-display font-semibold uppercase tracking-wide">Prelievi</button>
+      </div>
     </div>
     <div class="flex-1 overflow-y-auto px-5 py-3">
       <div id="movements-list-skeleton" class="space-y-2">

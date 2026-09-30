@@ -8,7 +8,7 @@
 
 import { listTransactions } from './supabase.js';
 import { toastError } from './toast.js';
-import { staggerIndex, emptyStateHtml, openOverlay, closeOverlay, enableSheetDrag, animatePanelHeight } from './ui-utils.js';
+import { staggerIndex, emptyStateHtml, openOverlay, closeOverlay, enableSheetDrag, animatePanelHeight, syncSegIndicator } from './ui-utils.js';
 
 const els = {};
 let rows = [];
@@ -20,11 +20,13 @@ export function initMovements() {
   els.openBtn = document.getElementById('scanner-movements-viewall-btn');
   els.closeBtn = document.getElementById('movements-modal-close');
   els.tabs = document.querySelectorAll('[data-movements-tab]');
+  els.seg = document.getElementById('movements-seg');
   els.skeleton = document.getElementById('movements-list-skeleton');
   els.list = document.getElementById('movements-list');
 
   els.openBtn?.addEventListener('click', () => {
     openOverlay(els.modal);
+    syncSegIndicator(els.seg); // l'indicatore si posiziona sul pulsante attivo appena la modale è visibile
     refresh();
   });
   els.closeBtn?.addEventListener('click', () => closeOverlay(els.modal));
@@ -36,7 +38,8 @@ export function initMovements() {
   els.tabs.forEach((btn) => {
     btn.addEventListener('click', () => {
       filter = btn.dataset.movementsTab;
-      els.tabs.forEach((b) => b.classList.toggle('history-tab-active', b === btn));
+      els.tabs.forEach((b) => b.classList.toggle('category-tab-active', b === btn));
+      syncSegIndicator(els.seg); // il rettangolo blu scorre lateralmente sul nuovo pulsante
       // Il cassetto sale/scende animato alla nuova altezza invece di scattare.
       animatePanelHeight(els.modal?.querySelector('.modal-panel'), render);
     });
