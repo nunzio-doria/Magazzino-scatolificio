@@ -729,7 +729,12 @@ button.lowstock-header:not(:disabled):active { transform: none; background: tran
    marker dei pulsanti nella barra di navigazione inferiore, qui sopra. */
 .view-host {
   position: relative;
-  overflow-x: hidden;
+  /* clip e non hidden: con hidden, overflow-y diventa "auto" e <main> si trasforma in un
+     contenitore scorrevole a sé. Durante lo scambio di viste la vista uscente (absolute) è
+     più alta dell'host che si ridimensiona: sborda, <main> mostra per un istante una propria
+     scrollbar da 8px, la pagina si restringe, e a fine animazione (vista uscente nascosta) si
+     riallarga. clip ritaglia lo stesso gli sbordi laterali senza creare alcuno scorrimento. */
+  overflow-x: clip;
 }
 /* ---- Transizione tra view: Fluid Slide & Scale (spring physics) ----
    La vista uscente rimpicciolisce leggermente e scivola via lateralmente
