@@ -619,10 +619,42 @@ input.peer:checked ~ span:first-of-type {
 .acc-track.acc-open { grid-template-rows: 1fr; }
 .acc-inner { min-height: 0; overflow: hidden; }
 
-/* Scorta minima: piastrella selezionata (scaffale/macchina il cui dettaglio è aperto sotto) */
+/* Scorta minima: scheda espandibile nella stessa tab (Movimenti). Header con chevron che
+   ruota, corpo a fisarmonica (.acc-track); piastrelle per serie di scaffale e dettaglio
+   che si apre nella riga della piastrella toccata. */
+.lowstock-header { transition: background-color var(--dur-fast) ease; }
+.lowstock-header:active { background: var(--accent-tint-8); }
+.lowstock-chevron { transition: transform var(--dur-base) var(--ease-inout); }
+.lowstock-card-open .lowstock-chevron { transform: rotate(180deg); }
+.lowstock-card { transition: border-color var(--dur-fast) ease; }
+.lowstock-card-open { border-color: var(--accent-edge); }
+
+.lowstock-tile {
+  transition: border-color var(--dur-fast) ease, background-color var(--dur-fast) ease, transform var(--dur-slow) var(--ease-spring);
+}
 .lowstock-tile-selected {
   border-color: rgba(var(--accent-rgb), 0.6) !important;
   background: var(--accent-tint) !important;
+}
+.lowstock-tile-check {
+  opacity: 0;
+  transform: scale(0.4);
+  transition: opacity var(--dur-fast) ease, transform var(--dur-base) var(--ease-spring);
+}
+.lowstock-tile-selected .lowstock-tile-check { opacity: 1; transform: scale(1); }
+
+/* Slot di dettaglio tra due righe di piastrelle: chiuso non occupa spazio (0fr). */
+.lowstock-slot .lowstock-item {
+  opacity: 0;
+  transform: translateY(-6px);
+}
+.lowstock-slot.acc-open .lowstock-item {
+  animation: shelf-item-in var(--dur-base) var(--ease-out) forwards;
+  animation-delay: calc(var(--i, 0) * 35ms + var(--dur-press));
+}
+@media (prefers-reduced-motion: reduce) {
+  .lowstock-chevron, .lowstock-tile-check { transition-duration: 1ms; }
+  .lowstock-slot .lowstock-item { animation-duration: 1ms !important; animation-delay: 0ms !important; }
 }
 
 /* Divisore tra "serie" di scaffali (SD001-004 vicine, poi SE001... staccata): lo spazio

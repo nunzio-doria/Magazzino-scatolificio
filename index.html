@@ -151,16 +151,32 @@
           </div>
         </div>
 
-        <button type="button" id="scanner-lowstock-btn" class="w-full text-left card-plate rounded-xl p-3.5 flex items-center gap-3 hover:border-amber-400 transition-colors">
-          <span class="shrink-0 w-9 h-9 rounded-lg bg-rose-500/10 flex items-center justify-center">
-            <i data-lucide="alert-triangle" class="w-[18px] h-[18px] text-rose-600" stroke-width="1.8"></i>
-          </span>
-          <div class="min-w-0 flex-1">
-            <p id="scanner-lowstock-count" class="font-display font-bold text-lg leading-none">—</p>
-            <p class="ui-note text-graphite-500 mt-1">Articoli sotto scorta</p>
+        <!-- Articoli sotto scorta: la scheda si espande nella stessa tab (niente modale) -->
+        <div id="scanner-lowstock-card" class="lowstock-card card-plate rounded-xl overflow-hidden">
+          <button type="button" id="scanner-lowstock-btn" aria-expanded="false" aria-controls="lowstock-track" class="lowstock-header w-full text-left p-3.5 flex items-center gap-3">
+            <span class="shrink-0 w-9 h-9 rounded-lg bg-rose-500/10 flex items-center justify-center">
+              <i data-lucide="alert-triangle" class="w-[18px] h-[18px] text-rose-600" stroke-width="1.8"></i>
+            </span>
+            <div class="min-w-0 flex-1">
+              <p id="scanner-lowstock-count" class="font-display font-bold text-lg leading-none">—</p>
+              <p class="ui-note text-graphite-500 mt-1">Articoli sotto scorta</p>
+            </div>
+            <i data-lucide="chevron-down" class="lowstock-chevron w-5 h-5 text-graphite-400 shrink-0" stroke-width="2"></i>
+          </button>
+          <div id="lowstock-track" class="acc-track">
+            <div class="acc-inner">
+              <div class="px-3.5 pb-3.5 pt-1">
+                <div id="lowstock-skeleton" class="hidden">
+                  <div class="grid grid-cols-2 gap-2">
+                    <div class="skeleton h-20 w-full"></div>
+                    <div class="skeleton h-20 w-full"></div>
+                  </div>
+                </div>
+                <div id="lowstock-body" class="hidden"></div>
+              </div>
+            </div>
           </div>
-          <i data-lucide="chevron-right" class="w-4 h-4 text-graphite-500 shrink-0"></i>
-        </button>
+        </div>
 
         <div class="card-plate rounded-xl p-4">
           <div class="flex items-center justify-between mb-2.5">
@@ -1253,26 +1269,6 @@
         <div class="skeleton h-12 w-full"></div>
       </div>
       <div id="movements-list" class="hidden"></div>
-    </div>
-  </div>
-</div>
-
-<!-- =================== MODALE SCORTA MINIMA (esploso Cuscinetti/Cinghie/Ricambi tecnici, Admin e Operatore) =================== -->
-<div id="lowstock-modal" class="modal-overlay hidden fixed inset-0 z-[92] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm px-0 sm:px-4">
-  <div class="modal-panel w-full sm:max-w-md bg-graphite-900 border border-graphite-700 rounded-t-2xl sm:rounded-2xl max-h-[85vh] flex flex-col">
-    <div data-sheet-drag class="sheet-grabber sm:hidden"><span class="sheet-grabber-pill"></span></div>
-    <div data-sheet-drag class="flex items-center justify-between px-5 pb-3 pt-1 sm:pt-3 border-b border-graphite-800 shrink-0">
-      <h3 class="font-display font-bold text-lg uppercase tracking-wide">Scorta minima</h3>
-      <button id="lowstock-modal-close" aria-label="Chiudi" class="modal-close modal-close--on-light">
-        <i data-lucide="x" class="w-6 h-6" stroke-width="2.5"></i>
-      </button>
-    </div>
-    <div class="flex-1 overflow-y-auto px-5 py-4">
-      <div id="lowstock-skeleton" class="space-y-2">
-        <div class="skeleton h-16 w-full"></div>
-        <div class="skeleton h-16 w-full"></div>
-      </div>
-      <div id="lowstock-body" class="hidden"></div>
     </div>
   </div>
 </div>
