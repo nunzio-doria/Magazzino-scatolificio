@@ -781,7 +781,30 @@ export async function listTransactions({ from, to, productId, limit = 200 } = {}
 
   const { data, error } = await query;
   if (error) throw error;
-  return data;
+  return withAdminNames(data);
+}
+
+// Un operatore può leggere i movimenti degli admin ma non i loro profili (RLS su profiles):
+// l'incorporamento profiles(full_name) torna vuoto per quelle righe. I nomi degli admin
+// (solo id e nome) arrivano da una funzione dedicata, letta una volta sola per sessione.
+let adminNamesCache = null;
+async function getAdminNames() {
+  if (adminNamesCache) return adminNamesCache;
+  try {
+    const { data, error } = await supabase.rpc('admin_display_names');
+    if (error) throw error;
+    adminNamesCache = new Map((data || []).map((r) => [r.id, r.full_name]));
+    return adminNamesCache;
+  } catch (err) {
+    console.warn('Nomi degli admin non disponibili.', err);
+    return new Map(); // non si memorizza il fallimento: alla prossima lettura si riprova
+  }
+}
+
+async function withAdminNames(rows) {
+  if (!rows?.some((r) => r.user_id && !r.profiles)) return rows; // admin: i nomi ci sono già, nessuna chiamata extra
+  const names = await getAdminNames();
+  return rows.map((r) => (!r.profiles && names.has(r.user_id) ? { ...r, profiles: { full_name: names.get(r.user_id) } } : r));
 }
 
 /**
