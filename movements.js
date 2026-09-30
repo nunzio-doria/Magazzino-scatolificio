@@ -8,7 +8,7 @@
 
 import { listTransactions } from './supabase.js';
 import { toastError } from './toast.js';
-import { staggerIndex, emptyStateHtml, openOverlay, closeOverlay, enableSheetDrag } from './ui-utils.js';
+import { staggerIndex, emptyStateHtml, openOverlay, closeOverlay, enableSheetDrag, animatePanelHeight } from './ui-utils.js';
 
 const els = {};
 let rows = [];
@@ -37,7 +37,8 @@ export function initMovements() {
     btn.addEventListener('click', () => {
       filter = btn.dataset.movementsTab;
       els.tabs.forEach((b) => b.classList.toggle('history-tab-active', b === btn));
-      render();
+      // Il cassetto sale/scende animato alla nuova altezza invece di scattare.
+      animatePanelHeight(els.modal?.querySelector('.modal-panel'), render);
     });
   });
 }

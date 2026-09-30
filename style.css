@@ -1188,6 +1188,15 @@ button.shelf-item:not(:disabled):active {
   .modal-overlay .modal-panel.modal-panel-card { padding-bottom: 1.25rem; }
 }
 
+/* Cambio di altezza animato del cassetto quando cambia il contenuto (animatePanelHeight):
+   si aggiunge la sola altezza alle transizioni già presenti sul pannello. */
+.modal-overlay .modal-panel.panel-h-anim {
+  transition:
+    transform var(--dur-slow) var(--ease-sheet),
+    box-shadow var(--dur-slow) var(--ease-sheet),
+    height var(--dur-slow) var(--ease-inout);
+}
+
 /* Mentre si trascina manualmente la maniglia, niente transizione: il
    pannello deve seguire il dito 1:1, esattamente come per il
    pull-to-refresh — la transizione va bene solo per l'apertura/chiusura

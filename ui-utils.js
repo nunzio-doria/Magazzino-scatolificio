@@ -315,3 +315,45 @@ export function syncSegIndicator(seg) {
     seg._segHidden = false;
   }
 }
+
+
+/**
+ * Cassetto (.modal-panel) che si adatta in modo animato alla nuova altezza quando cambia il
+ * contenuto (es. filtro Tutti/Depositi/Prelievi con liste di lunghezza diversa): sale o scende
+ * con la stessa durata dei cassetti invece di scattare. Tecnica: si fissa l'altezza attuale,
+ * si esegue l'aggiornamento, si misura l'altezza naturale del nuovo contenuto e si anima da
+ * una all'altra; a fine corsa l'altezza torna automatica (il contenuto può ancora crescere).
+ * Il pannello resta ancorato al bordo inferiore, quindi il bordo superiore sale/scende.
+ * Sicura se richiamata durante un'animazione già in corso (riparte dall'altezza attuale).
+ * @param {HTMLElement|null} panel  il .modal-panel
+ * @param {() => void} update       funzione che aggiorna il contenuto (sincrona)
+ */
+export function animatePanelHeight(panel, update) {
+  if (!panel) {
+    update();
+    return;
+  }
+  const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+  clearTimeout(panel._heightTimer);
+  const before = panel.offsetHeight;
+
+  panel.classList.remove('panel-h-anim'); // niente transizione mentre si fissano/misurano le altezze
+  panel.style.height = `${before}px`;
+  update();
+  panel.style.height = 'auto';
+  const after = panel.offsetHeight; // altezza naturale (già limitata da max-h) del nuovo contenuto
+  panel.style.height = `${before}px`;
+
+  if (reduce || Math.abs(after - before) < 2) {
+    panel.style.height = '';
+    return;
+  }
+  void panel.offsetHeight; // reflow: parte da "before" e non da "auto"
+  panel.classList.add('panel-h-anim');
+  panel.style.height = `${after}px`;
+  const done = () => {
+    panel.classList.remove('panel-h-anim');
+    panel.style.height = '';
+  };
+  panel._heightTimer = setTimeout(done, modalCloseMs() + 60);
+}

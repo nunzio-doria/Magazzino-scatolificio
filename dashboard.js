@@ -5,7 +5,7 @@
 import { getConsumptionStats, listTransactions, getProductsVersion } from './supabase.js';
 import { toastError, toastSuccess, toastWarning } from './toast.js';
 import { enhanceSelect } from './ui-select.js';
-import { animateNumber, animateRing, emptyStateHtml, openOverlay, closeOverlay, enableSheetDrag, staggerIndex } from './ui-utils.js';
+import { animateNumber, animateRing, emptyStateHtml, openOverlay, closeOverlay, enableSheetDrag, staggerIndex, animatePanelHeight } from './ui-utils.js';
 import feedback from './feedback.js';
 import { refreshLifespan, resetLifespan } from './lifespan.js';
 
@@ -60,7 +60,7 @@ export function initDashboard() {
     btn.addEventListener('click', () => {
       articleHistoryFilter = btn.dataset.historyTab;
       els.articleModalTabs.forEach((b) => b.classList.toggle('history-tab-active', b === btn));
-      renderArticleHistory();
+      animatePanelHeight(els.articleModal.querySelector('.modal-panel'), renderArticleHistory);
     });
   });
 

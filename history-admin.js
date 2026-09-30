@@ -7,7 +7,7 @@
 
 import { listTransactions, deleteTransactions } from './supabase.js';
 import { toastSuccess, toastError } from './toast.js';
-import { staggerIndex, emptyStateHtml, setButtonBusy, openOverlay, closeOverlay } from './ui-utils.js';
+import { staggerIndex, emptyStateHtml, setButtonBusy, openOverlay, closeOverlay, animatePanelHeight } from './ui-utils.js';
 import { confirmDialog } from './ui-modal.js';
 import feedback from './feedback.js';
 import { loadIdlePanel } from './scanner.js';
@@ -40,7 +40,7 @@ export function initHistoryAdmin() {
     btn.addEventListener('click', () => {
       filter = btn.dataset.historyManageTab;
       els.tabs.forEach((b) => b.classList.toggle('history-tab-active', b === btn));
-      render();
+      animatePanelHeight(els.modal?.querySelector('.modal-panel'), render);
     });
   });
   els.deleteBtn?.addEventListener('click', handleDeleteSelected);
