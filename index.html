@@ -373,17 +373,19 @@
         </div>
       </div>
 
-      <!-- Tab categorie -->
-      <div class="grid grid-cols-3 gap-2 mb-3">
-        <button type="button" data-category-tab="cuscinetti" class="category-tab card-plate rounded-lg min-h-[44px] px-1.5 py-1.5 flex items-center justify-center text-center leading-tight text-xs font-display font-semibold uppercase tracking-wide border-2 border-graphite-700">Cuscinetti</button>
-        <button type="button" data-category-tab="cinghie" class="category-tab card-plate rounded-lg min-h-[44px] px-1.5 py-1.5 flex items-center justify-center text-center leading-tight text-xs font-display font-semibold uppercase tracking-wide border-2 border-graphite-700">Cinghie</button>
-        <button type="button" data-category-tab="pezzi_ricambio" class="category-tab card-plate rounded-lg min-h-[44px] px-1.5 py-1.5 flex items-center justify-center text-center leading-tight text-xs font-display font-semibold uppercase tracking-wide border-2 border-graphite-700">Ricambi tecnici</button>
+      <!-- Tab categorie: un'unica riga segmentata, il rettangolo blu scorre tra i tre pulsanti -->
+      <div id="product-category-seg" class="seg flex w-full rounded-lg border border-graphite-700 bg-graphite-800 p-0.5 mb-3" role="tablist">
+        <span class="seg-indicator" aria-hidden="true"></span>
+        <button type="button" data-category-tab="cuscinetti" class="category-tab flex-1 min-w-0 rounded-md min-h-[44px] px-1.5 py-1.5 flex items-center justify-center text-center leading-tight text-xs font-display font-semibold uppercase tracking-wide">Cuscinetti</button>
+        <button type="button" data-category-tab="cinghie" class="category-tab flex-1 min-w-0 rounded-md min-h-[44px] px-1.5 py-1.5 flex items-center justify-center text-center leading-tight text-xs font-display font-semibold uppercase tracking-wide">Cinghie</button>
+        <button type="button" data-category-tab="pezzi_ricambio" class="category-tab flex-1 min-w-0 rounded-md min-h-[44px] px-1.5 py-1.5 flex items-center justify-center text-center leading-tight text-xs font-display font-semibold uppercase tracking-wide">Ricambi tecnici</button>
       </div>
 
       <!-- Toggle modalità di visualizzazione: scaffalatura per locazione (default) o
            riordino per macchina. Visibile solo per Cinghie e Ricambi tecnici: i Cuscinetti
            mostrano sempre la scaffalatura, senza selettore (gestito via JS in base alla categoria) -->
-      <div id="product-view-mode-wrap" class="hidden inline-flex max-w-full overflow-x-auto rounded-lg border border-graphite-700 bg-graphite-800 p-0.5 mb-4">
+      <div id="product-view-mode-wrap" class="seg hidden inline-flex max-w-full overflow-x-auto rounded-lg border border-graphite-700 bg-graphite-800 p-0.5 mb-4">
+        <span class="seg-indicator" aria-hidden="true"></span>
         <button type="button" data-view-mode-tab="shelf" class="view-mode-tab view-mode-tab-active flex items-center justify-center gap-1.5 rounded-md px-2.5 sm:px-3 py-1.5 whitespace-nowrap text-xs font-display font-semibold uppercase tracking-wide min-h-[44px]">
           <i data-lucide="layout-grid" class="w-3.5 h-3.5" stroke-width="2"></i>Scaffalatura
         </button>

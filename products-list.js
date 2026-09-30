@@ -7,7 +7,7 @@
 import { listDistinctMacchine } from './supabase.js';
 import { openPicker } from './picker.js';
 import { animateFluidSwap } from './app.js';
-import { staggerIndex } from './ui-utils.js';
+import { staggerIndex, syncSegIndicator } from './ui-utils.js';
 import { els, state, LINEA_OPTIONS, MACHINE_VIEW_CATEGORIES, escapeHtml } from './products-shared.js';
 import { refresh } from './products-data.js';
 import { openDetail } from './products-detail.js';
@@ -22,6 +22,7 @@ let queuedViewMode = null; // ultima modalità richiesta mentre viewModeBusy era
 export function initProductsList() {
   els.categoryTabs = document.querySelectorAll('[data-category-tab]');
   els.viewModeTabs = document.querySelectorAll('[data-view-mode-tab]');
+  els.categorySeg = document.getElementById('product-category-seg');
   els.viewModeWrap = document.getElementById('product-view-mode-wrap');
   els.shelfView = document.getElementById('product-shelf-view');
   els.machineView = document.getElementById('product-machine-view');
@@ -77,7 +78,14 @@ export function setCategory(category) {
     els.viewModeTabs.forEach((btn) => btn.classList.toggle('view-mode-tab-active', btn.dataset.viewModeTab === 'shelf'));
   }
 
+  syncSegs();
   refresh();
+}
+
+/** Riallinea i rettangoli blu scorrevoli dei due controlli segmentati al pulsante attivo. */
+function syncSegs() {
+  syncSegIndicator(els.categorySeg);
+  syncSegIndicator(els.viewModeWrap);
 }
 
 function setViewMode(mode) {
@@ -97,6 +105,7 @@ function applyViewMode(mode) {
   const previousMode = viewMode;
   viewMode = mode;
   els.viewModeTabs.forEach((btn) => btn.classList.toggle('view-mode-tab-active', btn.dataset.viewModeTab === mode));
+  syncSegs();
 
   if (state.currentList.length === 0) return; // l'empty state resta cosí com'è, nulla da animare
 

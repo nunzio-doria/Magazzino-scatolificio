@@ -285,3 +285,33 @@ export function emptyStateHtml(icon, title, subtitle = '') {
       ${subtitle ? `<p class="text-xs text-graphite-500 max-w-[220px] text-center leading-relaxed">${subtitle}</p>` : ''}
     </div>`;
 }
+
+
+/**
+ * Controlli segmentati (.seg): posiziona il rettangolo blu (.seg-indicator) sotto il pulsante
+ * attivo passando --seg-x/--seg-w; il CSS lo fa scorrere lateralmente. Il primo posizionamento
+ * (e quello dopo che il controllo era nascosto) è istantaneo, senza scivolare da sinistra.
+ * Va richiamata dopo ogni cambio del pulsante attivo; la prima volta aggancia anche un
+ * ResizeObserver per riallinearsi a rotazione schermo, font caricati o controllo che riappare.
+ */
+export function syncSegIndicator(seg) {
+  if (!seg) return;
+  if (!seg._segObserved && typeof ResizeObserver !== 'undefined') {
+    seg._segObserved = true;
+    new ResizeObserver(() => syncSegIndicator(seg)).observe(seg);
+  }
+  const active = seg.querySelector('.category-tab-active, .view-mode-tab-active');
+  if (!active || !seg.offsetWidth) {
+    seg._segHidden = true;
+    return;
+  }
+  const instant = seg._segHidden !== false;
+  if (instant) seg.classList.remove('seg-ready');
+  seg.style.setProperty('--seg-x', `${active.offsetLeft}px`);
+  seg.style.setProperty('--seg-w', `${active.offsetWidth}px`);
+  if (instant) {
+    void seg.offsetWidth; // reflow: la posizione si applica prima di riattivare la transizione
+    seg.classList.add('seg-ready');
+    seg._segHidden = false;
+  }
+}

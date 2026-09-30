@@ -696,7 +696,7 @@ button.lowstock-header:not(:disabled):active { transform: none; background: tran
    bordo del contenitore dietro di sé, creando una doppia cornice. Lí il
    cambio di stato resta un puro cambio colore (via .view-mode-tab qui
    sotto), mai un ridimensionamento. */
-.category-tab-active, .import-category-tab-active,
+.import-category-tab-active,
 .mode-active-deposito, .mode-active-prelievo,
 .history-tab-active {
   animation: tab-select-pop var(--dur-slow) var(--ease-spring);
@@ -707,7 +707,7 @@ button.lowstock-header:not(:disabled):active { transform: none; background: tran
   100% { transform: scale(1); }
 }
 @media (prefers-reduced-motion: reduce) {
-  .category-tab-active, .import-category-tab-active,
+  .import-category-tab-active,
   .mode-active-deposito, .mode-active-prelievo,
   .history-tab-active { animation: none; }
 }
@@ -800,7 +800,6 @@ button.lowstock-header:not(:disabled):active { transform: none; background: tran
    resterebbe visibile sopra il bordo colorato come una riga bianca fuori
    posto — lo si sostituisce con un'ombra pulita, senza il filo di luce. */
 .history-tab-active,
-.category-tab-active,
 .import-category-tab-active {
   box-shadow: 0 1px 2px rgba(13, 17, 23, 0.12) !important;
 }
@@ -837,41 +836,72 @@ button.lowstock-header:not(:disabled):active { transform: none; background: tran
 }
 
 /* ---- Tab categoria magazzino -------------------------------------- */
-.category-tab, .import-category-tab { transition: var(--tr-colors); color: #5c6672; }
-.category-tab-active, .import-category-tab-active {
+.import-category-tab { transition: var(--tr-colors); color: #5c6672; }
+.import-category-tab-active {
   border-color: rgba(var(--accent-rgb), 0.5) !important;
   color: var(--accent-dark) !important;
 }
 
-/* ---- Toggle Scaffalatura / Macchina -------------------------------- */
-.view-mode-tab { transition: var(--tr-colors); color: #5c6672; }
-.view-mode-tab-active {
-  color: #ffffff !important;
+/* ---- Controlli segmentati: Cuscinetti/Cinghie/Ricambi tecnici e Scaffalatura/Macchina ----
+   Una sola cornice con i pulsanti dentro; il rettangolo blu pieno (.seg-indicator) non si
+   ridipinge sul pulsante scelto ma scorre lateralmente sotto di esso. Posizione e larghezza
+   arrivano da JS (syncSegIndicator in ui-utils.js) come --seg-x / --seg-w, cosí funziona anche
+   con pulsanti di larghezza diversa. Senza .seg-ready (primo disegno, o quando il controllo
+   riappare da nascosto) l'indicatore si posiziona di scatto, senza scivolare da sinistra. */
+.seg { position: relative; }
+.seg-indicator {
+  position: absolute;
+  top: 2px;
+  bottom: 2px;
+  left: 0;
+  width: var(--seg-w, 0px);
+  transform: translateX(var(--seg-x, 0px));
+  border-radius: 0.375rem;
+  background: var(--accent);
+  pointer-events: none;
+  z-index: 0;
 }
-/* Sovrascrive lo scale-press globale (button:active): qui i pulsanti sono
-   incollati l'uno all'altro senza gap, quindi qualunque ridimensionamento
-   rivela il bordo del contenitore condiviso dietro l'elemento premuto —
-   il feedback alla pressione resta solo un'attenuazione di opacità. */
-button.view-mode-tab:not(:disabled):active {
+.seg.seg-ready .seg-indicator {
+  transition: transform var(--dur-slow) var(--ease-out), width var(--dur-slow) var(--ease-out);
+}
+.category-tab, .view-mode-tab {
+  position: relative;
+  z-index: 1;
+  color: #5c6672;
+  background: transparent;
+  transition: color var(--dur-base) ease 60ms, background-color var(--dur-fast) ease;
+}
+.category-tab-active, .view-mode-tab-active { color: #ffffff !important; }
+/* Sovrascrive lo scale-press globale (button:active): i pulsanti sono incollati l'uno
+   all'altro senza gap, quindi qualunque ridimensionamento rivelerebbe il bordo del
+   contenitore condiviso. Alla pressione: tinta OPACA sul pulsante non attivo, nulla su
+   quello attivo (l'indicatore blu resta com'è). */
+button.view-mode-tab:not(:disabled):active,
+button.category-tab:not(:disabled):active {
   transform: none;
-  background-color: var(--accent-tint); /* tinta OPACA: mai opacity, il pulsante non deve diventare trasparente */
+  background-color: var(--accent-tint);
   transition-duration: var(--dur-press);
 }
-button.view-mode-tab-active:not(:disabled):active::before { background: var(--accent-dark); }
+button.view-mode-tab-active:not(:disabled):active,
+button.category-tab-active:not(:disabled):active { background-color: transparent; }
+@media (prefers-reduced-motion: reduce) {
+  .seg.seg-ready .seg-indicator { transition-duration: 1ms; }
+}
 
 /* ---- Riempimento radiale dei pulsanti di selezione ----------------------
-   Quando un pulsante diventa "attivo" il suo colore (tinta o pieno, già proprio di
-   ciascuno) parte dal centro e si allarga a cerchio fino ai bordi; alla deselezione
-   si richiude verso il centro. Il colore sta in --rf-bg (fisso sul pulsante, così
-   anche la chiusura è visibile); il riempimento è un ::before dietro al contenuto.
-   75% = raggio che raggiunge gli angoli qualunque sia la forma del pulsante. */
-.category-tab, .import-category-tab, .history-tab, .view-mode-tab, .scan-linea-btn,
+   (tab categoria import, tab Storico, Deposito/Prelievo, Linea 1/2). Quando un pulsante
+   diventa "attivo" il suo colore (già proprio di ciascuno) parte dal centro e si allarga
+   a cerchio fino ai bordi; alla deselezione si richiude verso il centro. Il colore sta in
+   --rf-bg (fisso sul pulsante, cosí anche la chiusura è visibile); il riempimento è un
+   ::before dietro al contenuto. 75% = raggio che raggiunge gli angoli qualunque sia la forma.
+   Cuscinetti/Cinghie/Ricambi e Scaffalatura/Macchina usano invece l'indicatore che scorre. */
+.import-category-tab, .history-tab, .scan-linea-btn,
 #mode-deposito, #mode-prelievo {
   position: relative;
   isolation: isolate;
   overflow: hidden;
 }
-.category-tab::before, .import-category-tab::before, .history-tab::before, .view-mode-tab::before,
+.import-category-tab::before, .history-tab::before,
 .scan-linea-btn::before, #mode-deposito::before, #mode-prelievo::before {
   content: '';
   position: absolute;
@@ -883,22 +913,21 @@ button.view-mode-tab-active:not(:disabled):active::before { background: var(--ac
   transition: clip-path var(--dur-slow) var(--ease-out);
   pointer-events: none;
 }
-.category-tab-active::before, .import-category-tab-active::before, .history-tab-active::before,
-.view-mode-tab-active::before, .scan-linea-btn[aria-pressed="true"]::before,
+.import-category-tab-active::before, .history-tab-active::before,
+.scan-linea-btn[aria-pressed="true"]::before,
 .mode-active-deposito::before, .mode-active-prelievo::before {
   clip-path: circle(75% at 50% 50%);
 }
 #mode-deposito { --rf-bg: var(--deposito-tint); }
-.view-mode-tab { --rf-bg: var(--accent); }
 .scan-linea-btn { --rf-bg: var(--accent); }
 /* Sui riempimenti pieni il testo vira al bianco con un attimo di ritardo, cosí non
    resta bianco su bianco mentre il cerchio è ancora piccolo. */
-.view-mode-tab, .scan-linea-btn {
+.scan-linea-btn {
   transition: color var(--dur-base) ease 70ms, border-color var(--dur-fast) ease, background-color var(--dur-fast) ease;
 }
 .scan-linea-btn[aria-pressed="true"] { color: #ffffff; border-color: var(--accent); }
 @media (prefers-reduced-motion: reduce) {
-  .category-tab::before, .import-category-tab::before, .history-tab::before, .view-mode-tab::before,
+  .import-category-tab::before, .history-tab::before,
   .scan-linea-btn::before, #mode-deposito::before, #mode-prelievo::before { transition-duration: 1ms; }
 }
 
