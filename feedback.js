@@ -18,7 +18,6 @@ const STORAGE_KEY = 'magazzino-feedback-settings';
 
 let settings = loadSettings();
 let audioCtx = null;
-let lastTickAt = 0; // per limitare la frequenza dei tick del selettore quantità
 
 function loadSettings() {
   try {
@@ -202,24 +201,12 @@ const feedback = {
     vibrate(12);
   },
 
-  /** Singolo scatto del selettore quantità tenuto premuto: tick leggerissimo.
-   *  Con la pressione prolungata i tick sono ravvicinati, quindi si limita la
-   *  frequenza (al massimo uno ogni ~70 ms) e la nota sale un po' con la velocità. */
+  /** Scatto del selettore quantità tenuto premuto: tick sonoro + vibrazione a ogni
+   *  incremento. tier 0 = passo da 1 (tick leggero), tier 1 = passo da 5 (più acuto
+   *  e con vibrazione un po' più lunga, per distinguerlo al tatto). */
   qtyTick(tier = 0) {
-    const now = performance.now();
-    if (now - lastTickAt < 70) return;
-    lastTickAt = now;
-    tone(760 + tier * 140, 18, { type: 'sine', gain: 0.045 });
-    vibrate(6);
-  },
-
-  /** Il selettore quantità passa a un passo più grande (x5, x10): scatto più marcato */
-  qtyTierUp() {
-    sequence([
-      [700, 40, 0, { type: 'triangle', gain: 0.09 }],
-      [1000, 60, 45, { type: 'triangle', gain: 0.09 }],
-    ]);
-    vibrate([18, 30, 18]);
+    tone(tier ? 1000 : 780, 22, { type: 'sine', gain: 0.06 });
+    vibrate(tier ? 18 : 10);
   },
 
   /** Cambio sezione nella barra di navigazione inferiore */

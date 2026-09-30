@@ -445,36 +445,26 @@ function stepQty(delta) {
 }
 
 // ---- Pressione prolungata sui pulsanti +/− della quantità -------------------
-// Stessa logica dei controlli analoghi (stepper iOS, NumberPicker Android,
-// campi numerici dei desktop): un tocco = ±1; tenendo premuto, dopo una breve
-// attesa parte la ripetizione, che accelera in due modi: gli intervalli tra
-// uno scatto e l'altro si accorciano gradualmente, e dopo qualche secondo il
-// passo passa a ×5 e poi ×10 (arrotondando ai multipli, così si legge 5, 10,
-// 15… invece di numeri sfalsati). Rilasciando, tutto si ferma; un nuovo
-// tocco riparte da capo.
+// Un tocco = ±1. Tenendo premuto, dopo una breve attesa parte la ripetizione
+// a velocità costante, con un tick aptico+sonoro a ogni scatto:
+// - da 1 a 5: un numero alla volta, uno scatto ogni HOLD_FINE_MS
+// - da 5 in su: salti di 5 (5 → 10 → 15 → 20 …), uno scatto ogni HOLD_COARSE_MS
+// In discesa è speculare (… 20 → 15 → 10 → 5, poi 4 → 3 → 2 → 1).
 const HOLD_DELAY_MS = 400; // attesa prima che parta la ripetizione (evita scatti involontari su un tocco lungo)
-const HOLD_START_MS = 170; // intervallo del primo scatto ripetuto
-const HOLD_MIN_MS = 55; // intervallo minimo (limite di velocità: sopra è illeggibile)
-const HOLD_DECAY = 0.9; // ogni scatto l'intervallo diventa il 90% del precedente
-const HOLD_TIERS = [ // [tempo dall'inizio pressione (ms), passo]
-  [0, 1],
-  [2600, 5],
-  [4800, 10],
-];
+const HOLD_FINE_MS = 300; // intervallo tra gli scatti da ±1
+const HOLD_COARSE_MS = 500; // intervallo tra gli scatti da ±5
+const HOLD_JUMP = 5;
 
-function holdStepFor(elapsedMs) {
-  let tier = 0;
-  HOLD_TIERS.forEach(([from], i) => {
-    if (elapsedMs >= from) tier = i;
-  });
-  return { tier, step: HOLD_TIERS[tier][1] };
+/** Passo del prossimo scatto: ±1 sotto la soglia, ±5 (agganciato ai multipli di 5) sopra. */
+function nextHoldValue(cur, dir) {
+  const fine = dir > 0 ? cur < HOLD_JUMP : cur <= HOLD_JUMP;
+  if (fine) return { value: cur + dir, coarse: false };
+  const value = dir > 0 ? (Math.floor(cur / HOLD_JUMP) + 1) * HOLD_JUMP : (Math.ceil(cur / HOLD_JUMP) - 1) * HOLD_JUMP;
+  return { value, coarse: true };
 }
 
 function bindHoldRepeat(btn, dir) {
   let timer = null;
-  let startedAt = 0;
-  let interval = HOLD_START_MS;
-  let lastTier = 0;
 
   function stop() {
     clearTimeout(timer);
@@ -482,24 +472,17 @@ function bindHoldRepeat(btn, dir) {
   }
 
   function tick() {
-    const { tier, step } = holdStepFor(performance.now() - startedAt);
     const cur = parseInt(els.qtyInput.value, 10) || 1;
-    // Con passo > 1 si allinea al multiplo successivo/precedente (13 → 15 → 20; 13 → 10 → 5)
-    const next = step === 1 ? cur + dir * step : dir > 0 ? (Math.floor(cur / step) + 1) * step : (Math.ceil(cur / step) - 1) * step;
-    const clamped = Math.max(1, next);
+    const { value, coarse } = nextHoldValue(cur, dir);
+    const clamped = Math.max(1, value);
     if (clamped === cur) {
       stop(); // già al minimo: inutile continuare a ripetere
       return;
     }
     setQty(clamped);
-    if (tier > lastTier) {
-      lastTier = tier;
-      feedback.qtyTierUp();
-    } else {
-      feedback.qtyTick(tier);
-    }
-    interval = Math.max(HOLD_MIN_MS, interval * HOLD_DECAY);
-    timer = setTimeout(tick, interval);
+    feedback.qtyTick(coarse ? 1 : 0);
+    const upcoming = nextHoldValue(clamped, dir).coarse;
+    timer = setTimeout(tick, upcoming ? HOLD_COARSE_MS : HOLD_FINE_MS);
   }
 
   btn.addEventListener('pointerdown', (e) => {
@@ -511,9 +494,6 @@ function bindHoldRepeat(btn, dir) {
       // non essenziale: senza cattura il rilascio fuori dal pulsante è comunque gestito da pointerleave
     }
     stepQty(dir); // il primo scatto è immediato, come un normale tocco
-    startedAt = performance.now();
-    interval = HOLD_START_MS;
-    lastTier = 0;
     timer = setTimeout(tick, HOLD_DELAY_MS);
   });
   ['pointerup', 'pointercancel', 'lostpointercapture', 'pointerleave'].forEach((ev) => btn.addEventListener(ev, stop));
