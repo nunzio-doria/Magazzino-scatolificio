@@ -13,6 +13,8 @@
 // restano sempre allineati.
 // =============================================================
 
+import feedback from './feedback.js';
+
 const slots = []; // una voce per ogni entry di cronologia sopra la base: { open, close }
 const queue = []; // operazioni sulla cronologia in attesa (history.go è asincrono)
 let expecting = false; // true finché non arriva il popstate di un history.go() fatto da noi
@@ -110,5 +112,6 @@ function onPop(event) {
   }
   // Voce fantasma (livello già chiuso dall'interfaccia): non è cambiato nulla a schermo,
   // quindi si prosegue all'indietro fino a un livello reale o alla base.
+  if (closedSomething) feedback.back();
   if (!closedSomething && skipped) history.go(-1);
 }

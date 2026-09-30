@@ -69,6 +69,7 @@ function attachLongPress(el, onLongPress) {
   el.addEventListener('click', (e) => {
     if (!fired) return;
     fired = false;
+    e.noHaptic = true; // il rilascio dopo la pressione prolungata non è un tocco
     e.preventDefault();
     e.stopImmediatePropagation();
   });
@@ -493,6 +494,7 @@ function enterReorderMode() {
   reorderMode = true;
   if (!reorderLayer) reorderLayer = pushLayer(() => exitReorderMode({ save: true }));
   feedback.modeSelect();
+  feedback.longPress();
   renderDetailGrid();
   window.lucide?.createIcons();
 }
@@ -580,6 +582,7 @@ function makeTileDraggable(tile) {
     tile.style.left = `${rect.left - originX}px`;
     tile.style.top = `${rect.top - originY}px`;
     tile.classList.add('reorder-dragging');
+    feedback.dragStart();
   };
 
   const move = (e) => {
@@ -593,7 +596,11 @@ function makeTileDraggable(tile) {
     if (overTile && overTile !== placeholder && overTile.parentElement === grid && overTile !== tile) {
       const rect = overTile.getBoundingClientRect();
       const isAfter = e.clientX > rect.left + rect.width / 2 || e.clientY > rect.top + rect.height / 2;
-      grid.insertBefore(placeholder, isAfter ? overTile.nextSibling : overTile);
+      const ref = isAfter ? overTile.nextSibling : overTile;
+      if (ref !== placeholder && placeholder.nextSibling !== ref) {
+        grid.insertBefore(placeholder, ref);
+        feedback.dragSwap();
+      }
     }
   };
 
@@ -608,6 +615,7 @@ function makeTileDraggable(tile) {
     placeholder?.replaceWith(tile);
     placeholder = null;
     tile.classList.remove('reorder-dragging');
+    feedback.dragDrop();
     tile.style.animation = '';
     tile.style.position = '';
     tile.style.width = '';

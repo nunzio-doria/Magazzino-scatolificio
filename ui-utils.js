@@ -58,6 +58,7 @@ export function modalCloseMs() {
 export function openOverlay(el) {
   if (!el || el.dataset.modalOpen) return;
   el.dataset.modalOpen = '1';
+  feedback.overlayOpen();
   clearTimeout(el._hideTimer); // annulla un'eventuale chiusura ancora in corso
   el.classList.remove('hidden');
   void el.offsetWidth; // reflow: la transizione parte sempre
@@ -77,6 +78,7 @@ export function openOverlay(el) {
 export function closeOverlay(el) {
   if (!el || !el.dataset.modalOpen) return;
   delete el.dataset.modalOpen;
+  feedback.overlayClose();
   releaseLayer(el._navLayer);
   el._navLayer = null;
   el.classList.remove('modal-visible');
@@ -105,6 +107,7 @@ export function enableSheetDrag(panel, onClose) {
   let startY = 0;
   let startT = 0;
   let dy = 0;
+  let thresholdHit = false; // vibrazione una sola volta quando si supera la soglia di chiusura
 
   panel.querySelectorAll('[data-sheet-drag]').forEach((zone) => {
     zone.addEventListener('pointerdown', (e) => {
@@ -119,12 +122,16 @@ export function enableSheetDrag(panel, onClose) {
       } catch (err) {
         /* puntatore non più attivo: si prosegue senza cattura */
       }
+      thresholdHit = false;
       panel.classList.add('sheet-dragging');
     });
     zone.addEventListener('pointermove', (e) => {
       if (e.pointerId !== pointerId) return;
       dy = Math.max(0, e.clientY - startY); // non si trascina oltre la posizione tutta aperta
       panel.style.transform = `translateY(${dy}px)`;
+      const past = dy > (panel.getBoundingClientRect().height || 1) * 0.28;
+      if (past && !thresholdHit) feedback.dragThreshold();
+      thresholdHit = past;
     });
     const end = (e) => {
       if (e.pointerId !== pointerId) return;

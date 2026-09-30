@@ -18,6 +18,8 @@ const STORAGE_KEY = 'magazzino-feedback-settings';
 
 let settings = loadSettings();
 let audioCtx = null;
+let lastHapticAt = -1000; // istante dell'ultima vibrazione (serve a non doppiare i feedback)
+const SOFT_WINDOW_MS = 120;
 
 function loadSettings() {
   try {
@@ -109,10 +111,27 @@ function vibrate(pattern) {
   if (!settings.haptics) return;
   if (typeof navigator.vibrate !== 'function') return;
   try {
-    navigator.vibrate(pattern);
+    navigator.vibrate(normalizePattern(pattern));
+    lastHapticAt = performance.now();
   } catch (err) {
     // alcuni browser lanciano se chiamato fuori da un gesto utente: ignorabile
   }
+}
+
+/** Impulsi sotto ~15 ms su molti telefoni Android non si sentono affatto (il motorino
+ *  non fa in tempo a partire): ogni impulso viene portato almeno a MIN_PULSE_MS. */
+const MIN_PULSE_MS = 15;
+function normalizePattern(pattern) {
+  if (Array.isArray(pattern)) return pattern.map((ms, i) => (i % 2 === 0 && ms > 0 ? Math.max(ms, MIN_PULSE_MS) : ms));
+  return Math.max(pattern, MIN_PULSE_MS);
+}
+
+/** Come vibrate(), ma solo se nell'ultimo istante non c'è già stato un altro feedback:
+ *  per gli eventi "di contorno" (apertura/chiusura di una modale, tasto indietro) che
+ *  spesso seguono subito un tocco già accompagnato dal suo feedback. */
+function vibrateSoft(pattern) {
+  if (performance.now() - lastHapticAt < SOFT_WINDOW_MS) return;
+  vibrate(pattern);
 }
 
 // -----------------------------------------------------------------
@@ -203,10 +222,60 @@ const feedback = {
 
   /** Scatto del selettore quantità tenuto premuto: tick sonoro + vibrazione a ogni
    *  incremento. tier 0 = passo da 1 (tick leggero), tier 1 = passo da 5 (più acuto
-   *  e con vibrazione un po' più lunga, per distinguerlo al tatto). */
+   *  e con vibrazione più lunga, per distinguerlo al tatto). */
   qtyTick(tier = 0) {
+    vibrate(tier ? 30 : 20); // prima della nota: un problema audio non deve mai fermare la vibrazione
     tone(tier ? 1000 : 780, 22, { type: 'sine', gain: 0.06 });
-    vibrate(tier ? 18 : 10);
+  },
+
+  /** Tocco generico su pulsanti, voci, schede (solo vibrazione, nessun suono) */
+  tap() {
+    vibrate(15);
+  },
+
+  /** Interruttore/casella: acceso = impulso pieno, spento = più leggero */
+  toggle(on) {
+    vibrate(on ? 25 : 15);
+  },
+
+  /** Apertura di una modale/cassetto (solo se non c'è già stato un feedback per il tocco) */
+  overlayOpen() {
+    vibrateSoft(20);
+  },
+
+  /** Chiusura di una modale/cassetto */
+  overlayClose() {
+    vibrateSoft(15);
+  },
+
+  /** Tasto indietro del telefono */
+  back() {
+    vibrateSoft(15);
+  },
+
+  /** Pressione prolungata riconosciuta (es. ingresso in modalità modifica) */
+  longPress() {
+    vibrate(35);
+  },
+
+  /** Elemento "sollevato" per essere trascinato */
+  dragStart() {
+    vibrate(25);
+  },
+
+  /** Durante il trascinamento: l'elemento ha cambiato posizione */
+  dragSwap() {
+    vibrate(15);
+  },
+
+  /** Elemento rilasciato al suo posto */
+  dragDrop() {
+    vibrate([20]);
+  },
+
+  /** Cassetto trascinato oltre la soglia: rilasciando si chiude */
+  dragThreshold() {
+    vibrate(20);
   },
 
   /** Cambio sezione nella barra di navigazione inferiore */
@@ -281,6 +350,71 @@ const feedback = {
 };
 
 export default feedback;
+
+// -----------------------------------------------------------------
+// Vibrazione su OGNI tocco dell'interfaccia
+//
+// Un solo ascoltatore sul documento (in fase di cattura, così non lo fermano gli
+// stopPropagation dei singoli pulsanti) dà un tocco di vibrazione a qualunque
+// elemento interattivo: pulsanti, link, voci di elenco, schede, interruttori...
+// Gli eventi con un feedback proprio (conferme, errori, cambio sezione, ecc.) non
+// vengono doppiati: il controllo gira un attimo dopo che i gestori del click hanno
+// finito e salta il tocco generico se nel frattempo c'è già stata una vibrazione.
+// Esclusioni: elementi con data-no-haptic e click marcati con event.noHaptic = true.
+// -----------------------------------------------------------------
+
+const TAP_SELECTOR = [
+  'button',
+  'a[href]',
+  'summary',
+  'select',
+  'label',
+  'input[type="checkbox"]',
+  'input[type="radio"]',
+  'input[type="range"]',
+  '[role="button"]',
+  '[role="tab"]',
+  '[role="option"]',
+  '[role="menuitem"]',
+  '[role="switch"]',
+  '.shelf-header',
+  '[data-tap-haptic]',
+].join(',');
+
+function findTapTarget(start) {
+  if (!(start instanceof Element)) return null;
+  const el = start.closest(TAP_SELECTOR);
+  if (el) return el;
+  // Elementi cliccabili non standard (div/riga con cursor pointer, es. righe dello storico)
+  let node = start;
+  for (let i = 0; node && node !== document.body && i < 6; i += 1, node = node.parentElement) {
+    if (getComputedStyle(node).cursor === 'pointer') return node;
+  }
+  return null;
+}
+
+function initGlobalHaptics() {
+  if (window.__globalHapticsBound) return;
+  window.__globalHapticsBound = true;
+  document.addEventListener(
+    'click',
+    (e) => {
+      if (!e.isTrusted) return; // click sintetici (label → input, .click() da codice)
+      const target = findTapTarget(e.target);
+      if (!target || target.closest('[data-no-haptic]') || target.disabled) return;
+      const startedAt = performance.now();
+      setTimeout(() => {
+        if (e.noHaptic) return;
+        if (lastHapticAt >= startedAt - 100) return; // il gestore ha già dato il suo feedback
+        const box = target.matches('input[type="checkbox"], input[type="radio"]') ? target : target.querySelector?.('input[type="checkbox"], input[type="radio"]');
+        if (box && target.tagName !== 'BUTTON') feedback.toggle(box.checked);
+        else feedback.tap();
+      }, 0);
+    },
+    true
+  );
+}
+initGlobalHaptics();
 
 /**
  * Collega gli switch delle impostazioni (suoni/vibrazione) nella vista

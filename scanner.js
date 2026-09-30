@@ -475,6 +475,7 @@ function holdInterval(cur, dir) {
 
 function bindHoldRepeat(btn, dir) {
   let timer = null;
+  btn.dataset.noHaptic = '1'; // il feedback lo danno già gli scatti (stepQty / qtyTick)
 
   function stop() {
     clearTimeout(timer);
