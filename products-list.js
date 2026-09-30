@@ -7,12 +7,16 @@
 import { listDistinctMacchine } from './supabase.js';
 import { openPicker } from './picker.js';
 import { animateFluidSwap } from './app.js';
-import { staggerIndex, syncSegIndicator } from './ui-utils.js';
+import { staggerIndex, syncSegIndicator, modalCloseMs } from './ui-utils.js';
 import { els, state, LINEA_OPTIONS, MACHINE_VIEW_CATEGORIES, escapeHtml } from './products-shared.js';
 import { refresh } from './products-data.js';
 import { openDetail } from './products-detail.js';
 
-const openShelves = new Set(); // locazioni espanse, persiste tra i refresh
+const openShelves = new Set(); // locazioni espanse, persiste tra i refresh (una sola alla volta, salvo durante la ricerca)
+// Cambio scaffale: prima si richiude il vecchio, poi si apre il nuovo. closeEndsAt = istante in cui
+// finisce l'ultima chiusura avviata; swapTimer = apertura in attesa (l'ultimo tocco vince).
+let closeEndsAt = 0;
+let swapTimer = null;
 const openMachines = new Set(); // macchine espanse, persiste tra i refresh
 let viewMode = 'shelf'; // 'shelf' | 'machine' — la vista a elenco non esiste più
 const VIEW_MODE_ORDER = ['shelf', 'machine']; // determina la direzione della transizione
@@ -300,19 +304,19 @@ function renderGroupedCards({ wrapEl, openSet, groupKeyFn, titleField, subtitleF
       .join('');
 
     const card = document.createElement('div');
-    card.className = `list-item-in shelf-card card-plate rounded-xl${isOpen ? ' shelf-open' : ''}`;
+    card.className = `list-item-in shelf-card card-plate rounded-xl${isOpen ? ' shelf-open shelf-active' : ''}`;
     card.style.setProperty('--i', staggerIndex(cardIndex));
     card.innerHTML = `
       <div class="shelf-header flex items-center justify-between gap-3 px-4 py-3.5 border-2 border-graphite-700 rounded-xl">
         <div class="flex items-center gap-3 min-w-0">
-          <span class="shrink-0 w-9 h-9 rounded-lg bg-graphite-700/50 flex items-center justify-center">
-            <i data-lucide="${iconName}" class="w-[18px] h-[18px] text-graphite-400" stroke-width="1.8"></i>
+          <span class="shelf-ico-box shrink-0 w-9 h-9 rounded-lg bg-graphite-700/50 flex items-center justify-center">
+            <i data-lucide="${iconName}" class="shelf-ico w-[18px] h-[18px] text-graphite-400" stroke-width="1.8"></i>
           </span>
           <div class="min-w-0">
-            <p class="font-display font-bold uppercase tracking-wide truncate">${escapeHtml(key)}</p>
-            <p class="ui-note text-graphite-500 mt-0.5 flex flex-wrap gap-x-2">
+            <p class="shelf-title font-display font-bold uppercase tracking-wide truncate">${escapeHtml(key)}</p>
+            <p class="shelf-sub ui-note text-graphite-500 mt-0.5 flex flex-wrap gap-x-2">
               <span class="whitespace-nowrap">${items.length} ${items.length === 1 ? 'articolo' : 'articoli'} · ${totQty} pz</span>${
-      lowCount ? `<span class="whitespace-nowrap font-semibold text-rose-700">${lowCount} sotto scorta</span>` : ''
+      lowCount ? `<span class="shelf-low whitespace-nowrap font-semibold text-rose-700">${lowCount} sotto scorta</span>` : ''
     }
             </p>
           </div>
@@ -325,10 +329,45 @@ function renderGroupedCards({ wrapEl, openSet, groupKeyFn, titleField, subtitleF
     `;
 
     card.querySelector('.shelf-header').addEventListener('click', () => {
-      const opening = !card.classList.contains('shelf-open');
-      card.classList.toggle('shelf-open', opening);
-      if (opening) openSet.add(key);
-      else openSet.delete(key);
+      // Durante la ricerca tutti i risultati sono già aperti: ognuno si apre/chiude per conto suo.
+      if (searching) {
+        const on = !card.classList.contains('shelf-open');
+        card.classList.toggle('shelf-open', on);
+        card.classList.toggle('shelf-active', on);
+        return;
+      }
+      clearTimeout(swapTimer);
+      swapTimer = null;
+
+      if (openSet.has(key)) {
+        // Già aperto: si richiude e basta.
+        openSet.delete(key);
+        card.classList.remove('shelf-open', 'shelf-active');
+        closeEndsAt = Math.max(closeEndsAt, performance.now() + modalCloseMs());
+        return;
+      }
+
+      // Un solo scaffale aperto: chiude l'eventuale precedente (tinta e cassetto insieme)...
+      const others = wrapEl.querySelectorAll('.shelf-card.shelf-open, .shelf-card.shelf-active');
+      if (others.length) {
+        others.forEach((c) => c.classList.remove('shelf-open', 'shelf-active'));
+        closeEndsAt = Math.max(closeEndsAt, performance.now() + modalCloseMs());
+      }
+      openSet.clear();
+      openSet.add(key);
+
+      // ...e la tinta blu del nuovo parte subito dal centro; il cassetto si apre solo
+      // quando quello vecchio ha finito di richiudersi.
+      card.classList.add('shelf-active');
+      const wait = Math.max(0, closeEndsAt - performance.now());
+      if (wait === 0) {
+        card.classList.add('shelf-open');
+      } else {
+        swapTimer = setTimeout(() => {
+          swapTimer = null;
+          if (card.isConnected && openSet.has(key)) card.classList.add('shelf-open');
+        }, wait);
+      }
     });
 
     // Toccando un articolo si apre la scheda di sola lettura (uguale per tutti); la

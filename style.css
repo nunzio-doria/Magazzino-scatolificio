@@ -937,13 +937,35 @@ button.category-tab-active:not(:disabled):active { background-color: transparent
 .shelf-card { overflow: hidden; }
 .shelf-header {
   cursor: pointer;
-  transition: border-color var(--dur-fast) ease, background-color var(--dur-fast) ease, transform var(--dur-slow) var(--ease-spring);
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  transition: border-color var(--dur-base) ease, transform var(--dur-slow) var(--ease-spring);
 }
-.shelf-card.shelf-open .shelf-header {
-  border-color: var(--accent-edge);
-  background: var(--accent-tint-soft);
+/* Intestazione scaffale attiva: il blu scuro dell'app parte dal centro e si allarga a cerchio
+   (stesso riempimento radiale degli altri pulsanti di selezione); testi e icone virano al bianco.
+   .shelf-active parte al tocco, .shelf-open (il cassetto) solo dopo la chiusura del vecchio. */
+.shelf-header::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: var(--accent);
+  clip-path: circle(0% at 50% 50%);
+  transition: clip-path var(--dur-slow) var(--ease-out);
+  pointer-events: none;
 }
-.shelf-chevron { transition: transform var(--dur-base) var(--ease-inout); }
+.shelf-card.shelf-active .shelf-header { border-color: var(--accent); }
+.shelf-card.shelf-active .shelf-header::before { clip-path: circle(75% at 50% 50%); }
+.shelf-title, .shelf-sub, .shelf-low, .shelf-ico, .shelf-ico-box, .shelf-chevron {
+  transition: color var(--dur-base) ease, background-color var(--dur-base) ease, transform var(--dur-base) var(--ease-inout);
+}
+.shelf-card.shelf-active .shelf-title { color: #ffffff; }
+.shelf-card.shelf-active .shelf-sub { color: rgba(255, 255, 255, 0.75); }
+.shelf-card.shelf-active .shelf-low { color: #ffd0d6; }
+.shelf-card.shelf-active .shelf-ico,
+.shelf-card.shelf-active .shelf-chevron { color: #ffffff; }
+.shelf-card.shelf-active .shelf-ico-box { background-color: rgba(255, 255, 255, 0.18); }
 .shelf-card.shelf-open .shelf-chevron { transform: rotate(180deg); }
 
 .shelf-body-track {
@@ -975,7 +997,7 @@ button.shelf-item:not(:disabled):active {
   background-color: var(--accent-tint-8);
 }
 @media (prefers-reduced-motion: reduce) {
-  .shelf-body-track { transition-duration: 1ms; }
+  .shelf-body-track, .shelf-header::before { transition-duration: 1ms; }
   .shelf-item { animation-duration: 1ms !important; animation-delay: 0ms !important; }
 }
 
