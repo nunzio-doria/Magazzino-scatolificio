@@ -448,8 +448,13 @@ function renderResult(product) {
   hideResultSkeleton();
   els.resultCard.classList.remove('hidden');
   replayAnimation(els.resultCard, 'result-pop');
-  els.productName.textContent = product.codice_articolo;
-  els.productCode.textContent = product.codice_articolo;
+  // Cinghie: in alto in grassetto la descrizione, sotto (più piccolo) il codice. Negli altri
+  // casi, o se la descrizione manca, c'è solo il codice: mai lo stesso testo due volte.
+  const descrizione = (product.punto_utilizzo_standard || '').trim();
+  const descrizioneInTitolo = product.categoria === 'cinghie' && descrizione && descrizione !== product.codice_articolo;
+  els.productName.textContent = descrizioneInTitolo ? descrizione : product.codice_articolo;
+  els.productCode.textContent = descrizioneInTitolo ? product.codice_articolo : '';
+  els.productCode.classList.toggle('hidden', !descrizioneInTitolo);
   els.productStock.textContent = product.quantita_disponibile;
   els.productLoc.textContent = product.locazione || '—';
   els.puntoInput.value = product.punto_utilizzo_standard || '';

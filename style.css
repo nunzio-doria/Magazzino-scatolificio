@@ -638,14 +638,16 @@ button.lowstock-header:not(:disabled):active { transform: none; background: tran
   inset: 0;
   z-index: -1;
   background: var(--accent);
-  clip-path: circle(0% at 50% 50%);
+  /* Origine sul centro dell'icona dello scaffale (pt-4 + metà riquadro da 36px = 34px dall'alto):
+     alla chiusura il blu passa dietro l'icona e si spegne lì. */
+  clip-path: circle(0% at 50% 34px);
   transition: clip-path var(--dur-slow) var(--ease-out);
 }
 .lowstock-tile-selected {
   border-color: var(--accent) !important;
   box-shadow: 0 1px 2px rgba(13, 17, 23, 0.10); /* toglie il filo di luce in alto: sul blu si vedrebbe come bordino bianco */
 }
-.lowstock-tile-selected::before { clip-path: circle(75% at 50% 50%); }
+.lowstock-tile-selected::before { clip-path: circle(95% at 50% 34px); }
 .lowstock-tile-name, .lowstock-tile-ico, .lowstock-tile-ico-box, .lowstock-tile-badge {
   transition: color var(--dur-base) ease, background-color var(--dur-base) ease;
 }
@@ -963,12 +965,15 @@ button.category-tab-active:not(:disabled):active { background-color: transparent
   inset: 0;
   z-index: -1;
   background: var(--accent);
-  clip-path: circle(0% at 50% 50%);
+  /* Il cerchio nasce e si richiude SUL CENTRO DELL'ICONA dello scaffale (px-4 + metà del
+     riquadro da 36px = 34px da sinistra): chiudendo, il blu passa dietro l'icona e sparisce lì. */
+  clip-path: circle(0% at 34px 50%);
   transition: clip-path var(--dur-slow) var(--ease-out);
   pointer-events: none;
 }
 .shelf-card.shelf-active .shelf-header { border-color: var(--accent); }
-.shelf-card.shelf-active .shelf-header::before { clip-path: circle(75% at 50% 50%); }
+/* 150% = raggio che raggiunge l'angolo opposto anche partendo dall'icona a sinistra */
+.shelf-card.shelf-active .shelf-header::before { clip-path: circle(150% at 34px 50%); }
 .shelf-title, .shelf-sub, .shelf-low, .shelf-ico, .shelf-ico-box, .shelf-chevron {
   transition: color var(--dur-base) ease, background-color var(--dur-base) ease, transform var(--dur-base) var(--ease-inout);
 }
