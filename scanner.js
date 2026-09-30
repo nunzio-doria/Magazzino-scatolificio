@@ -703,7 +703,7 @@ function renderRecent(rows) {
     row.innerHTML = `
       <div class="min-w-0">
         <p class="text-sm text-graphite-100 truncate font-medium">${escapeHtml(r.products?.codice_articolo || '—')}</p>
-        <p class="ui-note text-graphite-500 mt-0.5">${date.toLocaleString('it-IT', {
+        <p class="ui-note text-graphite-500 mt-0.5 truncate">${escapeHtml(r.profiles?.full_name || 'Utente')} · ${date.toLocaleString('it-IT', {
           day: '2-digit',
           month: '2-digit',
           hour: '2-digit',

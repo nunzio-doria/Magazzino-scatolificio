@@ -18,7 +18,7 @@
 // non succede nulla di grave: semplicemente niente copia offline.
 // =============================================================
 
-const CACHE_NAME = 'magazzino-shell-v40';
+const CACHE_NAME = 'magazzino-shell-v43';
 const APP_SHELL = [
   './',
   './index.html',
@@ -41,6 +41,8 @@ const APP_SHELL = [
   './users.js',
   './machines.js',
   './shelves.js',
+  './movements.js',
+  './low-stock.js',
   './ui-modal.js',
   './ui-select.js',
   './feedback.js',

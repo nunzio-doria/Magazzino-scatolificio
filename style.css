@@ -596,14 +596,33 @@ input.peer:checked ~ span:first-of-type {
   #manuals-detail-grid.reorder-mode .manual-section-tile { animation: none; }
 }
 
-/* Pulsante Spare parts esteso (più manuali ricambi): la lista si apre dentro lo
-   stesso pulsante, la freccia si capovolge. */
+/* Pulsante Spare parts esteso (più manuali ricambi): la lista si apre e si chiude
+   dentro lo stesso pulsante con un vero accordion (stessa tecnica grid-template-rows
+   delle tendine dei campi), la freccia si capovolge. */
 .spare-chevron { transition: transform 180ms ease; }
 .spare-group[data-open="true"] .spare-chevron { transform: rotate(180deg); }
-.spare-group-list:not(.hidden) { animation: spare-open 160ms ease-out; }
-@keyframes spare-open {
-  from { opacity: 0; transform: translateY(-4px); }
-  to { opacity: 1; transform: none; }
+.spare-group-list-track {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows var(--dur-base) var(--ease-inout);
+}
+.spare-group-list-open { grid-template-rows: 1fr; }
+.spare-group-list { min-height: 0; overflow: hidden; }
+
+/* Accordion generico riutilizzato da Movimenti (dettaglio riga) e Scorta minima
+   (dettaglio scaffale/macchina): stessa tecnica grid-template-rows. */
+.acc-track {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows var(--dur-base) var(--ease-inout);
+}
+.acc-track.acc-open { grid-template-rows: 1fr; }
+.acc-inner { min-height: 0; overflow: hidden; }
+
+/* Scorta minima: piastrella selezionata (scaffale/macchina il cui dettaglio è aperto sotto) */
+.lowstock-tile-selected {
+  border-color: rgba(var(--accent-rgb), 0.6) !important;
+  background: var(--accent-tint) !important;
 }
 
 /* Divisore tra "serie" di scaffali (SD001-004 vicine, poi SE001... staccata): lo spazio
@@ -1162,6 +1181,9 @@ html { touch-action: manipulation; } /* niente ritardo/zoom col doppio tocco; pi
    altezza automatica) si allunga e i risultati non vengono mai tagliati. */
 #scanner-code-search-wrap .custom-select-panel-track { position: static; }
 #scanner-code-search-wrap.custom-select-open .custom-select-panel-track { margin-top: 6px; }
+/* Promuove l'INTERO campo (bottone + tendina) sopra a tutti i campi successivi del
+   form mentre è aperto, così non resta mai "sotto" a un bordo/separatore più in basso. */
+.custom-select-open { position: relative; z-index: 40; }
 
 /* Funzioni che richiedono la fotocamera: non esistono su dispositivi con
    mouse e tastiera (desktop), dove si nascondono del tutto. */
