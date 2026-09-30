@@ -193,6 +193,7 @@ function detailHtml(group) {
   return `
     <div class="lowstock-detail rounded-xl border-2 border-graphite-700 overflow-hidden mb-2">
       <p class="px-4 py-2 ui-note font-display font-bold uppercase tracking-wide text-graphite-400 bg-graphite-800/40">${title} · ${group.articoli.length} ${group.articoli.length === 1 ? 'articolo' : 'articoli'}</p>
+      <div class="lowstock-items-scroll">
       ${group.articoli
         .map(
           (p, i) => `
@@ -208,5 +209,6 @@ function detailHtml(group) {
         </div>`
         )
         .join('')}
+      </div>
     </div>`;
 }

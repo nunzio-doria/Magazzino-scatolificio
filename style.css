@@ -656,6 +656,17 @@ button.lowstock-header:not(:disabled):active { transform: none; background: tran
 .lowstock-tile-selected .lowstock-tile-ico-box { background-color: rgba(255, 255, 255, 0.18); }
 .lowstock-tile-selected .lowstock-tile-badge { background-color: #fff; color: var(--accent); }
 
+/* Elenco articoli di uno scaffale in scorta minima: altezza massima fissa (circa 5 righe),
+   oltre la quale scorre SOLO l'elenco, non la pagina (overscroll-behavior: contain). Il titolo
+   dello scaffale sta fuori dal contenitore, quindi resta sempre visibile. */
+.lowstock-items-scroll {
+  max-height: 18rem;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+}
+
 /* Slot di dettaglio tra due righe di piastrelle: chiuso non occupa spazio (0fr). */
 .lowstock-slot .lowstock-item {
   opacity: 0;
@@ -960,7 +971,11 @@ button.category-tab-active:not(:disabled):active { background-color: transparent
 /* ---- Scaffalatura magazzino: scaffale per locazione, espansione animata
    con la tecnica grid-template-rows 0fr→1fr — fluida senza dover misurare
    l'altezza reale del contenuto, e senza salti se il contenuto cambia. --- */
-.shelf-card { overflow: hidden; }
+/* clip e non hidden: stesso ritaglio agli angoli arrotondati, ma senza creare un contenitore
+   di scorrimento — altrimenti la testata "sticky" qui sotto resterebbe incollata alla scheda
+   (che non scorre) invece che allo schermo. La riga con hidden resta come ripiego per i
+   browser che non conoscono clip (lì la testata semplicemente non si ferma in alto). */
+.shelf-card { overflow: hidden; overflow: clip; }
 .shelf-header {
   cursor: pointer;
   position: relative;
@@ -984,6 +999,15 @@ button.category-tab-active:not(:disabled):active { background-color: transparent
   pointer-events: none;
 }
 .shelf-card.shelf-active .shelf-header { border-color: var(--accent); }
+/* Scaffale aperto: il banner blu resta fermo sotto la testata dell'app finché si scorre
+   l'elenco, così si può richiudere anche dalla parte più bassa. Sta sopra agli articoli
+   (z-index) e ha un'ombra che lo stacca da ciò che gli scorre sotto. */
+.shelf-card.shelf-open .shelf-header {
+  position: sticky;
+  top: var(--header-h, 56px);
+  z-index: 5;
+  box-shadow: 0 6px 12px -6px rgba(13, 17, 23, 0.35);
+}
 /* 150% = raggio che raggiunge l'angolo opposto anche partendo dall'icona a sinistra */
 .shelf-card.shelf-active .shelf-header::before { clip-path: circle(150% at 34px 50%); }
 .shelf-title, .shelf-sub, .shelf-low, .shelf-ico, .shelf-ico-box, .shelf-chevron {
