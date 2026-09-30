@@ -166,6 +166,14 @@
           <div id="lowstock-track" class="acc-track">
             <div class="acc-inner">
               <div class="px-3.5 pb-3.5 pt-1">
+                <!-- Filtro categoria: stesso controllo segmentato del Magazzino, il blu scorre tra le voci -->
+                <div id="lowstock-seg" class="seg flex w-full rounded-lg border border-graphite-700 bg-graphite-800 p-0.5 mb-3" role="tablist">
+                  <span class="seg-indicator" aria-hidden="true"></span>
+                  <button type="button" data-lowstock-cat="tutti" class="category-tab category-tab-active flex-1 min-w-0 rounded-md min-h-[40px] px-1 py-1.5 flex items-center justify-center text-center leading-tight text-[11px] font-display font-semibold uppercase tracking-wide">Tutti</button>
+                  <button type="button" data-lowstock-cat="cuscinetti" class="category-tab flex-1 min-w-0 rounded-md min-h-[40px] px-1 py-1.5 flex items-center justify-center text-center leading-tight text-[11px] font-display font-semibold uppercase tracking-wide">Cuscinetti</button>
+                  <button type="button" data-lowstock-cat="cinghie" class="category-tab flex-1 min-w-0 rounded-md min-h-[40px] px-1 py-1.5 flex items-center justify-center text-center leading-tight text-[11px] font-display font-semibold uppercase tracking-wide">Cinghie</button>
+                  <button type="button" data-lowstock-cat="pezzi_ricambio" class="category-tab flex-1 min-w-0 rounded-md min-h-[40px] px-1 py-1.5 flex items-center justify-center text-center leading-tight text-[11px] font-display font-semibold uppercase tracking-wide">Ricambi</button>
+                </div>
                 <div id="lowstock-skeleton" class="hidden">
                   <div class="grid grid-cols-2 gap-2">
                     <div class="skeleton h-20 w-full"></div>

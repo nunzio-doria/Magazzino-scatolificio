@@ -11,8 +11,8 @@
 
 import { listProducts } from './supabase.js';
 import { toastError } from './toast.js';
-import { staggerIndex } from './ui-utils.js';
-import { escapeHtml } from './products-shared.js';
+import { staggerIndex, syncSegIndicator, animatePanelHeight } from './ui-utils.js';
+import { escapeHtml, CATEGORY_LABELS } from './products-shared.js';
 
 const COLS = 2; // piastrelle per riga
 
@@ -20,6 +20,8 @@ const els = {};
 let loaded = false;
 let openKey = null; // sigla della serie con il dettaglio aperto
 let groups = []; // [{ key, articoli }]
+let allItems = []; // tutti gli articoli in scorta minima, di ogni categoria
+let catFilter = 'tutti'; // 'tutti' | 'cuscinetti' | 'cinghie' | 'pezzi_ricambio'
 
 export function initLowStock() {
   els.card = document.getElementById('scanner-lowstock-card');
@@ -27,7 +29,21 @@ export function initLowStock() {
   els.track = document.getElementById('lowstock-track');
   els.skeleton = document.getElementById('lowstock-skeleton');
   els.body = document.getElementById('lowstock-body');
+  els.seg = document.getElementById('lowstock-seg');
+  els.catTabs = document.querySelectorAll('[data-lowstock-cat]');
   if (!els.openBtn || !els.track) return;
+
+  // Filtro categoria: il blu scorre tra le voci, la scheda si adatta in altezza e le
+  // piastrelle si ricompongono; l'eventuale scaffale aperto si chiude.
+  els.catTabs.forEach((btn) => {
+    btn.addEventListener('click', () => {
+      if (btn.dataset.lowstockCat === catFilter) return;
+      catFilter = btn.dataset.lowstockCat;
+      els.catTabs.forEach((b) => b.classList.toggle('category-tab-active', b === btn));
+      syncSegIndicator(els.seg);
+      animatePanelHeight(els.card, () => render(), 'card-h-anim');
+    });
+  });
 
   els.openBtn.addEventListener('click', () => {
     const opening = !els.track.classList.contains('acc-open');
@@ -40,6 +56,7 @@ function setCardOpen(open) {
   els.track.classList.toggle('acc-open', open);
   els.card.classList.toggle('lowstock-card-open', open);
   els.openBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+  if (open) syncSegIndicator(els.seg);
 }
 
 async function refresh() {
@@ -51,8 +68,8 @@ async function refresh() {
     els.body.classList.add('hidden');
   }
   try {
-    const items = await listProducts({ onlyLowStock: true });
-    render(items);
+    allItems = await listProducts({ onlyLowStock: true });
+    render();
     loaded = true;
   } catch (err) {
     console.error(err);
@@ -85,13 +102,15 @@ function buildGroups(items) {
     }));
 }
 
-function render(items) {
+function render() {
+  openKey = null;
+  const items = catFilter === 'tutti' ? allItems : allItems.filter((p) => p.categoria === catFilter);
   if (items.length === 0) {
     groups = [];
     els.body.innerHTML = `
       <div class="flex flex-col items-center text-center py-6">
         <i data-lucide="circle-check" class="w-9 h-9 text-emerald-600 mb-2" stroke-width="1.6"></i>
-        <p class="text-sm text-graphite-300 font-medium">Nessun articolo sotto scorta minima.</p>
+        <p class="text-sm text-graphite-300 font-medium">${catFilter === 'tutti' ? 'Nessun articolo sotto scorta minima.' : 'Nessun articolo sotto scorta in questa categoria.'}</p>
       </div>`;
     window.lucide?.createIcons();
     return;
@@ -182,7 +201,7 @@ function detailHtml(group) {
             <p class="text-sm font-display font-bold text-graphite-100 truncate">${escapeHtml(p.codice_articolo)}</p>
             <p class="ui-note text-graphite-500 mt-0.5 truncate">${escapeHtml([p.punto_utilizzo_standard, p.macchina].filter(Boolean).join(' · ') || '—')}</p>
             <p class="ui-note text-graphite-400 mt-0.5 flex items-center gap-1 font-semibold">
-              <i data-lucide="shelving-unit" class="w-3 h-3" stroke-width="2"></i>${escapeHtml(p.locazione || 'Non assegnata')}
+              <i data-lucide="shelving-unit" class="w-3 h-3" stroke-width="2"></i>${escapeHtml(p.locazione || 'Non assegnata')}${catFilter === 'tutti' ? `<span class="font-normal text-graphite-500">· ${escapeHtml(CATEGORY_LABELS[p.categoria] || '')}</span>` : ''}
             </p>
           </div>
           <span class="shrink-0 font-mono text-xs font-semibold px-2 py-0.5 rounded-full bg-rose-500/15 text-rose-700">${p.quantita_disponibile} / ${p.scorta_minima}</span>

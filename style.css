@@ -1197,6 +1197,9 @@ button.shelf-item:not(:disabled):active {
     height var(--dur-slow) var(--ease-inout);
 }
 
+/* Stesso adattamento animato dell'altezza per la scheda "Articoli sotto scorta" al cambio filtro. */
+.card-h-anim { transition: height var(--dur-slow) var(--ease-inout); }
+
 /* Mentre si trascina manualmente la maniglia, niente transizione: il
    pannello deve seguire il dito 1:1, esattamente come per il
    pull-to-refresh — la transizione va bene solo per l'apertura/chiusura

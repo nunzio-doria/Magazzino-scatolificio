@@ -327,8 +327,9 @@ export function syncSegIndicator(seg) {
  * Sicura se richiamata durante un'animazione già in corso (riparte dall'altezza attuale).
  * @param {HTMLElement|null} panel  il .modal-panel
  * @param {() => void} update       funzione che aggiorna il contenuto (sincrona)
+ * @param {string} [animClass]      classe con la transizione dell'altezza (default: quella dei cassetti)
  */
-export function animatePanelHeight(panel, update) {
+export function animatePanelHeight(panel, update, animClass = 'panel-h-anim') {
   if (!panel) {
     update();
     return;
@@ -337,7 +338,7 @@ export function animatePanelHeight(panel, update) {
   clearTimeout(panel._heightTimer);
   const before = panel.offsetHeight;
 
-  panel.classList.remove('panel-h-anim'); // niente transizione mentre si fissano/misurano le altezze
+  panel.classList.remove(animClass); // niente transizione mentre si fissano/misurano le altezze
   panel.style.height = `${before}px`;
   update();
   panel.style.height = 'auto';
@@ -349,10 +350,10 @@ export function animatePanelHeight(panel, update) {
     return;
   }
   void panel.offsetHeight; // reflow: parte da "before" e non da "auto"
-  panel.classList.add('panel-h-anim');
+  panel.classList.add(animClass);
   panel.style.height = `${after}px`;
   const done = () => {
-    panel.classList.remove('panel-h-anim');
+    panel.classList.remove(animClass);
     panel.style.height = '';
   };
   panel._heightTimer = setTimeout(done, modalCloseMs() + 60);
