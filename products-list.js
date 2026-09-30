@@ -134,7 +134,7 @@ function applyViewMode(mode) {
       queuedViewMode = null;
       if (next !== viewMode) applyViewMode(next);
     }
-  });
+  }, { flat: true });
 }
 
 function viewModeElement(mode) {

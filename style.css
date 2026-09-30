@@ -785,6 +785,16 @@ button.lowstock-header:not(:disabled):active { transform: none; background: tran
 .view-fluid-enter-right { animation: fluid-enter-from-right 520ms var(--ease-spring) 160ms both; }
 .view-fluid-enter-left  { animation: fluid-enter-from-left 520ms var(--ease-spring) 160ms both; }
 
+/* Variante "flat" (Scaffalatura ↔ Macchina): stesso scivolamento, nessuna scala. */
+@keyframes fluid-flat-exit-left  { from { opacity: 1; transform: translateX(0); } to { opacity: 0; transform: translateX(-6%); } }
+@keyframes fluid-flat-exit-right { from { opacity: 1; transform: translateX(0); } to { opacity: 0; transform: translateX(6%); } }
+@keyframes fluid-flat-enter-from-right { from { opacity: 0; transform: translateX(6%); }  to { opacity: 1; transform: translateX(0); } }
+@keyframes fluid-flat-enter-from-left  { from { opacity: 0; transform: translateX(-6%); } to { opacity: 1; transform: translateX(0); } }
+.view-fluid-flat.view-fluid-exit-left   { animation-name: fluid-flat-exit-left; }
+.view-fluid-flat.view-fluid-exit-right  { animation-name: fluid-flat-exit-right; }
+.view-fluid-flat.view-fluid-enter-right { animation-name: fluid-flat-enter-from-right; animation-timing-function: var(--ease-out); }
+.view-fluid-flat.view-fluid-enter-left  { animation-name: fluid-flat-enter-from-left;  animation-timing-function: var(--ease-out); }
+
 @media (prefers-reduced-motion: reduce) {
   .view-fluid-exit-left, .view-fluid-exit-right,
   .view-fluid-enter-right, .view-fluid-enter-left { animation-duration: 1ms; }

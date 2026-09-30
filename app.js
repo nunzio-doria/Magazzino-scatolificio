@@ -323,7 +323,7 @@ export function switchView(view, { animate = true, onStart, fromBack = false } =
  *   per rimandare lì il refresh dati pesante, invece di farlo partire nello
  *   stesso istante dell'animazione e rischiare di farla scattare).
  */
-export function animateFluidSwap(fromSection, toSection, forward, onSettled) {
+export function animateFluidSwap(fromSection, toSection, forward, onSettled, { flat = false } = {}) {
   if (isTransitioning) return; // non sovrapporre un'animazione già in corso
   isTransitioning = true;
   const host = toSection.parentElement;
@@ -335,6 +335,11 @@ export function animateFluidSwap(fromSection, toSection, forward, onSettled) {
   // top/left calcolate rispetto a hostRect risulterebbero sfalsate e la vista
   // "salterebbe" in una posizione più alta, sovrapponendosi a ciò che sta
   // sopra host. Forziamo qui un contesto locale, ripristinato in cleanup().
+  // flat = scambio tra due elenchi della stessa pagina (Scaffalatura ↔ Macchina): solo
+  // scivolamento + dissolvenza, SENZA scala. Con la scala l'elenco entrante si restringeva
+  // di qualche pixel per poi riallargarsi, e sembrava che la pagina cambiasse larghezza.
+  const hostHadOverflowX = host.style.overflowX;
+  if (flat) host.style.overflowX = 'clip'; // lo scivolamento laterale non deve mai allargare la pagina
   const hostHadPosition = host.style.position;
   if (getComputedStyle(host).position === 'static') {
     host.style.position = 'relative';
@@ -368,6 +373,7 @@ export function animateFluidSwap(fromSection, toSection, forward, onSettled) {
   fromSection.style.left = `${fromRect.left - hostRect.left}px`;
   fromSection.style.width = `${fromRect.width}px`;
   fromSection.classList.add('view-fluid-leaving', exitClass);
+  if (flat) fromSection.classList.add('view-fluid-flat');
 
   // Le classi di ingresso si applicano PRIMA di togliere "hidden": un elemento
   // display:none non fa partire le sue animazioni CSS, quindi restano "in
@@ -377,6 +383,7 @@ export function animateFluidSwap(fromSection, toSection, forward, onSettled) {
   // contributi al rimbalzo di altezza che faceva comparire/sparire la
   // scrollbar durante il cambio di sezione.
   toSection.classList.add('view-fluid-entering', enterClass);
+  if (flat) toSection.classList.add('view-fluid-flat');
   toSection.classList.remove('hidden');
 
   // L'altezza del contenitore segue quella della vista in arrivo con una
@@ -399,15 +406,16 @@ export function animateFluidSwap(fromSection, toSection, forward, onSettled) {
     done = true;
     toSection.removeEventListener('animationend', onEnterEnd); // niente listener residui se scatta prima il timer
     fromSection.classList.add('hidden');
-    fromSection.classList.remove('view-fluid-leaving', 'view-fluid-exit-left', 'view-fluid-exit-right');
+    fromSection.classList.remove('view-fluid-leaving', 'view-fluid-exit-left', 'view-fluid-exit-right', 'view-fluid-flat');
     fromSection.style.position = '';
     fromSection.style.top = '';
     fromSection.style.left = '';
     fromSection.style.width = '';
-    toSection.classList.remove('view-fluid-entering', 'view-fluid-enter-right', 'view-fluid-enter-left');
+    toSection.classList.remove('view-fluid-entering', 'view-fluid-enter-right', 'view-fluid-enter-left', 'view-fluid-flat');
     host.style.minHeight = '';
     host.style.transition = '';
     host.style.position = hostHadPosition;
+    host.style.overflowX = hostHadOverflowX;
     document.documentElement.style.overflowY = previousHtmlOverflowY;
     isTransitioning = false;
     // Se nel frattempo è stata toccata un'altra sezione, si passa subito a
