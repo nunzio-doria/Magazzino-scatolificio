@@ -449,10 +449,13 @@ function stepQty(delta) {
 // a velocità costante, con un tick aptico+sonoro a ogni scatto:
 // - da 1 a 5: un numero alla volta, uno scatto ogni HOLD_FINE_MS
 // - da 5 in su: salti di 5 (5 → 10 → 15 → 20 …), uno scatto ogni HOLD_COARSE_MS
-// In discesa è speculare (… 20 → 15 → 10 → 5, poi 4 → 3 → 2 → 1).
+// - da 30 in su: stessi salti di 5 ma più veloci, uno scatto ogni HOLD_FAST_MS
+// In discesa è speculare (… 35 → 30 → 25 → 20 → 15 → 10 → 5, poi 4 → 3 → 2 → 1).
 const HOLD_DELAY_MS = 400; // attesa prima che parta la ripetizione (evita scatti involontari su un tocco lungo)
 const HOLD_FINE_MS = 300; // intervallo tra gli scatti da ±1
 const HOLD_COARSE_MS = 500; // intervallo tra gli scatti da ±5
+const HOLD_FAST_MS = 200; // intervallo tra gli scatti da ±5 oltre la soglia veloce
+const HOLD_FAST_FROM = 30; // da questo valore in su gli scatti da 5 accelerano
 const HOLD_JUMP = 5;
 
 /** Passo del prossimo scatto: ±1 sotto la soglia, ±5 (agganciato ai multipli di 5) sopra. */
@@ -461,6 +464,13 @@ function nextHoldValue(cur, dir) {
   if (fine) return { value: cur + dir, coarse: false };
   const value = dir > 0 ? (Math.floor(cur / HOLD_JUMP) + 1) * HOLD_JUMP : (Math.ceil(cur / HOLD_JUMP) - 1) * HOLD_JUMP;
   return { value, coarse: true };
+}
+
+/** Attesa prima del prossimo scatto, in base al valore da cui si parte. */
+function holdInterval(cur, dir) {
+  if (!nextHoldValue(cur, dir).coarse) return HOLD_FINE_MS;
+  const fast = dir > 0 ? cur >= HOLD_FAST_FROM : cur > HOLD_FAST_FROM;
+  return fast ? HOLD_FAST_MS : HOLD_COARSE_MS;
 }
 
 function bindHoldRepeat(btn, dir) {
@@ -481,8 +491,7 @@ function bindHoldRepeat(btn, dir) {
     }
     setQty(clamped);
     feedback.qtyTick(coarse ? 1 : 0);
-    const upcoming = nextHoldValue(clamped, dir).coarse;
-    timer = setTimeout(tick, upcoming ? HOLD_COARSE_MS : HOLD_FINE_MS);
+    timer = setTimeout(tick, holdInterval(clamped, dir));
   }
 
   btn.addEventListener('pointerdown', (e) => {
