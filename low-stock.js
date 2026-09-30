@@ -126,12 +126,11 @@ function tileHtml(g, i) {
   return `
     <button type="button" data-tile-key="${escapeHtml(g.key)}" data-tile-row="${Math.floor(i / COLS)}"
       class="list-item-in lowstock-tile relative card-plate rounded-xl p-3 pt-4 text-center" style="--i:${staggerIndex(i)}">
-      <i data-lucide="check" class="lowstock-tile-check absolute top-1.5 left-1.5 w-3.5 h-3.5 text-amber-400" stroke-width="2.6"></i>
-      <span class="absolute top-1.5 right-1.5 font-mono text-[11px] font-semibold px-2 py-0.5 rounded-full bg-rose-500/15 text-rose-700">${g.articoli.length}</span>
-      <span class="mx-auto w-9 h-9 rounded-lg bg-graphite-700/50 flex items-center justify-center">
-        <i data-lucide="shelving-unit" class="w-[18px] h-[18px] text-graphite-400" stroke-width="1.8"></i>
+      <span class="lowstock-tile-badge absolute top-1.5 right-1.5 font-mono text-[11px] font-semibold px-2 py-0.5 rounded-full bg-rose-500/15 text-rose-700">${g.articoli.length}</span>
+      <span class="lowstock-tile-ico-box mx-auto w-9 h-9 rounded-lg bg-graphite-700/50 flex items-center justify-center">
+        <i data-lucide="shelving-unit" class="lowstock-tile-ico w-[18px] h-[18px] text-graphite-400" stroke-width="1.8"></i>
       </span>
-      <p class="text-xs font-display font-bold uppercase tracking-wide mt-1.5 truncate">${g.key === 'Non assegnato' ? 'Non assegnato' : 'Scaffale ' + escapeHtml(g.key)}</p>
+      <p class="lowstock-tile-name text-xs font-display font-bold uppercase tracking-wide mt-1.5 truncate">${g.key === 'Non assegnato' ? 'Non assegnato' : 'Scaffale ' + escapeHtml(g.key)}</p>
     </button>`;
 }
 

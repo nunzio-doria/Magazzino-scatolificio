@@ -622,26 +622,40 @@ input.peer:checked ~ span:first-of-type {
 /* Scorta minima: scheda espandibile nella stessa tab (Movimenti). Header con chevron che
    ruota, corpo a fisarmonica (.acc-track); piastrelle per serie di scaffale e dettaglio
    che si apre nella riga della piastrella toccata. */
-.lowstock-header { transition: background-color var(--dur-fast) ease; }
-.lowstock-header:active { background: var(--accent-tint-8); }
+.lowstock-header { background: transparent; }
+/* Nessuno scale né cambio di colore alla pressione: l'header è dentro la scheda, ridurlo scoprirebbe il fondo dietro */
+button.lowstock-header:not(:disabled):active { transform: none; background: transparent; }
 .lowstock-chevron { transition: transform var(--dur-base) var(--ease-inout); }
 .lowstock-card-open .lowstock-chevron { transform: rotate(180deg); }
-.lowstock-card { transition: border-color var(--dur-fast) ease; }
-.lowstock-card-open { border-color: var(--accent-edge); }
 
+/* Piastrella: selezionandola il blu si allarga in cerchio dal centro fino ai bordi
+   (clip-path su un riempimento dietro al contenuto); testo e icona virano al bianco. */
 .lowstock-tile {
-  transition: border-color var(--dur-fast) ease, background-color var(--dur-fast) ease, transform var(--dur-slow) var(--ease-spring);
+  isolation: isolate;
+  overflow: hidden;
+  transition: border-color var(--dur-base) ease, box-shadow var(--dur-base) ease, transform var(--dur-slow) var(--ease-spring);
+}
+.lowstock-tile::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: var(--accent);
+  clip-path: circle(0% at 50% 50%);
+  transition: clip-path var(--dur-slow) var(--ease-out);
 }
 .lowstock-tile-selected {
-  border-color: rgba(var(--accent-rgb), 0.6) !important;
-  background: var(--accent-tint) !important;
+  border-color: var(--accent) !important;
+  box-shadow: 0 1px 2px rgba(13, 17, 23, 0.10); /* toglie il filo di luce in alto: sul blu si vedrebbe come bordino bianco */
 }
-.lowstock-tile-check {
-  opacity: 0;
-  transform: scale(0.4);
-  transition: opacity var(--dur-fast) ease, transform var(--dur-base) var(--ease-spring);
+.lowstock-tile-selected::before { clip-path: circle(75% at 50% 50%); }
+.lowstock-tile-name, .lowstock-tile-ico, .lowstock-tile-ico-box, .lowstock-tile-badge {
+  transition: color var(--dur-base) ease, background-color var(--dur-base) ease;
 }
-.lowstock-tile-selected .lowstock-tile-check { opacity: 1; transform: scale(1); }
+.lowstock-tile-selected .lowstock-tile-name { color: #fff; }
+.lowstock-tile-selected .lowstock-tile-ico { color: #fff; }
+.lowstock-tile-selected .lowstock-tile-ico-box { background-color: rgba(255, 255, 255, 0.18); }
+.lowstock-tile-selected .lowstock-tile-badge { background-color: #fff; color: var(--accent); }
 
 /* Slot di dettaglio tra due righe di piastrelle: chiuso non occupa spazio (0fr). */
 .lowstock-slot .lowstock-item {
@@ -653,7 +667,7 @@ input.peer:checked ~ span:first-of-type {
   animation-delay: calc(var(--i, 0) * 35ms + var(--dur-press));
 }
 @media (prefers-reduced-motion: reduce) {
-  .lowstock-chevron, .lowstock-tile-check { transition-duration: 1ms; }
+  .lowstock-chevron, .lowstock-tile::before { transition-duration: 1ms; }
   .lowstock-slot .lowstock-item { animation-duration: 1ms !important; animation-delay: 0ms !important; }
 }
 
@@ -791,7 +805,6 @@ input.peer:checked ~ span:first-of-type {
   box-shadow: 0 1px 2px rgba(13, 17, 23, 0.12) !important;
 }
 .history-tab-active {
-  background: var(--accent-tint) !important;
   border-color: rgba(var(--accent-rgb), 0.5) !important;
   color: var(--accent-dark) !important;
 }
@@ -805,13 +818,11 @@ input.peer:checked ~ span:first-of-type {
   transform: scale(0.96);
 }
 .mode-active-deposito {
-  background: var(--deposito-tint) !important;
   border-color: var(--deposito-edge) !important;
   color: var(--deposito) !important;
   transform: scale(1.02);
 }
 .mode-active-prelievo {
-  background: var(--accent-tint) !important;
   border-color: var(--accent-edge) !important;
   color: var(--accent-dark) !important;
   transform: scale(1.02);
@@ -828,7 +839,6 @@ input.peer:checked ~ span:first-of-type {
 /* ---- Tab categoria magazzino -------------------------------------- */
 .category-tab, .import-category-tab { transition: var(--tr-colors); color: #5c6672; }
 .category-tab-active, .import-category-tab-active {
-  background: var(--accent-tint) !important;
   border-color: rgba(var(--accent-rgb), 0.5) !important;
   color: var(--accent-dark) !important;
 }
@@ -836,7 +846,6 @@ input.peer:checked ~ span:first-of-type {
 /* ---- Toggle Scaffalatura / Macchina -------------------------------- */
 .view-mode-tab { transition: var(--tr-colors); color: #5c6672; }
 .view-mode-tab-active {
-  background: var(--accent) !important;
   color: #ffffff !important;
 }
 /* Sovrascrive lo scale-press globale (button:active): qui i pulsanti sono
@@ -848,7 +857,50 @@ button.view-mode-tab:not(:disabled):active {
   background-color: var(--accent-tint); /* tinta OPACA: mai opacity, il pulsante non deve diventare trasparente */
   transition-duration: var(--dur-press);
 }
-button.view-mode-tab-active:not(:disabled):active { background: var(--accent-dark) !important; }
+button.view-mode-tab-active:not(:disabled):active::before { background: var(--accent-dark); }
+
+/* ---- Riempimento radiale dei pulsanti di selezione ----------------------
+   Quando un pulsante diventa "attivo" il suo colore (tinta o pieno, già proprio di
+   ciascuno) parte dal centro e si allarga a cerchio fino ai bordi; alla deselezione
+   si richiude verso il centro. Il colore sta in --rf-bg (fisso sul pulsante, così
+   anche la chiusura è visibile); il riempimento è un ::before dietro al contenuto.
+   75% = raggio che raggiunge gli angoli qualunque sia la forma del pulsante. */
+.category-tab, .import-category-tab, .history-tab, .view-mode-tab, .scan-linea-btn,
+#mode-deposito, #mode-prelievo {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+}
+.category-tab::before, .import-category-tab::before, .history-tab::before, .view-mode-tab::before,
+.scan-linea-btn::before, #mode-deposito::before, #mode-prelievo::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: var(--rf-bg, var(--accent-tint));
+  clip-path: circle(0% at 50% 50%);
+  transition: clip-path var(--dur-slow) var(--ease-out);
+  pointer-events: none;
+}
+.category-tab-active::before, .import-category-tab-active::before, .history-tab-active::before,
+.view-mode-tab-active::before, .scan-linea-btn[aria-pressed="true"]::before,
+.mode-active-deposito::before, .mode-active-prelievo::before {
+  clip-path: circle(75% at 50% 50%);
+}
+#mode-deposito { --rf-bg: var(--deposito-tint); }
+.view-mode-tab { --rf-bg: var(--accent); }
+.scan-linea-btn { --rf-bg: var(--accent); }
+/* Sui riempimenti pieni il testo vira al bianco con un attimo di ritardo, cosí non
+   resta bianco su bianco mentre il cerchio è ancora piccolo. */
+.view-mode-tab, .scan-linea-btn {
+  transition: color var(--dur-base) ease 70ms, border-color var(--dur-fast) ease, background-color var(--dur-fast) ease;
+}
+.scan-linea-btn[aria-pressed="true"] { color: #ffffff; border-color: var(--accent); }
+@media (prefers-reduced-motion: reduce) {
+  .category-tab::before, .import-category-tab::before, .history-tab::before, .view-mode-tab::before,
+  .scan-linea-btn::before, #mode-deposito::before, #mode-prelievo::before { transition-duration: 1ms; }
+}
 
 /* ---- Scaffalatura magazzino: scaffale per locazione, espansione animata
    con la tecnica grid-template-rows 0fr→1fr — fluida senza dover misurare

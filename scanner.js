@@ -468,12 +468,6 @@ function setLinea(value) {
   els.lineaGroup.querySelectorAll('[data-linea]').forEach((btn) => {
     const on = btn.dataset.linea === value;
     btn.setAttribute('aria-pressed', String(on));
-    btn.classList.toggle('bg-amber-400', on);
-    btn.classList.toggle('text-white', on);
-    btn.classList.toggle('border-amber-400', on);
-    btn.classList.toggle('bg-graphite-900', !on);
-    btn.classList.toggle('text-graphite-200', !on);
-    btn.classList.toggle('border-graphite-700', !on);
   });
 }
 
