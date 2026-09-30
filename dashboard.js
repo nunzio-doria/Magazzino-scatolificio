@@ -7,6 +7,7 @@ import { toastError, toastSuccess, toastWarning } from './toast.js';
 import { enhanceSelect } from './ui-select.js';
 import { animateNumber, animateRing, emptyStateHtml, openOverlay, closeOverlay, enableSheetDrag, staggerIndex } from './ui-utils.js';
 import feedback from './feedback.js';
+import { refreshLifespan, resetLifespan } from './lifespan.js';
 
 const els = {};
 let currentFrom = null;
@@ -96,6 +97,7 @@ export function resetDashboard() {
   lastHistory = [];
   hasLoadedOnce = false;
   refreshSeq += 1;
+  resetLifespan();
 }
 
 /** Aggiorna Report senza caricamento e senza animazioni; se la rete non c'è restano i dati attuali. */
@@ -117,6 +119,7 @@ async function silentRefresh() {
     renderStats(stats);
     renderHistory(history);
     markReportLoaded();
+    refreshLifespan(currentFrom);
   } catch (err) {
     console.warn("Aggiornamento silenzioso del Report non riuscito, resta l'ultimo caricato.", err);
   }
@@ -157,6 +160,7 @@ export async function refresh() {
     renderStats(stats);
     renderHistory(history);
     markReportLoaded();
+    refreshLifespan(currentFrom);
   } catch (err) {
     if (seq !== refreshSeq) return;
     console.error(err);
@@ -245,7 +249,7 @@ function historyRow(h, i = 0) {
     <div class="min-w-0">
       <p class="text-sm text-graphite-100 truncate font-medium">${escapeHtml(h.products?.codice_articolo || '—')}</p>
       <p class="text-xs text-graphite-500 mt-0.5">${escapeHtml(h.profiles?.full_name || 'Utente')} · ${escapeHtml(
-    h.punto_utilizzo_specifico || '—'
+    [h.linea, h.macchinario, h.punto_utilizzo_specifico].filter(Boolean).join(' · ') || '—'
   )} · ${date.toLocaleString('it-IT', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' })}</p>
     </div>
     <span class="shrink-0 font-mono text-sm font-semibold px-2.5 py-1 rounded-full ${
@@ -312,6 +316,8 @@ function exportReport() {
       Tipo: h.tipo === 'deposito' ? 'Deposito' : 'Prelievo',
       Articolo: h.products?.codice_articolo || '—',
       Quantità: h.quantita,
+      Linea: h.linea || '',
+      Macchinario: h.macchinario || '',
       'Punto utilizzo': h.punto_utilizzo_specifico || '',
       Operatore: h.profiles?.full_name || '',
     }));

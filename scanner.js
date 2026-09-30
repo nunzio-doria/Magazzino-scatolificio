@@ -11,6 +11,7 @@ import {
   searchCachedProducts,
   adjustCachedProductQuantity,
   bumpProductsVersion,
+  listDistinctMacchine,
 } from './supabase.js';
 import { toastSuccess, toastError, toastWarning } from './toast.js';
 import { startCamera, stopCamera, switchCamera as switchCameraShared, toggleTorch } from './camera.js';
@@ -21,6 +22,7 @@ import { CATEGORY_LABELS } from './products.js';
 
 let currentMode = null; // 'deposito' | 'prelievo'
 let currentProduct = null;
+let machinesCache = null; // elenco macchine per il campo Macchinario del prelievo cuscinetti
 
 const els = {};
 
@@ -50,6 +52,13 @@ export function initScanner() {
   els.qtyMinusBtn = document.getElementById('scan-qty-minus');
   els.qtyPlusBtn = document.getElementById('scan-qty-plus');
   els.puntoInput = document.getElementById('scan-punto-input');
+  els.puntoWrap = document.getElementById('scan-punto-wrap');
+  els.puntoLabel = document.getElementById('scan-punto-label');
+  els.prelievoFields = document.getElementById('scan-prelievo-fields');
+  els.lineaGroup = document.getElementById('scan-linea-group');
+  els.lineaInput = document.getElementById('scan-linea-input');
+  els.macchinarioWrap = document.getElementById('scan-macchinario-wrap');
+  els.macchinarioSelect = document.getElementById('scan-macchinario-input');
   els.confirmBtn = document.getElementById('scan-confirm-btn');
   els.cancelBtn = document.getElementById('scan-cancel-btn');
   els.modeBanner = document.getElementById('scan-mode-banner');
@@ -66,6 +75,13 @@ export function initScanner() {
   els.recentEmptyEl = document.getElementById('scanner-recent-empty');
   els.offlineBadge = document.getElementById('scanner-offline-badge');
   els.offlineBadgeCount = document.getElementById('scanner-offline-badge-count');
+
+  els.lineaGroup?.querySelectorAll('[data-linea]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      feedback.focusTap();
+      setLinea(btn.dataset.linea);
+    });
+  });
 
   els.modeDeposito.addEventListener('click', () => selectMode('deposito'));
   els.modePrelievo.addEventListener('click', () => selectMode('prelievo'));
@@ -437,12 +453,83 @@ function renderResult(product) {
   els.productStock.textContent = product.quantita_disponibile;
   els.productLoc.textContent = product.locazione || '—';
   els.puntoInput.value = product.punto_utilizzo_standard || '';
+  setupPrelievoFields(product);
   setQty(1);
 
   els.confirmBtn.textContent = currentMode === 'deposito' ? 'Conferma deposito' : 'Conferma prelievo';
   // Il colore del pulsante segue la modalità (variabili di data-mode sul pannello)
   els.confirmBtn.className = 'btn-mode press-spring flex-1 rounded-lg py-3 font-display font-semibold uppercase tracking-wide';
   updateAfterPreview();
+}
+
+/** Evidenzia la linea scelta (L1/L2) e la salva nel campo nascosto. '' = nessuna scelta. */
+function setLinea(value) {
+  els.lineaInput.value = value || '';
+  els.lineaGroup.querySelectorAll('[data-linea]').forEach((btn) => {
+    const on = btn.dataset.linea === value;
+    btn.setAttribute('aria-pressed', String(on));
+    btn.classList.toggle('bg-amber-400', on);
+    btn.classList.toggle('text-white', on);
+    btn.classList.toggle('border-amber-400', on);
+    btn.classList.toggle('bg-graphite-900', !on);
+    btn.classList.toggle('text-graphite-200', !on);
+    btn.classList.toggle('border-graphite-700', !on);
+  });
+}
+
+/**
+ * Campi extra del Prelievo: la linea si chiede sempre; per i cuscinetti anche
+ * macchinario e punto di utilizzo. Per cinghie e ricambi tecnici il punto non
+ * si chiede (resta quello standard dell'articolo).
+ */
+function setupPrelievoFields(product) {
+  const isPrelievo = currentMode === 'prelievo';
+  const isBearing = product.categoria === 'cuscinetti';
+  els.prelievoFields.classList.toggle('hidden', !isPrelievo);
+  els.macchinarioWrap.classList.toggle('hidden', !(isPrelievo && isBearing));
+  els.puntoWrap.classList.toggle('hidden', isPrelievo && !isBearing);
+  els.puntoLabel.textContent = isPrelievo && isBearing ? 'Punto di utilizzo' : 'Punto utilizzo';
+  els.puntoInput.placeholder = isPrelievo && isBearing ? 'Dove viene montato' : 'es. Linea 1';
+  // La linea si preseleziona solo se l'articolo ne ha una sola; con L1-L2 o vuota va scelta
+  setLinea(product.linea === 'L1' || product.linea === 'L2' ? product.linea : '');
+  if (isPrelievo && isBearing) fillMacchinari(product.macchina);
+}
+
+function renderMacchinariOptions(names, selected) {
+  const sel = els.macchinarioSelect;
+  sel.innerHTML = '';
+  const first = document.createElement('option');
+  first.value = '';
+  first.textContent = 'Seleziona macchinario…';
+  sel.appendChild(first);
+  const list = [...names];
+  if (selected && !list.some((n) => n.toLowerCase() === selected.toLowerCase())) list.unshift(selected);
+  list.forEach((n) => {
+    const o = document.createElement('option');
+    o.value = n;
+    o.textContent = n;
+    sel.appendChild(o);
+  });
+  const match = selected ? list.find((n) => n.toLowerCase() === selected.toLowerCase()) : '';
+  sel.value = match || '';
+}
+
+async function fillMacchinari(productMacchina) {
+  const preferred = (productMacchina || '').trim();
+  renderMacchinariOptions(machinesCache || [], preferred);
+  if (machinesCache) return;
+  try {
+    machinesCache = await listDistinctMacchine();
+  } catch (err) {
+    console.warn('Elenco macchine non disponibile (offline?): resta solo quella dell\'articolo.', err);
+    return;
+  }
+  // Se nel frattempo l'operatore ha già scelto qualcosa, non glielo cambio
+  if (currentMode === 'prelievo' && currentProduct && !els.macchinarioSelect.value) {
+    renderMacchinariOptions(machinesCache, preferred);
+  } else if (currentMode === 'prelievo' && currentProduct) {
+    renderMacchinariOptions(machinesCache, els.macchinarioSelect.value);
+  }
 }
 
 function resetResult() {
@@ -464,7 +551,7 @@ function resetAll() {
  * la accoda per la sincronizzazione automatica e aggiorna otticamente la
  * giacenza in cache.
  */
-async function runTransaction({ product, quantita, puntoUtilizzo }) {
+async function runTransaction({ product, quantita, puntoUtilizzo, linea, macchinario }) {
   const tipo = currentMode;
   try {
     const result = await processTransaction({
@@ -472,6 +559,8 @@ async function runTransaction({ product, quantita, puntoUtilizzo }) {
       tipo,
       quantita,
       puntoUtilizzo,
+      linea,
+      macchinario,
     });
 
     if (tipo === 'deposito') feedback.transactionDeposito();
@@ -490,7 +579,7 @@ async function runTransaction({ product, quantita, puntoUtilizzo }) {
     return { ok: true, nuovaGiacenza: result.nuova_giacenza };
   } catch (err) {
     if (isNetworkError(err)) {
-      const saved = enqueueTransaction({ productId: product.id, tipo, quantita, puntoUtilizzo, codice_articolo: product.codice_articolo });
+      const saved = enqueueTransaction({ productId: product.id, tipo, quantita, puntoUtilizzo, linea, macchinario, codice_articolo: product.codice_articolo });
       if (!saved) {
         // Senza rete e senza spazio sul dispositivo il movimento andrebbe perso:
         // meglio dirlo chiaramente che far credere che sia stato salvato.
@@ -523,9 +612,35 @@ async function confirmTransaction() {
     return;
   }
 
+  // Prelievo: linea sempre obbligatoria; per i cuscinetti anche macchinario e punto di utilizzo
+  let linea = null;
+  let macchinario = null;
+  const punto = els.puntoInput.value.trim();
+  if (currentMode === 'prelievo') {
+    linea = els.lineaInput.value;
+    if (!linea) {
+      feedback.errorAction();
+      toastError('Seleziona la linea (Linea 1 o Linea 2).');
+      return;
+    }
+    if (currentProduct.categoria === 'cuscinetti') {
+      macchinario = els.macchinarioSelect.value;
+      if (!macchinario) {
+        feedback.errorAction();
+        toastError('Seleziona il macchinario.');
+        return;
+      }
+      if (!punto) {
+        feedback.errorAction();
+        toastError('Indica il punto di utilizzo del cuscinetto.');
+        return;
+      }
+    }
+  }
+
   setButtonBusy(els.confirmBtn, true, 'Registrazione…');
   const product = currentProduct;
-  const outcome = await runTransaction({ product, quantita, puntoUtilizzo: els.puntoInput.value.trim() });
+  const outcome = await runTransaction({ product, quantita, puntoUtilizzo: punto, linea, macchinario });
   setButtonBusy(els.confirmBtn, false);
 
   if (outcome.ok) {

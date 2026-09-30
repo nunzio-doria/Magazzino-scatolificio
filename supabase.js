@@ -752,14 +752,18 @@ export async function updateManualSection(sectionId, { operatorManualId, label, 
  * process_transaction (SECURITY DEFINER): aggiorna la giacenza e
  * registra il log in una singola transazione DB.
  */
-export async function processTransaction({ productId, tipo, quantita, puntoUtilizzo, note }) {
-  const { data, error } = await supabase.rpc('process_transaction', {
+export async function processTransaction({ productId, tipo, quantita, puntoUtilizzo, note, linea, macchinario }) {
+  const params = {
     p_product_id: productId,
     p_tipo: tipo,
     p_quantita: quantita,
     p_punto_utilizzo: puntoUtilizzo || null,
     p_note: note || null,
-  });
+  };
+  // Linea e macchinario si inviano solo se presenti (prelievi): i depositi restano identici a prima.
+  if (linea) params.p_linea = linea;
+  if (macchinario) params.p_macchinario = macchinario;
+  const { data, error } = await supabase.rpc('process_transaction', params);
   if (error) throw error;
   return data?.[0] ?? null;
 }
@@ -767,7 +771,7 @@ export async function processTransaction({ productId, tipo, quantita, puntoUtili
 export async function listTransactions({ from, to, productId, limit = 200 } = {}) {
   let query = supabase
     .from('transactions')
-    .select('id, tipo, quantita, data_ora, punto_utilizzo_specifico, product_id, user_id, products(codice_articolo), profiles(full_name)')
+    .select('id, tipo, quantita, data_ora, punto_utilizzo_specifico, linea, macchinario, product_id, user_id, products(codice_articolo), profiles(full_name)')
     .order('data_ora', { ascending: false })
     .limit(limit);
 
@@ -778,6 +782,27 @@ export async function listTransactions({ from, to, productId, limit = 200 } = {}
   const { data, error } = await query;
   if (error) throw error;
   return data;
+}
+
+/**
+ * Tutti i prelievi (senza limite di periodo) per calcolare la vita utile dei ricambi.
+ * Legge a pagine da 1000 righe, dal più vecchio al più recente.
+ */
+export async function listPrelieviForLifespan() {
+  const pageSize = 1000;
+  const rows = [];
+  for (let from = 0; ; from += pageSize) {
+    const { data, error } = await supabase
+      .from('transactions')
+      .select('id, quantita, data_ora, punto_utilizzo_specifico, linea, macchinario, product_id, products(codice_articolo, categoria)')
+      .eq('tipo', 'prelievo')
+      .order('data_ora', { ascending: true })
+      .range(from, from + pageSize - 1);
+    if (error) throw error;
+    rows.push(...data);
+    if (data.length < pageSize) break;
+  }
+  return rows;
 }
 
 /**

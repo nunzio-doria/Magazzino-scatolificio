@@ -294,10 +294,29 @@
                 </div>
                 <input id="scan-qty-input" type="hidden" value="1">
               </div>
-              <div>
-                <label class="block text-xs font-display font-semibold uppercase tracking-wide text-graphite-400 mb-1.5">Punto utilizzo</label>
-                <input id="scan-punto-input" type="text" placeholder="es. Linea 3"
+              <div id="scan-punto-wrap">
+                <label id="scan-punto-label" class="block text-xs font-display font-semibold uppercase tracking-wide text-graphite-400 mb-1.5">Punto utilizzo</label>
+                <input id="scan-punto-input" type="text" placeholder="es. Linea 1"
                   class="w-full rounded-lg bg-graphite-900 border border-graphite-700 px-3 py-2.5 text-sm focus:border-amber-400 outline-none transition-colors">
+              </div>
+            </div>
+
+            <!-- Solo nel Prelievo: linea per tutti gli articoli, macchinario (e punto di utilizzo, sopra) solo per i cuscinetti -->
+            <div id="scan-prelievo-fields" class="hidden mt-3 space-y-3">
+              <div>
+                <label class="block text-xs font-display font-semibold uppercase tracking-wide text-graphite-400 mb-1.5">Linea</label>
+                <div id="scan-linea-group" class="grid grid-cols-2 gap-2" role="group" aria-label="Linea">
+                  <button type="button" data-linea="L1" aria-pressed="false"
+                    class="scan-linea-btn press-spring min-h-[44px] rounded-lg border px-3 font-display font-semibold uppercase tracking-wide text-sm bg-graphite-900 text-graphite-200 border-graphite-700">Linea 1</button>
+                  <button type="button" data-linea="L2" aria-pressed="false"
+                    class="scan-linea-btn press-spring min-h-[44px] rounded-lg border px-3 font-display font-semibold uppercase tracking-wide text-sm bg-graphite-900 text-graphite-200 border-graphite-700">Linea 2</button>
+                </div>
+                <input id="scan-linea-input" type="hidden" value="">
+              </div>
+              <div id="scan-macchinario-wrap" class="hidden">
+                <label class="block text-xs font-display font-semibold uppercase tracking-wide text-graphite-400 mb-1.5">Macchinario</label>
+                <select id="scan-macchinario-input"
+                  class="w-full min-h-[44px] rounded-lg bg-graphite-900 border border-graphite-700 px-3 py-2.5 text-sm focus:border-amber-400 outline-none transition-colors"></select>
               </div>
             </div>
 
@@ -583,6 +602,11 @@
           </div>
           <p class="ui-label uppercase tracking-normal whitespace-nowrap text-graphite-500 mt-0.5">Movimenti</p>
         </div>
+      </div>
+
+      <h3 class="font-display font-semibold uppercase tracking-wide text-sm text-graphite-400 mb-2">Vita utile ricambi</h3>
+      <div id="dash-lifespan" class="card-plate rounded-xl p-4 mb-5">
+        <div class="skeleton h-4 w-full"></div>
       </div>
 
       <h3 class="font-display font-semibold uppercase tracking-wide text-sm text-graphite-400 mb-2">Consumi per articolo</h3>
