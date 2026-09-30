@@ -830,26 +830,24 @@ button.lowstock-header:not(:disabled):active { transform: none; background: tran
   transition-duration: var(--dur-press);
   transform: scale(0.96);
 }
-/* Colori sempre visibili, così si capisce a colpo d'occhio cosa fa ciascun pulsante:
-   Deposito = verde, Prelievo = blu del tema. A riposo sfondo tenue e bordo chiaro;
-   da selezionato il colore pieno si allarga dal centro e il testo diventa bianco. */
+/* Pulsanti pieni, sempre colorati, con scritte e icone bianche: Deposito = verde,
+   Prelievo = blu del tema. Niente filo di luce bianco in alto (quello della scheda
+   .card-plate): resta solo l'ombra sotto, così il colore arriva fino al bordo. */
+#mode-deposito, #mode-prelievo {
+  color: #ffffff;
+  box-shadow: 0 1px 2px rgba(13, 17, 23, 0.14), 0 8px 18px -8px rgba(13, 17, 23, 0.30);
+}
 #mode-deposito {
-  color: var(--deposito);
-  border-color: var(--deposito-edge);
-  background-color: var(--deposito-tint);
+  background-color: var(--deposito);
+  border-color: var(--deposito);
 }
 #mode-prelievo {
-  color: var(--accent-dark);
-  border-color: var(--accent-edge);
-  background-color: var(--accent-tint);
+  background-color: var(--accent);
+  border-color: var(--accent);
 }
-.mode-active-deposito {
-  border-color: var(--deposito) !important;
-  color: #ffffff !important;
-  transform: scale(1.02);
-}
-.mode-active-prelievo {
-  border-color: var(--accent) !important;
+/* Il colore è già pieno: niente riempimento radiale da selezionato. */
+#mode-deposito::before, #mode-prelievo::before { display: none; }
+.mode-active-deposito, .mode-active-prelievo {
   color: #ffffff !important;
   transform: scale(1.02);
 }
