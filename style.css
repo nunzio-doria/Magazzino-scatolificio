@@ -97,21 +97,18 @@ html, body {
   overscroll-behavior: contain;
 }
 html {
-  /* Riserva sempre lo spazio della scrollbar verticale, anche quando il
-     contenuto non ne ha bisogno. Senza questo, durante le transizioni tra
-     sezioni l'altezza del documento oscilla per un istante (la vista
-     uscente è ancora nel calcolo dell'overflow mentre quella entrante
-     prende il suo posto), la scrollbar compare/scompare, e tutto il body
-     si restringe/allarga lateralmente per quell'istante. Riservando lo
-     spazio a priori, la larghezza disponibile resta sempre costante.
-     Impostato solo qui e non anche su body: se entrambi hanno un
-     overflow-y esplicito, il body smette di propagare il proprio scroll
-     al viewport e diventa un secondo contesto di scorrimento indipendente
-     — due scrollbar affiancate invece di una, visibili soprattutto nel
-     momento in cui la transizione fluida sblocca html a fine animazione. */
-  scrollbar-gutter: stable;
-  overflow-y: scroll; /* fallback per browser senza scrollbar-gutter */
+  /* Scrollbar della pagina NASCOSTA (lo scorrimento con dito/rotella funziona uguale).
+     Motivo: durante il cambio di vista (Scaffalatura/Macchina, categorie, sezioni)
+     animateFluidSwap blocca lo scroll di <html> (overflow-y: hidden) per non far lampeggiare
+     la scrollbar; con una scrollbar "vera" il browser passava per un istante da "senza spazio
+     riservato" a "gutter riservato" (o viceversa) e tutta la pagina si restringeva/allargava
+     di ~8px per meno di un secondo. Senza scrollbar non c'è nulla che compaia, sparisca o
+     occupi spazio: la larghezza resta sempre la stessa. Le liste scorrevoli interne (modali,
+     ecc.) mantengono la loro scrollbar sottile. */
+  scrollbar-width: none; /* Firefox e Chrome recenti */
+  overflow-y: scroll;
 }
+html::-webkit-scrollbar { width: 0; height: 0; display: none; }
 
 /* Sfondo "lamiera forata": file di piccoli fori sfalsati su fondo grigio
    chiaro. Sta su un livello fisso separato (body::before) invece che come
