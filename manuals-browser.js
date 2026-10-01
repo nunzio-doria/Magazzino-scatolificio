@@ -282,6 +282,11 @@ function renderDetailGrid() {
   operatorManuals.forEach((manual) => {
     getSectionsForOperatorManual(manual.id).forEach((section) => sections.push({ section, manual }));
   });
+  // L'ordine salvato (sort_order) vale per TUTTA la macchina, non per singolo manuale:
+  // senza questo, le piastrelle restavano raggruppate per manuale e un riordino che le
+  // mescolava tra manuali diversi "tornava indietro" alla riapertura. Sort stabile:
+  // a parità di valore resta l'ordine di raggruppamento precedente.
+  sections.sort((x, y) => (x.section.sort_order ?? 0) - (y.section.sort_order ?? 0));
 
   els.detailGrid.innerHTML = '';
   els.detailGrid.classList.toggle('reorder-mode', reorderMode);
@@ -748,7 +753,7 @@ async function handleCreateSection(e) {
       feedback.confirmAction();
       toastSuccess(`Pulsante "${label}" aggiornato.`);
     } else {
-      const sortOrder = getSectionsForOperatorManual(operatorManualId).length;
+      const sortOrder = getOperatorManualsForMachine(currentMachine.id).reduce((n, m) => n + getSectionsForOperatorManual(m.id).length, 0); // in fondo a tutte le piastrelle della macchina
       await createManualSection({
         machineId: currentMachine.id,
         operatorManualId,
