@@ -7,8 +7,8 @@
 // Le voci qui sotto sono grafiche segnaposto, da sostituire.
 // =============================================================
 const ITEMS = [
-  { src: './carousel/cuscinetto.svg', alt: 'Cuscinetto' },
-  { src: './carousel/cinghia.svg', alt: 'Cinghia industriale' },
+  { src: './carousel/reparto.png', alt: 'Reparto' },
+  { src: './carousel/forno.png', alt: 'Forno' },
 ];
 
 const TILE_W = 168;       // larghezza scheda (px) — deve coincidere con style.css
