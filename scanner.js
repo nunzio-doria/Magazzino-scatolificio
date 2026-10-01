@@ -12,6 +12,7 @@ import {
   adjustCachedProductQuantity,
   bumpProductsVersion,
   listDistinctMacchine,
+  getProductLocations,
 } from './supabase.js';
 import { toastSuccess, toastError, toastWarning } from './toast.js';
 import { startCamera, stopCamera, switchCamera as switchCameraShared, toggleTorch } from './camera.js';
@@ -19,9 +20,11 @@ import feedback from './feedback.js';
 import { enqueueTransaction, onQueueChange, getQueueCount, isNetworkError } from './offline-queue.js';
 import { animateNumber, replayAnimation, emptyStateHtml, openOverlay, closeOverlay, enableSheetDrag, setButtonBusy } from './ui-utils.js';
 import { CATEGORY_LABELS } from './products.js';
+import { shelfLabel } from './products-shared.js';
 
 let currentMode = null; // 'deposito' | 'prelievo'
 let currentProduct = null;
+let currentLocationId = null; // scaffale scelto per il movimento (obbligatorio se l'articolo sta su più scaffali)
 let machinesCache = null; // elenco macchine per il campo Macchinario del prelievo cuscinetti
 
 const els = {};
@@ -47,6 +50,8 @@ export function initScanner() {
   els.productCode = document.getElementById('scan-product-code');
   els.productStock = document.getElementById('scan-product-stock');
   els.productLoc = document.getElementById('scan-product-loc');
+  els.shelfWrap = document.getElementById('scan-shelf-wrap');
+  els.shelfGroup = document.getElementById('scan-shelf-group');
   els.qtyInput = document.getElementById('scan-qty-input');
   els.qtyValue = document.getElementById('scan-qty-value');
   els.qtyMinusBtn = document.getElementById('scan-qty-minus');
@@ -327,7 +332,7 @@ function renderCodeSearchResults(results, offline) {
       'custom-select-option w-full text-left px-3.5 py-2.5 text-sm flex items-center justify-between gap-2 border-t border-graphite-700 first:border-t-0';
     const badgeClass = CATEGORY_BADGE_CLASSES[product.categoria] || 'bg-graphite-700 text-graphite-200';
     const label = CATEGORY_LABELS[product.categoria] || product.categoria;
-    const subtitleParts = [product.locazione, product.macchina].filter(Boolean);
+    const subtitleParts = [shelfLabel(product), product.macchina].filter(Boolean);
     row.innerHTML = `
       <span class="min-w-0">
         <span class="block font-mono font-semibold text-graphite-100 truncate">${escapeHtml(product.codice_articolo)}</span>
@@ -425,17 +430,28 @@ function setQty(value) {
  *  giacenza (freccia su/giù) e avvisa in rosso se un prelievo supera quanto c'è. */
 function updateAfterPreview() {
   if (!els.afterBox || !currentProduct) return;
-  const stock = Number(currentProduct.quantita_disponibile) || 0;
-  const qty = parseInt(els.qtyInput.value, 10) || 1;
+  const locs = getProductLocations(currentProduct);
+  const multiple = locs.length > 1;
   const isDeposit = currentMode === 'deposito';
+  if (multiple && !currentLocationId) {
+    // Articolo su più scaffali: finché non si sceglie lo scaffale non c'è una giacenza da confrontare
+    els.afterBox.classList.remove('scan-after-warn');
+    els.afterLabel.textContent = 'Scegli lo scaffale';
+    els.afterValue.textContent = '—';
+    return;
+  }
+  // Su più scaffali conta la quantità dello scaffale scelto, altrimenti la giacenza dell'articolo
+  const chosen = multiple ? locs.find((l) => l.id === currentLocationId) : null;
+  const stock = Number(chosen ? chosen.quantita : currentProduct.quantita_disponibile) || 0;
+  const qty = parseInt(els.qtyInput.value, 10) || 1;
   const after = isDeposit ? stock + qty : stock - qty;
   const insufficient = !isDeposit && after < 0;
   els.afterBox.classList.toggle('scan-after-warn', insufficient);
   if (insufficient) {
-    els.afterLabel.textContent = 'Non basta la giacenza';
+    els.afterLabel.textContent = chosen ? 'Non basta su questo scaffale' : 'Non basta la giacenza';
     els.afterValue.textContent = `disponibili ${stock}`;
   } else {
-    els.afterLabel.textContent = 'Giacenza dopo';
+    els.afterLabel.textContent = chosen ? `Scaffale ${chosen.locazione || 'senza nome'} dopo` : 'Giacenza dopo';
     els.afterValue.textContent = `${isDeposit ? '↑' : '↓'} ${after} (${isDeposit ? '+' : '−'}${qty})`;
   }
 }
@@ -531,7 +547,9 @@ function renderResult(product) {
   els.productCode.textContent = descrizioneInTitolo ? product.codice_articolo : '';
   els.productCode.classList.toggle('hidden', !descrizioneInTitolo);
   els.productStock.textContent = product.quantita_disponibile;
-  els.productLoc.textContent = product.locazione || '—';
+  const locNames = getProductLocations(product).map((l) => l.locazione).filter(Boolean);
+  els.productLoc.textContent = locNames.length ? locNames.join(', ') : '—';
+  renderShelfChoices(product);
   els.puntoInput.value = product.punto_utilizzo_standard || '';
   setupPrelievoFields(product);
   setQty(1);
@@ -540,6 +558,47 @@ function renderResult(product) {
   // Il colore del pulsante segue la modalità (variabili di data-mode sul pannello)
   els.confirmBtn.className = 'btn-mode press-spring flex-1 rounded-lg py-3 font-display font-semibold uppercase tracking-wide';
   updateAfterPreview();
+}
+
+/**
+ * Articolo su più scaffali: mostra un pulsante per scaffale (con la sua quantità) e obbliga a sceglierne
+ * uno prima di confermare, senza preselezione. Con un solo scaffale non c'è nulla da scegliere:
+ * il movimento va su quello. Nel prelievo gli scaffali vuoti non sono selezionabili.
+ */
+function renderShelfChoices(product) {
+  const locs = getProductLocations(product);
+  const multiple = locs.length > 1;
+  currentLocationId = multiple ? null : locs[0]?.id ?? null;
+  els.shelfWrap.classList.toggle('hidden', !multiple);
+  els.shelfGroup.innerHTML = '';
+  if (!multiple) return;
+
+  const isPrelievo = currentMode === 'prelievo';
+  locs.forEach((l) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.dataset.locationId = l.id;
+    btn.setAttribute('aria-pressed', 'false');
+    btn.disabled = isPrelievo && l.quantita <= 0;
+    btn.className =
+      'scan-linea-btn press-spring min-h-[44px] rounded-lg border px-3 py-1.5 font-display font-semibold tracking-wide text-sm bg-graphite-900 text-graphite-200 border-graphite-700 flex flex-col items-center justify-center leading-tight disabled:opacity-40';
+    const name = document.createElement('span');
+    name.className = 'uppercase max-w-full truncate';
+    name.textContent = l.locazione || 'Senza scaffale'; // testo, mai HTML
+    const qty = document.createElement('span');
+    qty.className = 'font-mono text-xs font-normal opacity-80';
+    qty.textContent = `${l.quantita} pz`;
+    btn.append(name, qty);
+    btn.addEventListener('click', () => {
+      feedback.focusTap();
+      currentLocationId = l.id;
+      els.shelfGroup.querySelectorAll('[data-location-id]').forEach((b) => {
+        b.setAttribute('aria-pressed', String(b.dataset.locationId === l.id));
+      });
+      updateAfterPreview();
+    });
+    els.shelfGroup.appendChild(btn);
+  });
 }
 
 /** Evidenzia la linea scelta (L1/L2) e la salva nel campo nascosto. '' = nessuna scelta. */
@@ -608,6 +667,7 @@ async function fillMacchinari(productMacchina) {
 
 function resetResult() {
   currentProduct = null;
+  currentLocationId = null;
   els.resultCard.classList.add('hidden');
   els.resultSkeleton.classList.add('hidden');
   // Si torna alla schermata "scansiona o cerca" solo se la modalità è
@@ -625,7 +685,7 @@ function resetAll() {
  * la accoda per la sincronizzazione automatica e aggiorna otticamente la
  * giacenza in cache.
  */
-async function runTransaction({ product, quantita, puntoUtilizzo, linea, macchinario }) {
+async function runTransaction({ product, quantita, puntoUtilizzo, linea, macchinario, locationId }) {
   const tipo = currentMode;
   try {
     const result = await processTransaction({
@@ -635,13 +695,16 @@ async function runTransaction({ product, quantita, puntoUtilizzo, linea, macchin
       puntoUtilizzo,
       linea,
       macchinario,
+      locationId,
     });
 
     if (tipo === 'deposito') feedback.transactionDeposito();
     else feedback.transactionPrelievo();
 
     toastSuccess(
-      `${tipo === 'deposito' ? 'Deposito' : 'Prelievo'} registrato: ${result.codice_articolo} → nuova giacenza ${result.nuova_giacenza}`
+      `${tipo === 'deposito' ? 'Deposito' : 'Prelievo'} registrato: ${result.codice_articolo} → nuova giacenza ${result.nuova_giacenza}${
+        getProductLocations(product).length > 1 && result.locazione_scaffale ? ` (${result.locazione_scaffale}: ${result.giacenza_scaffale})` : ''
+      }`
     );
 
     if (result.sotto_scorta) {
@@ -653,7 +716,7 @@ async function runTransaction({ product, quantita, puntoUtilizzo, linea, macchin
     return { ok: true, nuovaGiacenza: result.nuova_giacenza };
   } catch (err) {
     if (isNetworkError(err)) {
-      const saved = enqueueTransaction({ productId: product.id, tipo, quantita, puntoUtilizzo, linea, macchinario, codice_articolo: product.codice_articolo });
+      const saved = enqueueTransaction({ productId: product.id, tipo, quantita, puntoUtilizzo, linea, macchinario, locationId, codice_articolo: product.codice_articolo });
       if (!saved) {
         // Senza rete e senza spazio sul dispositivo il movimento andrebbe perso:
         // meglio dirlo chiaramente che far credere che sia stato salvato.
@@ -662,7 +725,7 @@ async function runTransaction({ product, quantita, puntoUtilizzo, linea, macchin
         return { ok: false };
       }
       const delta = tipo === 'deposito' ? quantita : -quantita;
-      adjustCachedProductQuantity(product.id, delta);
+      adjustCachedProductQuantity(product.id, delta, locationId);
       feedback.offlineQueued();
       toastWarning(
         `${tipo === 'deposito' ? 'Deposito' : 'Prelievo'} salvato offline (${product.codice_articolo}): verrà sincronizzato alla riconnessione.`,
@@ -683,6 +746,13 @@ async function confirmTransaction() {
   if (!quantita || quantita <= 0) {
     feedback.errorAction();
     toastError('Inserisci una quantità valida.');
+    return;
+  }
+
+  // Articolo su più scaffali: lo scaffale va scelto, il movimento è sempre su uno scaffale preciso
+  if (getProductLocations(currentProduct).length > 1 && !currentLocationId) {
+    feedback.errorAction();
+    toastError('Scegli lo scaffale.');
     return;
   }
 
@@ -714,7 +784,7 @@ async function confirmTransaction() {
 
   setButtonBusy(els.confirmBtn, true, 'Registrazione…');
   const product = currentProduct;
-  const outcome = await runTransaction({ product, quantita, puntoUtilizzo: punto, linea, macchinario });
+  const outcome = await runTransaction({ product, quantita, puntoUtilizzo: punto, linea, macchinario, locationId: currentLocationId });
   setButtonBusy(els.confirmBtn, false);
 
   if (outcome.ok) {

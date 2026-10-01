@@ -89,7 +89,7 @@ function onAuthed(profile) {
         // cache la variazione di giacenza applicata "a vista" quando era stato accodato.
         onDiscard: ({ payload }, err) => {
           const delta = payload.tipo === 'deposito' ? payload.quantita : -payload.quantita;
-          adjustCachedProductQuantity(payload.productId, -delta);
+          adjustCachedProductQuantity(payload.productId, -delta, payload.locationId);
           bumpProductsVersion();
           const reason = err.message?.includes('Giacenza insufficiente') ? err.message : 'il server ha rifiutato l\'operazione';
           toastError(

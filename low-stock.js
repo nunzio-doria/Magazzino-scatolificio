@@ -9,7 +9,7 @@
 // dell'app (.acc-track, --dur-*, --ease-*).
 // =============================================================
 
-import { listProducts } from './supabase.js';
+import { listProducts, getProductLocations } from './supabase.js';
 import { toastError } from './toast.js';
 import { staggerIndex, syncSegIndicator, animatePanelHeight } from './ui-utils.js';
 import { escapeHtml, CATEGORY_LABELS } from './products-shared.js';
@@ -88,17 +88,21 @@ function shelfSeries(locazione) {
 
 function buildGroups(items) {
   const map = new Map();
+  // Un articolo su più scaffali compare in ciascuno (con la quantità di quello scaffale), ma è
+  // "sotto scorta" per il totale di tutti gli scaffali.
   items.forEach((p) => {
-    const key = shelfSeries(p.locazione);
-    if (!map.has(key)) map.set(key, []);
-    map.get(key).push(p);
+    getProductLocations(p).forEach((loc) => {
+      const key = shelfSeries(loc.locazione);
+      if (!map.has(key)) map.set(key, []);
+      map.get(key).push({ p, loc, multiple: getProductLocations(p).length > 1 });
+    });
   });
   const cmp = (a, b) => String(a).localeCompare(String(b), 'it', { numeric: true, sensitivity: 'base' });
   return Array.from(map.entries())
     .sort((a, b) => (a[0] === 'Non assegnato') - (b[0] === 'Non assegnato') || cmp(a[0], b[0]))
     .map(([key, articoli]) => ({
       key,
-      articoli: articoli.slice().sort((a, b) => cmp(a.locazione || '', b.locazione || '') || cmp(a.codice_articolo, b.codice_articolo)),
+      articoli: articoli.slice().sort((a, b) => cmp(a.loc.locazione || '', b.loc.locazione || '') || cmp(a.p.codice_articolo, b.p.codice_articolo)),
     }));
 }
 
@@ -196,13 +200,13 @@ function detailHtml(group) {
       <div class="lowstock-items-scroll">
       ${group.articoli
         .map(
-          (p, i) => `
+          ({ p, loc, multiple }, i) => `
         <div class="lowstock-item flex items-center justify-between gap-3 px-4 py-2.5 border-t border-graphite-700" style="--i:${i}">
           <div class="min-w-0">
             <p class="text-sm font-display font-bold text-graphite-100 truncate">${escapeHtml(p.codice_articolo)}</p>
             <p class="ui-note text-graphite-500 mt-0.5 truncate">${escapeHtml([p.punto_utilizzo_standard, p.macchina].filter(Boolean).join(' · ') || '—')}</p>
             <p class="ui-note text-graphite-400 mt-0.5 flex items-center gap-1 font-semibold">
-              <i data-lucide="shelving-unit" class="w-3 h-3" stroke-width="2"></i>${escapeHtml(p.locazione || 'Non assegnata')}${catFilter === 'tutti' ? `<span class="font-normal text-graphite-500">· ${escapeHtml(CATEGORY_LABELS[p.categoria] || '')}</span>` : ''}
+              <i data-lucide="shelving-unit" class="w-3 h-3" stroke-width="2"></i>${escapeHtml(loc.locazione || 'Non assegnata')}${multiple ? `<span class="font-normal text-graphite-500">· ${loc.quantita} pz su questo scaffale</span>` : ''}${catFilter === 'tutti' ? `<span class="font-normal text-graphite-500">· ${escapeHtml(CATEGORY_LABELS[p.categoria] || '')}</span>` : ''}
             </p>
           </div>
           <span class="shrink-0 font-mono text-xs font-semibold px-2 py-0.5 rounded-full bg-rose-500/15 text-rose-700">${p.quantita_disponibile} / ${p.scorta_minima}</span>

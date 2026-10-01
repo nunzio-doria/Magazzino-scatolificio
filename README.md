@@ -26,6 +26,19 @@ toast.js                    Notifiche toast
 app.js                       Entry point: routing tra viste, transizioni glass, registrazione service worker
 ```
 
+## Più scaffali per lo stesso articolo
+
+Lo stesso codice (cuscinetto, cinghia o ricambio) può stare su **più scaffali, ognuno con la sua quantità**. Sul database c'è la tabella `product_locations` (una riga per articolo e scaffale, RLS: lettura a tutti, scrittura solo admin); `products.quantita_disponibile` resta il **totale** e `products.locazione` un riepilogo testuale degli scaffali, entrambi aggiornati da trigger (non si scrivono più a mano).
+
+- **Scheda articolo**: elenca tutte le locazioni con la quantità di ciascuna e il totale.
+- **Modifica articolo (Admin)**: sezione "Scaffali e quantità" con una riga per scaffale e il pulsante "Aggiungi scaffale".
+- **Deposito/Prelievo**: se l'articolo sta su più scaffali l'app chiede lo scaffale (mostrando la quantità di ciascuno); il prelievo è limitato alla quantità di quello scaffale. Lo scaffale viene registrato nello storico movimenti.
+- **Scorta minima**: vale sul totale di tutti gli scaffali.
+- **Liste per scaffale e scorta minima**: lo stesso codice compare in ciascuno scaffale con la sua quantità.
+- **Import Excel**: più righe con lo stesso codice = più scaffali. Un articolo con un solo scaffale si comporta come prima (la riga sostituisce lo scaffale); se ne ha già più di uno, la riga aggiunge/aggiorna solo quello scaffale.
+- **Rimozione di uno scaffale** (Impostazioni): le quantità restano all'articolo, senza scaffale.
+- Migrazione: `sql/product_locations_multi_scaffale.sql` (già applicata su Supabase).
+
 ## Novità di questa sessione
 
 **Magazzino senza vista a elenco + scheda articolo in sola lettura** — la vista "Elenco" è stata eliminata. I **Cuscinetti** mostrano sempre la scaffalatura (nessun selettore; la ricerca resta per codice o scaffale); **Cinghie** e **Ricambi tecnici** hanno il selettore Scaffalatura / Macchina, con la scaffalatura di default. Toccando un articolo non si apre più il modulo di modifica ma una **scheda di sola lettura** (categoria, codice, locazione, quantità disponibile, linea, macchina, punto di utilizzo, codice a barre; la scorta minima non compare). Per i Ricambi tecnici con manuale caricato c'è un pulsante con sola icona per aprirlo. Solo l'Admin vede in basso il **pulsante tondo a matita** che apre il modulo di modifica completo; annullando si torna alla scheda.

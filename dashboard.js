@@ -249,7 +249,7 @@ function historyRow(h, i = 0) {
     <div class="min-w-0">
       <p class="text-sm text-graphite-100 truncate font-medium">${escapeHtml(h.products?.codice_articolo || '—')}</p>
       <p class="text-xs text-graphite-500 mt-0.5">${escapeHtml(h.profiles?.full_name || 'Utente')} · ${escapeHtml(
-    [h.linea, h.macchinario, h.punto_utilizzo_specifico].filter(Boolean).join(' · ') || '—'
+    [h.locazione, h.linea, h.macchinario, h.punto_utilizzo_specifico].filter(Boolean).join(' · ') || '—'
   )} · ${date.toLocaleString('it-IT', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' })}</p>
     </div>
     <span class="shrink-0 font-mono text-sm font-semibold px-2.5 py-1 rounded-full ${
@@ -316,6 +316,7 @@ function exportReport() {
       Tipo: h.tipo === 'deposito' ? 'Deposito' : 'Prelievo',
       Articolo: h.products?.codice_articolo || '—',
       Quantità: h.quantita,
+      Scaffale: h.locazione || '',
       Linea: h.linea || '',
       Macchinario: h.macchinario || '',
       'Punto utilizzo': h.punto_utilizzo_specifico || '',

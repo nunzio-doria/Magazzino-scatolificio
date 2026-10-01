@@ -11,6 +11,8 @@
 // proprietà di questo unico oggetto invece di normali `let` sparse.
 // =============================================================
 
+import { getProductLocations } from './supabase.js';
+
 export const els = {};
 
 export const state = {
@@ -35,4 +37,19 @@ export const MACHINE_VIEW_CATEGORIES = ['cinghie', 'pezzi_ricambio'];
 
 export function escapeHtml(str) {
   return String(str).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+/**
+ * Scaffali di un articolo come testo breve: "SA001" se è su uno scaffale solo,
+ * "SA001 (3) · SB002 (5)" se è su più scaffali (tra parentesi la quantità di ciascuno).
+ */
+export function shelfLabel(p) {
+  const locs = getProductLocations(p).filter((l) => l.locazione);
+  if (locs.length > 1) return locs.map((l) => `${l.locazione} (${l.quantita})`).join(' · ');
+  return locs[0]?.locazione || '';
+}
+
+/** true se l'articolo è presente su più di uno scaffale */
+export function hasMultipleShelves(p) {
+  return getProductLocations(p).length > 1;
 }

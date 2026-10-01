@@ -5,7 +5,7 @@
 // in un file più piccolo.
 // =============================================================
 
-import { createProduct, updateProduct, deleteProduct, listDistinctMacchine, createMachine, listDistinctLocazioni, createShelf } from './supabase.js';
+import { createProduct, updateProduct, deleteProduct, listDistinctMacchine, createMachine, listDistinctLocazioni, createShelf, getProductLocations } from './supabase.js';
 import { getManualForMachineName, openManualForMachineName, refreshManualsCache } from './manuals.js';
 import { toastSuccess, toastError } from './toast.js';
 import { isAdmin } from './auth.js';
@@ -31,7 +31,9 @@ export function initProductsDetail() {
   els.detailCategory = document.getElementById('product-detail-category');
   els.detailCode = document.getElementById('product-detail-code');
   els.detailLocazione = document.getElementById('product-detail-locazione');
+  els.detailLocazioneLabel = document.getElementById('product-detail-locazione-label');
   els.detailQuantita = document.getElementById('product-detail-quantita');
+  els.detailQuantitaLabel = document.getElementById('product-detail-quantita-label');
   els.detailLowStock = document.getElementById('product-detail-lowstock');
   els.detailRows = document.getElementById('product-detail-rows');
   els.detailManualBtn = document.getElementById('product-detail-manual-btn');
@@ -69,9 +71,9 @@ export function initProductsDetail() {
   els.macchinaBtn = document.getElementById('product-macchina-btn');
   els.macchinaValue = document.getElementById('product-macchina-value');
   els.macchinaHidden = document.getElementById('product-macchina');
-  els.locazioneBtn = document.getElementById('product-locazione-btn');
-  els.locazioneValue = document.getElementById('product-locazione-value');
-  els.locazioneHidden = document.getElementById('product-locazione');
+  els.shelvesRows = document.getElementById('product-shelves-rows');
+  els.shelvesTotal = document.getElementById('product-shelves-total');
+  els.shelfAddBtn = document.getElementById('product-shelf-add-btn');
   els.openManualBtn = document.getElementById('product-open-manual-btn');
   els.barcodePreviewWrap = document.getElementById('product-barcode-preview-wrap');
   els.barcodeSvg = document.getElementById('product-barcode-svg');
@@ -91,6 +93,7 @@ export function initProductsDetail() {
   els.printLabelBtn.addEventListener('click', printCurrentLabel);
   els.generateBarcodeBtn.addEventListener('click', generateBarcodeForCurrentArticle);
   els.categoriaSelect.addEventListener('change', updateLineaMacchinaVisibility);
+  els.shelfAddBtn.addEventListener('click', () => addShelfRow({}, { focus: true }));
   els.openManualBtn?.addEventListener('click', () => {
     const codice = document.getElementById('product-codice-articolo').value.trim();
     const macchina = els.macchinaHidden.value;
@@ -111,35 +114,6 @@ export function initProductsDetail() {
     getOptions: LINEA_OPTIONS,
     allowCustom: false,
     onChange: updateManualButtonVisibility,
-  });
-  attachFieldDropdown({
-    triggerBtn: els.locazioneBtn,
-    valueEl: els.locazioneValue,
-    hiddenInput: els.locazioneHidden,
-    getOptions: async () => {
-      try {
-        return await listDistinctLocazioni();
-      } catch (err) {
-        console.warn('Impossibile caricare l\'elenco degli scaffali registrati.', err);
-        return [];
-      }
-    },
-    // Si può scrivere il nome di uno scaffale nuovo e aggiungerlo: viene registrato nella
-    // tabella degli scaffali (solo admin, come tutto il form articolo) e selezionato.
-    allowCustom: true,
-    hideSearch: false,
-    onCreate: async (nome) => {
-      try {
-        const row = await createShelf(nome);
-        feedback.confirmAction();
-        toastSuccess(`Scaffale "${row.nome}" aggiunto.`);
-        return row.nome;
-      } catch (err) {
-        feedback.errorAction();
-        toastError(err.message || 'Impossibile aggiungere lo scaffale.');
-        return null;
-      }
-    },
   });
   attachFieldDropdown({
     triggerBtn: els.macchinaBtn,
@@ -184,14 +158,18 @@ export function initProductsDetail() {
  */
 function applyModalPermissions() {
   const readOnly = !isAdmin();
-  ['product-codice-articolo', 'product-punto-standard', 'product-quantita', 'product-scorta-minima', 'product-codice-barre'].forEach((id) => {
+  ['product-codice-articolo', 'product-punto-standard', 'product-scorta-minima', 'product-codice-barre'].forEach((id) => {
     const el = document.getElementById(id);
     if (el) el.disabled = readOnly;
   });
   els.categoriaSelectUI ? els.categoriaSelectUI.setDisabled(readOnly) : (els.categoriaSelect.disabled = readOnly);
   els.lineaBtn.disabled = readOnly;
   els.macchinaBtn.disabled = readOnly;
-  els.locazioneBtn.disabled = readOnly;
+  els.shelfAddBtn.disabled = readOnly;
+  els.shelfAddBtn.classList.toggle('hidden', readOnly);
+  els.shelvesRows.querySelectorAll('button, input').forEach((el) => {
+    el.disabled = readOnly;
+  });
   els.scanBarcodeBtn.disabled = readOnly;
   if (readOnly) {
     els.deleteBtn.classList.add('hidden');
@@ -222,11 +200,7 @@ function openModal(product = null, { fromDetail = false } = {}) {
   els.macchinaValue.classList.toggle('text-graphite-400', !product?.macchina);
   els.macchinaValue.classList.toggle('text-graphite-100', !!product?.macchina);
   document.getElementById('product-punto-standard').value = product?.punto_utilizzo_standard || '';
-  els.locazioneHidden.value = product?.locazione || '';
-  els.locazioneValue.textContent = product?.locazione || 'Seleziona…';
-  els.locazioneValue.classList.toggle('text-graphite-400', !product?.locazione);
-  els.locazioneValue.classList.toggle('text-graphite-100', !!product?.locazione);
-  document.getElementById('product-quantita').value = product?.quantita_disponibile ?? 0;
+  renderShelfRows(product ? getProductLocations(product) : []);
   document.getElementById('product-scorta-minima').value = product?.scorta_minima ?? (state.currentCategory === 'cuscinetti' ? 5 : 0);
   document.getElementById('product-codice-barre').value = product?.codice_barre || '';
 
@@ -245,6 +219,134 @@ function openModal(product = null, { fromDetail = false } = {}) {
   });
 }
 
+// --- SCAFFALI DELL'ARTICOLO (modulo di modifica) -----------------------
+// Una riga per scaffale: nome dello scaffale + quantità presente su quello scaffale.
+// La giacenza totale dell'articolo è la somma delle righe (la calcola il database).
+
+function shelfRowValue(row) {
+  return row.querySelector('[data-role="shelf"]').value.trim();
+}
+
+/** Nomi di scaffale già scelti nelle altre righe (minuscoli), per non proporli due volte */
+function usedShelfNames(exceptRow) {
+  const used = new Set();
+  els.shelvesRows.querySelectorAll('.shelf-edit-row').forEach((r) => {
+    if (r === exceptRow) return;
+    const v = shelfRowValue(r).toLowerCase();
+    if (v) used.add(v);
+  });
+  return used;
+}
+
+function updateShelvesTotal() {
+  const rows = [...els.shelvesRows.querySelectorAll('.shelf-edit-row')];
+  const total = rows.reduce((sum, r) => sum + Math.max(0, parseInt(r.querySelector('[data-role="qty"]').value, 10) || 0), 0);
+  els.shelvesTotal.textContent = rows.length > 1 ? `Totale: ${total}` : '';
+}
+
+function addShelfRow({ locazione = '', quantita = 0 } = {}, { focus = false } = {}) {
+  const row = document.createElement('div');
+  row.className = 'shelf-edit-row flex items-start gap-2';
+  row.innerHTML = `
+    <div class="flex-1 min-w-0">
+      <button type="button" data-role="pick" class="w-full flex items-center justify-between rounded-lg bg-graphite-800 border border-graphite-700 px-3.5 py-2.5 text-sm text-left hover:border-amber-400 transition-colors min-h-[44px]">
+        <span data-role="value" class="truncate text-graphite-400">Seleziona…</span>
+        <i data-lucide="chevrons-up-down" class="w-4 h-4 text-graphite-400 shrink-0" stroke-width="2"></i>
+      </button>
+      <input type="hidden" data-role="shelf">
+    </div>
+    <input type="number" data-role="qty" min="0" step="1" inputmode="numeric" aria-label="Quantità su questo scaffale"
+      class="w-20 shrink-0 rounded-lg bg-graphite-800 border border-graphite-700 px-2 py-2.5 font-mono text-sm text-center focus:border-amber-400 outline-none transition-colors min-h-[44px]">
+    <button type="button" data-role="remove" aria-label="Togli questo scaffale" title="Togli questo scaffale"
+      class="shrink-0 w-11 h-11 rounded-lg flex items-center justify-center text-rose-700 hover:bg-rose-50 transition-colors">
+      <i data-lucide="trash-2" class="w-5 h-5" stroke-width="2"></i>
+    </button>`;
+  els.shelvesRows.appendChild(row);
+
+  const hidden = row.querySelector('[data-role="shelf"]');
+  const valueEl = row.querySelector('[data-role="value"]');
+  const qtyInput = row.querySelector('[data-role="qty"]');
+  setPickerValue(hidden, valueEl, locazione || '');
+  qtyInput.value = quantita ?? 0;
+  qtyInput.addEventListener('input', updateShelvesTotal);
+  qtyInput.addEventListener('focus', () => qtyInput.select());
+
+  attachFieldDropdown({
+    triggerBtn: row.querySelector('[data-role="pick"]'),
+    valueEl,
+    hiddenInput: hidden,
+    getOptions: async () => {
+      try {
+        const used = usedShelfNames(row);
+        return (await listDistinctLocazioni()).filter((n) => !used.has(n.toLowerCase()));
+      } catch (err) {
+        console.warn('Impossibile caricare l\'elenco degli scaffali registrati.', err);
+        return [];
+      }
+    },
+    // Si può scrivere il nome di uno scaffale nuovo e aggiungerlo: viene registrato nella
+    // tabella degli scaffali (solo admin, come tutto il form articolo) e selezionato.
+    allowCustom: true,
+    hideSearch: false,
+    onCreate: async (nome) => {
+      try {
+        const shelf = await createShelf(nome);
+        feedback.confirmAction();
+        toastSuccess(`Scaffale "${shelf.nome}" aggiunto.`);
+        return shelf.nome;
+      } catch (err) {
+        feedback.errorAction();
+        toastError(err.message || 'Impossibile aggiungere lo scaffale.');
+        return null;
+      }
+    },
+  });
+
+  row.querySelector('[data-role="remove"]').addEventListener('click', () => {
+    if (els.shelvesRows.querySelectorAll('.shelf-edit-row').length > 1) {
+      row.remove();
+    } else {
+      // Ultima riga: si svuota invece di sparire, il modulo ha sempre almeno un campo scaffale
+      setPickerValue(hidden, valueEl, '');
+      qtyInput.value = 0;
+    }
+    updateShelvesTotal();
+  });
+
+  window.lucide?.createIcons();
+  updateShelvesTotal();
+  if (focus) row.querySelector('[data-role="pick"]').click();
+  return row;
+}
+
+/** Ridisegna le righe degli scaffali dell'articolo aperto (una riga vuota per un articolo nuovo) */
+function renderShelfRows(locations) {
+  els.shelvesRows.innerHTML = '';
+  const list = locations && locations.length ? locations : [{ locazione: '', quantita: 0 }];
+  list.forEach((l) => addShelfRow({ locazione: l.locazione || '', quantita: l.quantita }));
+}
+
+/**
+ * Scaffali inseriti nel modulo, pronti per il salvataggio. Le righe completamente vuote
+ * (nessuno scaffale e quantità 0) si ignorano. Restituisce { error } se uno scaffale è ripetuto.
+ */
+function collectShelfRows() {
+  const seen = new Set();
+  const locations = [];
+  for (const r of els.shelvesRows.querySelectorAll('.shelf-edit-row')) {
+    const locazione = shelfRowValue(r) || null;
+    const quantita = Math.max(0, parseInt(r.querySelector('[data-role="qty"]').value, 10) || 0);
+    if (!locazione && quantita === 0) continue;
+    const key = (locazione || '').toLowerCase();
+    if (seen.has(key)) {
+      return { error: locazione ? `Lo scaffale "${locazione}" è inserito due volte: unisci le quantità in una sola riga.` : 'Hai due righe senza scaffale: unisci le quantità in una sola riga.' };
+    }
+    seen.add(key);
+    locations.push({ locazione, quantita });
+  }
+  return { locations };
+}
+
 function updateLineaMacchinaVisibility() {
   const categoria = els.categoriaSelect.value;
   els.lineaMacchinaWrap.classList.toggle('hidden', categoria !== 'cinghie' && categoria !== 'pezzi_ricambio');
@@ -257,7 +359,7 @@ function updateLineaMacchinaVisibility() {
  * Per i Ricambi tecnici il campo "Punto utilizzo standard" diventa "Descrizione":
  * stesso campo del database (punto_utilizzo_standard), ma spostato subito sotto il
  * codice articolo e a piena larghezza, come richiesto per quella categoria. Per le
- * altre categorie resta "Punto utilizzo standard", appaiato alla Locazione magazzino.
+ * altre categorie resta "Punto utilizzo standard", sopra agli scaffali.
  */
 function updatePuntoStandardField(categoria) {
   const topSlot = document.getElementById('product-punto-standard-top-slot');
@@ -271,14 +373,12 @@ function updatePuntoStandardField(categoria) {
     label.textContent = 'Descrizione';
     input.placeholder = 'es. Guarnizione pompa dosatrice';
     topSlot.appendChild(wrap);
-    locazioneRow.classList.remove('grid-cols-2');
-    locazioneRow.classList.add('grid-cols-1');
+    locazioneRow.classList.add('hidden'); // la riga resterebbe vuota
   } else {
     label.textContent = 'Punto utilizzo standard';
     input.placeholder = 'es. Linea 2';
-    locazioneRow.classList.remove('grid-cols-1');
-    locazioneRow.classList.add('grid-cols-2');
     locazioneRow.insertBefore(wrap, locazioneRow.firstChild);
+    locazioneRow.classList.remove('hidden');
   }
 }
 
@@ -374,9 +474,25 @@ function renderDetail(p) {
   els.detailCategory.textContent = CATEGORY_LABELS[p.categoria] || '';
   els.detailCode.textContent = p.codice_articolo || '—';
 
-  const locazione = (p.locazione || '').trim();
-  els.detailLocazione.textContent = locazione || '—';
-  els.detailLocazione.classList.toggle('text-graphite-400', !locazione);
+  // Tutte le locazioni dell'articolo: una riga per scaffale, con la quantità di ciascuno se sono più di una
+  const locs = getProductLocations(p);
+  const multiple = locs.length > 1;
+  if (multiple) {
+    els.detailLocazione.innerHTML = locs
+      .map(
+        (l) => `
+        <div class="flex items-center justify-between gap-2">
+          <span class="min-w-0 break-words${l.locazione ? '' : ' text-graphite-400'}">${escapeHtml(l.locazione || 'Senza scaffale')}</span>
+          <span class="shrink-0 inline-block px-2 py-0.5 rounded-full bg-graphite-700 text-graphite-200 font-mono text-sm font-bold">${l.quantita}</span>
+        </div>`
+      )
+      .join('');
+  } else {
+    const locazione = (locs[0]?.locazione || '').trim();
+    els.detailLocazione.innerHTML = `<p class="${locazione ? '' : 'text-graphite-400'}">${escapeHtml(locazione || '—')}</p>`;
+  }
+  els.detailLocazioneLabel.textContent = multiple ? 'Locazioni magazzino' : 'Locazione magazzino';
+  els.detailQuantitaLabel.textContent = multiple ? 'Quantità totale' : 'Quantità disponibile';
 
   const qty = p.quantita_disponibile ?? 0;
   const lowStock = qty < (p.scorta_minima ?? 0); // la scorta minima non si mostra, si segnala solo se si è sotto
@@ -511,14 +627,18 @@ function generateBarcodeForCurrentArticle() {
 
 async function handleSubmit(e) {
   e.preventDefault();
+  const shelves = collectShelfRows();
+  if (shelves.error) {
+    feedback.errorAction();
+    toastError(shelves.error);
+    return;
+  }
   const payload = {
     categoria: els.categoriaSelect.value,
     codice_articolo: document.getElementById('product-codice-articolo').value.trim(),
     linea: els.lineaHidden.value || null,
     macchina: els.macchinaHidden.value || null,
     punto_utilizzo_standard: document.getElementById('product-punto-standard').value.trim() || null,
-    locazione: els.locazioneHidden.value || null,
-    quantita_disponibile: parseInt(document.getElementById('product-quantita').value, 10) || 0,
     scorta_minima: parseInt(document.getElementById('product-scorta-minima').value, 10) || 0,
     codice_barre: document.getElementById('product-codice-barre').value.trim() || null,
   };
@@ -528,12 +648,12 @@ async function handleSubmit(e) {
   try {
     if (editingId) {
       const before = editingSnapshot;
-      const after = await updateProduct(editingId, payload);
+      const after = await updateProduct(editingId, payload, shelves.locations);
       pushHistory({ type: 'update', before, after });
       feedback.confirmAction();
       toastSuccess('Articolo aggiornato.');
     } else {
-      const after = await createProduct(payload);
+      const after = await createProduct(payload, shelves.locations);
       pushHistory({ type: 'create', before: null, after });
       feedback.confirmAction();
       toastSuccess('Articolo creato.');

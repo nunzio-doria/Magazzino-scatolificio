@@ -90,11 +90,16 @@ export function bumpProductsVersion() {
   productsVersion += 1;
 }
 
-export function adjustCachedProductQuantity(id, delta) {
+export function adjustCachedProductQuantity(id, delta, locationId = null) {
   const cache = loadProductCache();
   const p = cache.byId?.[id];
   if (!p) return;
   p.quantita_disponibile = (p.quantita_disponibile || 0) + delta;
+  // Aggiorna anche lo scaffale interessato (quello scelto, o l'unico se l'articolo ne ha uno solo)
+  if (Array.isArray(p.locations)) {
+    const loc = locationId ? p.locations.find((l) => l.id === locationId) : p.locations.length === 1 ? p.locations[0] : null;
+    if (loc) loc.quantita = Math.max(0, (loc.quantita || 0) + delta);
+  }
   saveProductCache(cache);
 }
 
@@ -145,20 +150,52 @@ export async function updateProfileName(id, fullName) {
 }
 
 // --- PRODUCTS ----------------------------------------------------
+// Ogni articolo può stare su più scaffali, ciascuno con la sua quantità (tabella
+// `product_locations`). products.quantita_disponibile è sempre il TOTALE e
+// products.locazione un riepilogo testuale degli scaffali: entrambi li aggiorna il
+// database da solo. Nel codice, ogni articolo letto porta `locations`:
+// [{ id, locazione, quantita }], ordinate per scaffale (senza scaffale in fondo).
+const PRODUCT_SELECT = '*, product_locations(id, locazione, quantita)';
+
+const shelfCompare = (a, b) =>
+  (a.locazione == null) - (b.locazione == null) ||
+  String(a.locazione || '').localeCompare(String(b.locazione || ''), 'it', { numeric: true, sensitivity: 'base' });
+
+/** Scaffali di un articolo: sempre un array, anche per articoli letti dalla cache di prima della gestione multi-scaffale */
+export function getProductLocations(p) {
+  if (Array.isArray(p?.locations)) return p.locations;
+  const locazione = (p?.locazione || '').trim() || null;
+  return [{ id: null, locazione, quantita: p?.quantita_disponibile || 0 }];
+}
+
+/** Trasforma una riga letta dal database (con product_locations incorporate) nell'articolo usato dall'app */
+function normalizeProduct(row) {
+  if (!row) return row;
+  const { product_locations: embedded, ...p } = row;
+  const raw = Array.isArray(embedded) ? embedded : Array.isArray(p.locations) ? p.locations : null;
+  p.locations = raw
+    ? raw.map((l) => ({ id: l.id ?? null, locazione: l.locazione || null, quantita: l.quantita || 0 })).sort(shelfCompare)
+    : getProductLocations(p);
+  return p;
+}
+
 export async function listProducts({ search = '', onlyLowStock = false, categoria = null } = {}) {
-  let query = supabase.from('products').select('*').order('codice_articolo', { ascending: true });
+  let query = supabase.from('products').select(PRODUCT_SELECT).order('codice_articolo', { ascending: true });
 
   if (categoria) query = query.eq('categoria', categoria);
   if (search) {
+    // `locazione` è il riepilogo testuale degli scaffali: cercare "SB002" trova anche gli articoli che ci stanno insieme ad altri scaffali
     query = query.or(
       `codice_articolo.ilike.%${search}%,codice_barre.ilike.%${search}%,locazione.ilike.%${search}%,punto_utilizzo_standard.ilike.%${search}%,macchina.ilike.%${search}%`
     );
   }
   const { data, error } = await query;
   if (error) throw error;
-  cacheProductsList(data);
-  if (onlyLowStock) return data.filter((p) => p.quantita_disponibile < p.scorta_minima);
-  return data;
+  const list = data.map(normalizeProduct);
+  cacheProductsList(list);
+  // La scorta minima vale sul totale di tutti gli scaffali (quantita_disponibile è il totale)
+  if (onlyLowStock) return list.filter((p) => p.quantita_disponibile < p.scorta_minima);
+  return list;
 }
 
 export async function getProductByBarcode(codiceBarre) {
@@ -166,27 +203,74 @@ export async function getProductByBarcode(codiceBarre) {
     p_codice_barre: codiceBarre,
   });
   if (error) throw error;
-  const product = data?.[0] ?? null;
-  if (product) cacheProductsList([product]);
+  const row = data?.[0] ?? null;
+  if (!row) return null;
+  const { data: locs, error: locErr } = await supabase
+    .from('product_locations')
+    .select('id, locazione, quantita')
+    .eq('product_id', row.id);
+  if (locErr) throw locErr;
+  const product = normalizeProduct({ ...row, product_locations: locs });
+  cacheProductsList([product]);
   return product;
 }
 
 export async function getProductById(id) {
-  const { data, error } = await supabase.from('products').select('*').eq('id', id).single();
+  const { data, error } = await supabase.from('products').select(PRODUCT_SELECT).eq('id', id).single();
   if (error) throw error;
-  return data;
+  return normalizeProduct(data);
 }
 
-export async function createProduct(product) {
-  const { data, error } = await supabase.from('products').insert(product).select().single();
+/**
+ * Sostituisce gli scaffali di un articolo con l'elenco dato (solo admin, in modo atomico):
+ * quelli presenti si aggiornano, i nuovi si aggiungono, quelli non più in elenco si tolgono.
+ * @param {string} productId
+ * @param {{locazione: string|null, quantita: number}[]} locations
+ */
+export async function setProductLocations(productId, locations) {
+  const rows = (locations || []).map((l) => ({
+    locazione: (l.locazione || '').trim() || null,
+    quantita: Math.max(0, parseInt(l.quantita, 10) || 0),
+  }));
+  const { error } = await supabase.rpc('set_product_locations', { p_product_id: productId, p_rows: rows });
   if (error) throw error;
-  return data;
 }
 
-export async function updateProduct(id, patch) {
-  const { data, error } = await supabase.from('products').update(patch).eq('id', id).select().single();
+// Giacenza totale e riepilogo scaffali di `products` li gestisce il database a partire dagli
+// scaffali: i campi `locazione` / `quantita_disponibile` non si scrivono più direttamente.
+function withoutStockColumns(row) {
+  const { locazione, quantita_disponibile, locations, product_locations, ...rest } = row || {};
+  return { rest, locazione, quantita_disponibile };
+}
+
+/**
+ * Crea un articolo. `locations` = scaffali con quantità; se manca, si usano (per compatibilità)
+ * gli eventuali `locazione` / `quantita_disponibile` presenti nell'articolo.
+ */
+export async function createProduct(product, locations = null) {
+  const { rest, locazione, quantita_disponibile } = withoutStockColumns(product);
+  const locs =
+    locations ?? (locazione || quantita_disponibile ? [{ locazione: locazione || null, quantita: quantita_disponibile || 0 }] : []);
+  const { data, error } = await supabase.from('products').insert(rest).select('id').single();
   if (error) throw error;
-  return data;
+  try {
+    await setProductLocations(data.id, locs);
+  } catch (err) {
+    // Articolo senza i suoi scaffali = dati incompleti: lo si toglie e si segnala l'errore
+    await supabase.from('products').delete().eq('id', data.id);
+    throw err;
+  }
+  return getProductById(data.id);
+}
+
+export async function updateProduct(id, patch, locations = null) {
+  const { rest } = withoutStockColumns(patch);
+  if (Object.keys(rest).length) {
+    const { error } = await supabase.from('products').update(rest).eq('id', id).select('id').single();
+    if (error) throw error;
+  }
+  if (locations) await setProductLocations(id, locations);
+  return getProductById(id);
 }
 
 export async function deleteProduct(id) {
@@ -322,9 +406,10 @@ export async function deleteMachine({ id, nome }) {
 }
 
 // --- SCAFFALI --------------------------------------------------
-// Stessa logica delle macchine (tabella `shelves`, vedi sql/create_shelves_table.sql):
-// products.locazione resta testo libero, gli scaffali "storici" usati solo dagli articoli
-// continuano a comparire negli elenchi anche se non sono (ancora) nella tabella.
+// Stessa logica delle macchine (tabella `shelves`): il nome dello scaffale degli articoli resta
+// testo libero (tabella `product_locations`, una riga per articolo e scaffale), gli scaffali
+// "storici" usati solo dagli articoli continuano a comparire negli elenchi anche se non sono
+// (ancora) nella tabella `shelves`.
 
 /** True se l'errore indica che la tabella `shelves` non esiste (ancora) sul database */
 function isMissingShelvesTable(error) {
@@ -344,7 +429,7 @@ export async function listDistinctLocazioni() {
   } else if (!isMissingShelvesTable(registered.error)) {
     throw registered.error;
   }
-  const { data, error } = await supabase.from('products').select('locazione').not('locazione', 'is', null);
+  const { data, error } = await supabase.from('product_locations').select('locazione').not('locazione', 'is', null);
   if (error) throw error;
   data.forEach((r) => {
     const n = normalizeMachineName(r.locazione);
@@ -360,7 +445,7 @@ export async function listDistinctLocazioni() {
 export async function listShelvesWithCounts() {
   const [registered, products] = await Promise.all([
     supabase.from('shelves').select('id, nome'),
-    supabase.from('products').select('locazione').not('locazione', 'is', null),
+    supabase.from('product_locations').select('locazione').not('locazione', 'is', null),
   ]);
   if (products.error) throw products.error;
   const tableMissing = !!registered.error && isMissingShelvesTable(registered.error);
@@ -398,14 +483,12 @@ export async function createShelf(nome) {
 }
 
 /**
- * Rimuove uno scaffale: lo toglie dalla tabella e svuota il campo "locazione" degli articoli
- * che lo usavano (confronto senza maiuscole/spazi), altrimenti continuerebbe a comparire negli elenchi.
+ * Rimuove uno scaffale: lo toglie dalla tabella e lo toglie dagli articoli che lo usavano
+ * (confronto senza maiuscole/spazi), che restano con la loro quantità ma senza scaffale.
  * @param {{ id: string|null, nome: string }} shelf
  * @returns {Promise<{ articoliSvuotati: number }>}
  */
 export async function deleteShelf({ id, nome }) {
-  const key = normalizeMachineName(nome).toLowerCase();
-
   if (id) {
     const { data, error } = await supabase.from('shelves').delete().eq('id', id).select('id');
     if (error) {
@@ -415,14 +498,11 @@ export async function deleteShelf({ id, nome }) {
     if (!data || data.length === 0) throw new Error('Non è stato possibile rimuovere lo scaffale (solo un amministratore può farlo).');
   }
 
-  const { data: rows, error: readErr } = await supabase.from('products').select('id, locazione').not('locazione', 'is', null);
-  if (readErr) throw readErr;
-  const ids = rows.filter((r) => normalizeMachineName(r.locazione).toLowerCase() === key).map((r) => r.id);
-  for (let i = 0; i < ids.length; i += 100) {
-    const { error } = await supabase.from('products').update({ locazione: null }).in('id', ids.slice(i, i + 100));
-    if (error) throw error;
-  }
-  return { articoliSvuotati: ids.length };
+  // Gli articoli che stavano su questo scaffale restano con la loro quantità, ma senza scaffale
+  // (se avevano già una riga "senza scaffale" le quantità si sommano). Lo fa il database, in blocco.
+  const { data: articoli, error } = await supabase.rpc('remove_shelf_assignments', { p_nome: nome });
+  if (error) throw error;
+  return { articoliSvuotati: Number(articoli) || 0 };
 }
 
 // --- MANUALI RICAMBI (PDF allegati alle macchine) -----------------
@@ -752,7 +832,7 @@ export async function updateManualSection(sectionId, { operatorManualId, label, 
  * process_transaction (SECURITY DEFINER): aggiorna la giacenza e
  * registra il log in una singola transazione DB.
  */
-export async function processTransaction({ productId, tipo, quantita, puntoUtilizzo, note, linea, macchinario }) {
+export async function processTransaction({ productId, tipo, quantita, puntoUtilizzo, note, linea, macchinario, locationId }) {
   const params = {
     p_product_id: productId,
     p_tipo: tipo,
@@ -763,6 +843,8 @@ export async function processTransaction({ productId, tipo, quantita, puntoUtili
   // Linea e macchinario si inviano solo se presenti (prelievi): i depositi restano identici a prima.
   if (linea) params.p_linea = linea;
   if (macchinario) params.p_macchinario = macchinario;
+  // Scaffale del movimento: obbligatorio per gli articoli su più scaffali, ininfluente se ne hanno uno solo
+  if (locationId) params.p_location_id = locationId;
   const { data, error } = await supabase.rpc('process_transaction', params);
   if (error) throw error;
   return data?.[0] ?? null;
@@ -771,7 +853,7 @@ export async function processTransaction({ productId, tipo, quantita, puntoUtili
 export async function listTransactions({ from, to, productId, limit = 200 } = {}) {
   let query = supabase
     .from('transactions')
-    .select('id, tipo, quantita, data_ora, punto_utilizzo_specifico, linea, macchinario, product_id, user_id, products(codice_articolo), profiles(full_name)')
+    .select('id, tipo, quantita, data_ora, punto_utilizzo_specifico, linea, macchinario, locazione, product_id, user_id, products(codice_articolo), profiles(full_name)')
     .order('data_ora', { ascending: false })
     .limit(limit);
 

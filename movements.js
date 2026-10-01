@@ -110,6 +110,7 @@ function movementRow(r, i) {
   const inner = document.createElement('div');
   inner.className = 'acc-inner';
   const detailRows = [
+    ['Scaffale', r.locazione],
     ['Punto di utilizzo', r.punto_utilizzo_specifico],
     ['Linea', r.linea],
     ['Macchina', r.macchinario],

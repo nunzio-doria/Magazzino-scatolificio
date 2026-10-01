@@ -4,11 +4,11 @@
 // comportamento, solo riorganizzato in un file più piccolo.
 // =============================================================
 
-import { listDistinctMacchine } from './supabase.js';
 import { openPicker } from './picker.js';
 import { animateFluidSwap } from './app.js';
 import { staggerIndex, syncSegIndicator, modalCloseMs } from './ui-utils.js';
-import { els, state, LINEA_OPTIONS, MACHINE_VIEW_CATEGORIES, escapeHtml } from './products-shared.js';
+import { listDistinctMacchine, getProductLocations } from './supabase.js';
+import { els, state, LINEA_OPTIONS, MACHINE_VIEW_CATEGORIES, escapeHtml, shelfLabel, hasMultipleShelves } from './products-shared.js';
 import { refresh } from './products-data.js';
 import { openDetail } from './products-detail.js';
 
@@ -258,16 +258,21 @@ export function renderCurrentList(opts = {}) {
 
 /**
  * Vista "scaffalatura": raggruppa gli articoli della categoria/filtri
- * correnti per locazione, una card per scaffale.
+ * correnti per locazione, una card per scaffale. Un articolo presente su più
+ * scaffali compare in ciascuno, con la quantità di quello scaffale.
  */
 function renderShelves() {
   const isRicambi = state.currentCategory === 'pezzi_ricambio';
+  // Per gli articoli su più scaffali si ricorda anche il totale: la scorta minima vale su quello
+  const totHint = (p) => (hasMultipleShelves(p) ? `tot. ${p.quantita_disponibile}` : '');
   renderGroupedCards({
     wrapEl: els.shelfView,
     openSet: openShelves,
-    groupKeyFn: (p) => p.locazione,
+    entriesFn: (p) => getProductLocations(p).map((l) => ({ key: l.locazione, qty: l.quantita })),
     titleField: isRicambi ? (p) => p.punto_utilizzo_standard || p.codice_articolo : (p) => p.codice_articolo,
-    subtitleFields: isRicambi ? (p) => [p.codice_articolo, p.macchina, p.linea] : (p) => [p.macchina, p.punto_utilizzo_standard, p.linea],
+    subtitleFields: isRicambi
+      ? (p) => [p.codice_articolo, p.macchina, p.linea, totHint(p)]
+      : (p) => [p.macchina, p.punto_utilizzo_standard, p.linea, totHint(p)],
     unassignedLabel: 'Non assegnata',
     iconName: 'shelving-unit',
     // Solo per Cuscinetti/Cinghie/Ricambi tecnici: scaffali con la stessa sigla iniziale (SD002,
@@ -293,9 +298,9 @@ function renderByMachine() {
   renderGroupedCards({
     wrapEl: els.machineView,
     openSet: openMachines,
-    groupKeyFn: (p) => p.macchina,
+    entriesFn: (p) => [{ key: p.macchina, qty: p.quantita_disponibile }],
     titleField: isRicambi ? (p) => p.punto_utilizzo_standard || p.codice_articolo : (p) => p.codice_articolo,
-    subtitleFields: isRicambi ? (p) => [p.codice_articolo, p.locazione, p.linea] : (p) => [p.locazione, p.punto_utilizzo_standard, p.linea],
+    subtitleFields: isRicambi ? (p) => [p.codice_articolo, shelfLabel(p), p.linea] : (p) => [shelfLabel(p), p.punto_utilizzo_standard, p.linea],
     unassignedLabel: 'Nessuna macchina assegnata',
     iconName: 'wrench',
   });
@@ -303,23 +308,26 @@ function renderByMachine() {
 
 /**
  * Motore condiviso da Scaffalatura e Riordino per macchina: raggruppa
- * state.currentList per una chiave qualsiasi (locazione o macchina) e disegna
+ * state.currentList per una chiave qualsiasi (locazione o macchina; `entriesFn`
+ * restituisce, per ogni articolo, le coppie chiave+quantità in cui compare) e disegna
  * una card per gruppo, espandibile al tap sull'header (animazione
  * grid-template-rows in CSS) con un lieve stagger in ingresso sugli
  * articoli. Lo stato aperto/chiuso di ogni gruppo persiste tra i refresh
  * tramite l'openSet passato dal chiamante (Set separati per scaffalatura
  * e macchina, cosí non si mescolano tra loro).
  */
-function renderGroupedCards({ wrapEl, openSet, groupKeyFn, titleField, subtitleFields, unassignedLabel, iconName, seriesFn = null }) {
+function renderGroupedCards({ wrapEl, openSet, entriesFn, titleField, subtitleFields, unassignedLabel, iconName, seriesFn = null }) {
   wrapEl.innerHTML = '';
   wrapEl.classList.remove('hidden');
 
   const searching = (els.searchInput?.value || '').trim().length > 0;
-  const groups = new Map(); // chiave di raggruppamento -> prodotti
+  const groups = new Map(); // chiave di raggruppamento -> [{ p: articolo, qty: quantità in quel gruppo }]
   for (const p of state.currentList) {
-    const key = groupKeyFn(p) || unassignedLabel;
-    if (!groups.has(key)) groups.set(key, []);
-    groups.get(key).push(p);
+    for (const entry of entriesFn(p)) {
+      const key = entry.key || unassignedLabel;
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push({ p, qty: entry.qty });
+    }
   }
 
   const sortedKeys = [...groups.keys()].sort((a, b) =>
@@ -334,14 +342,15 @@ function renderGroupedCards({ wrapEl, openSet, groupKeyFn, titleField, subtitleF
       lastSeries = series;
     }
     const items = groups.get(key);
-    const totQty = items.reduce((sum, p) => sum + (p.quantita_disponibile || 0), 0);
-    const lowCount = items.filter((p) => p.quantita_disponibile < p.scorta_minima).length;
+    const totQty = items.reduce((sum, { qty }) => sum + (qty || 0), 0);
+    const lowCount = items.filter(({ p }) => p.quantita_disponibile < p.scorta_minima).length;
     // Durante una ricerca (per codice, descrizione, macchina...) gli scaffali si aprono da soli:
     // il risultato si vede a colpo d'occhio, senza dover aprire ogni scaffale a mano.
     const isOpen = searching || openSet.has(key);
 
     const itemsHtml = items
-      .map((p, i) => {
+      .map(({ p, qty }, i) => {
+        // sotto scorta = totale di tutti gli scaffali sotto la scorta minima (non la quantità del singolo scaffale)
         const lowStock = p.quantita_disponibile < p.scorta_minima;
         const subtitleParts = subtitleFields(p).filter(Boolean);
         return `
@@ -353,7 +362,7 @@ function renderGroupedCards({ wrapEl, openSet, groupKeyFn, titleField, subtitleF
             </div>
             <span class="shrink-0 inline-block px-2 py-0.5 rounded-full text-xs font-mono font-semibold ${
               lowStock ? 'bg-rose-500/15 text-rose-700' : 'bg-graphite-700 text-graphite-200'
-            }">${p.quantita_disponibile}</span>
+            }">${qty}</span>
           </button>
         `;
       })
@@ -430,7 +439,7 @@ function renderGroupedCards({ wrapEl, openSet, groupKeyFn, titleField, subtitleF
     // Toccando un articolo si apre la scheda di sola lettura (uguale per tutti); la
     // modifica si raggiunge da lì con il pulsante a matita, riservato all'Admin.
     card.querySelectorAll('.shelf-item').forEach((btn) => {
-      const product = items.find((p) => String(p.id) === btn.dataset.productId);
+      const product = items.find(({ p }) => String(p.id) === btn.dataset.productId)?.p;
       btn.addEventListener('click', (e) => {
         e.stopPropagation();
         openDetail(product);

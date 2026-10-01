@@ -4,7 +4,7 @@
 // logica, stesso comportamento, solo riorganizzato in un file più piccolo.
 // =============================================================
 
-import { listProducts, createProduct, updateProduct, deleteProduct, bulkUpsertProducts, getProductsVersion } from './supabase.js';
+import { listProducts, createProduct, updateProduct, deleteProduct, bulkUpsertProducts, getProductsVersion, getProductLocations } from './supabase.js';
 import { toastSuccess, toastError, toastWarning } from './toast.js';
 import feedback from './feedback.js';
 import { replayAnimation, openOverlay, closeOverlay } from './ui-utils.js';
@@ -33,13 +33,16 @@ function toWritableRow(row) {
     id: row.id,
     categoria: row.categoria,
     codice_articolo: row.codice_articolo,
-    locazione: row.locazione,
-    quantita_disponibile: row.quantita_disponibile,
     scorta_minima: row.scorta_minima,
     codice_barre: row.codice_barre,
     linea: row.linea,
     macchina: row.macchina,
   };
+}
+
+/** Scaffali e quantità di un articolo da ripristinare con annulla/ripeti (la giacenza totale ne è la somma) */
+function toWritableLocations(row) {
+  return getProductLocations(row).map((l) => ({ locazione: l.locazione, quantita: l.quantita }));
 }
 
 /**
@@ -48,7 +51,7 @@ function toWritableRow(row) {
  */
 const CATEGORY_IMPORT_CONFIG = {
   cuscinetti: {
-    hint: 'Colonne A→C: Codice, Locazione, Quantità. La scorta minima viene impostata automaticamente a 5 per tutti gli articoli.',
+    hint: 'Colonne A→C: Codice, Locazione, Quantità. La scorta minima viene impostata automaticamente a 5 per tutti gli articoli. Per mettere lo stesso codice su più scaffali, scrivi più righe con lo stesso codice (una per scaffale).',
     mapRow: (c) => ({
       codice_articolo: c[0],
       locazione: c[1] || null,
@@ -57,7 +60,7 @@ const CATEGORY_IMPORT_CONFIG = {
     }),
   },
   cinghie: {
-    hint: 'Colonne A→G: Codice, Locazione, Quantità, Linea, Macchina, Punto di utilizzo, Scorta minima.',
+    hint: 'Colonne A→G: Codice, Locazione, Quantità, Linea, Macchina, Punto di utilizzo, Scorta minima. Per mettere lo stesso codice su più scaffali, scrivi più righe con lo stesso codice (una per scaffale).',
     mapRow: (c) => ({
       codice_articolo: c[0],
       locazione: c[1] || null,
@@ -69,7 +72,7 @@ const CATEGORY_IMPORT_CONFIG = {
     }),
   },
   pezzi_ricambio: {
-    hint: 'Colonne A→G: Codice, Locazione, Quantità, Linea, Macchina, Descrizione, Scorta minima.',
+    hint: 'Colonne A→G: Codice, Locazione, Quantità, Linea, Macchina, Descrizione, Scorta minima. Per mettere lo stesso codice su più scaffali, scrivi più righe con lo stesso codice (una per scaffale).',
     mapRow: (c) => ({
       codice_articolo: c[0],
       locazione: c[1] || null,
@@ -244,9 +247,9 @@ export async function undo() {
     if (action.type === 'create') {
       await deleteProduct(action.after.id);
     } else if (action.type === 'update') {
-      await updateProduct(action.before.id, toWritableRow(action.before));
+      await updateProduct(action.before.id, toWritableRow(action.before), toWritableLocations(action.before));
     } else if (action.type === 'delete') {
-      await createProduct(toWritableRow(action.before));
+      await createProduct(toWritableRow(action.before), toWritableLocations(action.before));
     }
     undoStack.pop();
     redoStack.push(action);
@@ -268,9 +271,9 @@ export async function redo() {
   els.redoBtn.disabled = true;
   try {
     if (action.type === 'create') {
-      await createProduct(toWritableRow(action.after));
+      await createProduct(toWritableRow(action.after), toWritableLocations(action.after));
     } else if (action.type === 'update') {
-      await updateProduct(action.after.id, toWritableRow(action.after));
+      await updateProduct(action.after.id, toWritableRow(action.after), toWritableLocations(action.after));
     } else if (action.type === 'delete') {
       await deleteProduct(action.before.id);
     }
