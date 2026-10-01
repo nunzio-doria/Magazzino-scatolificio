@@ -20,6 +20,29 @@ let swapTimer = null;
 let followRaf = 0;
 
 /**
+ * Taglio dell'elenco dietro al banner fermo in alto: la parte di elenco che sta sopra il bordo
+ * inferiore del banner viene ritagliata (clip-path), quindi non può mai comparire negli angoli
+ * arrotondati né sopra al banner. A riposo (banner non fermo) il taglio è nullo.
+ */
+let clipRaf = 0;
+function updateShelfClip() {
+  clipRaf = 0;
+  document.querySelectorAll('.shelf-card:not(.shelf-open) .shelf-body-inner').forEach((el) => { el.style.clipPath = ''; });
+  document.querySelectorAll('.shelf-card.shelf-open').forEach((card) => {
+    const bar = card.querySelector('.shelf-header-sticky');
+    const inner = card.querySelector('.shelf-body-inner');
+    if (!bar || !inner) return;
+    const cut = bar.getBoundingClientRect().bottom - inner.getBoundingClientRect().top;
+    inner.style.clipPath = cut > 0.5 ? `inset(${cut.toFixed(1)}px 0 0 0)` : '';
+  });
+}
+function scheduleShelfClip() {
+  if (!clipRaf) clipRaf = requestAnimationFrame(updateShelfClip);
+}
+window.addEventListener('scroll', scheduleShelfClip, { passive: true });
+window.addEventListener('resize', scheduleShelfClip, { passive: true });
+
+/**
  * Porta la scheda appena aperta con il banner subito sotto l'header dell'app. La posizione finale
  * dipende da ciò che sta sopra (il vecchio scaffale che si richiude) e dalla pagina che cresce
  * mentre il cassetto si apre: invece di calcolarla una volta sola (e sbagliarla), la si
@@ -40,6 +63,7 @@ function followCardToTop(card, delayMs) {
 
   const step = () => {
     if (cancelled || !card.isConnected) return;
+    updateShelfClip();
     const target = Math.max(0, Math.round(card.getBoundingClientRect().top + window.scrollY - headerH - 8));
     const diff = target - window.scrollY;
     if (Math.abs(diff) > 0.5) {
@@ -418,6 +442,7 @@ function renderGroupedCards({ wrapEl, openSet, groupKeyFn, titleField, subtitleF
   });
 
   window.lucide?.createIcons();
+  scheduleShelfClip();
 }
 
 /**
