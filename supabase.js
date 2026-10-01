@@ -538,6 +538,49 @@ export async function listMachineManuals() {
   return { manuals: (data || []).map((r) => ({ ...r, bucket: MANUALS_BUCKET })), tableMissing: false };
 }
 
+// --- UPLOAD CON AVANZAMENTO ------------------------------------------------
+// supabase-js non espone l'avanzamento dell'upload (usa fetch): qui si invia lo
+// stesso file con XMLHttpRequest verso l'endpoint Storage, così si può
+// riportare la percentuale. Stessa autenticazione e stesse policy RLS.
+async function uploadWithProgress(bucket, storagePath, file, { contentType, onProgress } = {}) {
+  const { data } = await supabase.auth.getSession();
+  const token = data?.session?.access_token || SUPABASE_ANON_KEY;
+  const encodedPath = storagePath.split('/').map(encodeURIComponent).join('/');
+  const url = `${SUPABASE_URL}/storage/v1/object/${bucket}/${encodedPath}`;
+  const form = new FormData();
+  form.append('cacheControl', '3600');
+  form.append('', contentType && file.type !== contentType ? new Blob([file], { type: contentType }) : file);
+
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', url);
+    xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+    xhr.setRequestHeader('apikey', SUPABASE_ANON_KEY);
+    xhr.setRequestHeader('x-upsert', 'false');
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable && onProgress) onProgress(Math.min(100, Math.round((e.loaded / e.total) * 100)));
+    };
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        onProgress?.(100);
+        resolve();
+        return;
+      }
+      let message = `Caricamento non riuscito (errore ${xhr.status}).`;
+      try {
+        const body = JSON.parse(xhr.responseText);
+        message = body.message || body.error || message;
+      } catch (err) {
+        /* risposta non JSON: resta il messaggio generico */
+      }
+      reject(new Error(message));
+    };
+    xhr.onerror = () => reject(new Error('Connessione assente o interrotta durante il caricamento.'));
+    xhr.onabort = () => reject(new Error('Caricamento annullato.'));
+    xhr.send(form);
+  });
+}
+
 /**
  * Carica (o sostituisce) il manuale PDF di una macchina per una specifica
  * linea (o generale, se `linea` è vuota/omessa): rimuove prima l'eventuale
@@ -547,8 +590,9 @@ export async function listMachineManuals() {
  * @param {string} machineId
  * @param {string} linea es. 'L1', 'L2', 'L1-L2', oppure '' per "generale"
  * @param {File} file
+ * @param {(percent:number)=>void} [onProgress] avanzamento dell'upload, da 0 a 100
  */
-export async function uploadMachineManual(machineId, linea, file) {
+export async function uploadMachineManual(machineId, linea, file, onProgress) {
   if (!file) throw new Error('Nessun file selezionato.');
   if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {
     throw new Error('Il manuale deve essere un file PDF.');
@@ -569,10 +613,12 @@ export async function uploadMachineManual(machineId, linea, file) {
 
   const safeName = file.name.replace(/[^\w.\-]+/g, '_');
   const storagePath = `${machineId}/${lineaValue || 'generale'}/${Date.now()}_${safeName}`;
-  const { error: uploadErr } = await supabase.storage.from(MANUALS_BUCKET).upload(storagePath, file, {
-    contentType: 'application/pdf',
-    upsert: false,
-  });
+  let uploadErr = null;
+  try {
+    await uploadWithProgress(MANUALS_BUCKET, storagePath, file, { contentType: 'application/pdf', onProgress });
+  } catch (err) {
+    uploadErr = err;
+  }
   if (uploadErr) {
     if (/row-level security|not allowed|permission/i.test(uploadErr.message || '')) {
       throw new Error('Solo un amministratore può caricare i manuali.');
@@ -653,17 +699,19 @@ export async function listOperatorManuals() {
 }
 
 /** Carica un nuovo manuale operatore per una macchina (si aggiunge agli altri, non li sostituisce). Solo admin. */
-export async function uploadOperatorManual(machineId, file) {
+export async function uploadOperatorManual(machineId, file, onProgress) {
   if (!file) throw new Error('Nessun file selezionato.');
   if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {
     throw new Error('Il manuale deve essere un file PDF.');
   }
   const safeName = file.name.replace(/[^\w.\-]+/g, '_');
   const storagePath = `${machineId}/${Date.now()}_${safeName}`;
-  const { error: uploadErr } = await supabase.storage.from(OPERATOR_MANUALS_BUCKET).upload(storagePath, file, {
-    contentType: 'application/pdf',
-    upsert: false,
-  });
+  let uploadErr = null;
+  try {
+    await uploadWithProgress(OPERATOR_MANUALS_BUCKET, storagePath, file, { contentType: 'application/pdf', onProgress });
+  } catch (err) {
+    uploadErr = err;
+  }
   if (uploadErr) {
     if (/row-level security|not allowed|permission/i.test(uploadErr.message || '')) {
       throw new Error('Solo un amministratore può caricare i manuali.');
@@ -730,11 +778,16 @@ export async function listManualSections() {
 }
 
 /** Carica l'icona di un pulsante nel bucket pubblico e restituisce il suo storage_path. Solo admin. */
-export async function uploadSectionIcon(file) {
+export async function uploadSectionIcon(file, onProgress) {
   if (!file) return null;
   const safeName = file.name.replace(/[^\w.\-]+/g, '_');
   const storagePath = `${Date.now()}_${safeName}`;
-  const { error } = await supabase.storage.from(SECTION_ICONS_BUCKET).upload(storagePath, file, { upsert: false });
+  let error = null;
+  try {
+    await uploadWithProgress(SECTION_ICONS_BUCKET, storagePath, file, { onProgress });
+  } catch (err) {
+    error = err;
+  }
   if (error) {
     if (/row-level security|not allowed|permission/i.test(error.message || '')) {
       throw new Error('Solo un amministratore può caricare le icone.');

@@ -1725,3 +1725,35 @@ input:disabled + .input-clear { display: none; }
 @media (prefers-reduced-motion: reduce) {
   .input-clear { transition-duration: 1ms; }
 }
+
+/* ---- Indicatore di avanzamento upload (manuali, icone, foto) ---- */
+.upload-progress {
+  position: fixed;
+  top: calc(env(safe-area-inset-top, 0px) + 12px);
+  left: 50%;
+  z-index: 120;
+  width: min(92vw, 380px);
+  padding: 10px 14px 12px;
+  border-radius: 14px;
+  background: #18212e;
+  color: #fff;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  opacity: 0;
+  transform: translate(-50%, -12px);
+  transition: opacity 220ms ease, transform 220ms var(--ease-out);
+  pointer-events: none;
+}
+.upload-progress-visible { opacity: 1; transform: translate(-50%, 0); }
+.upload-progress-row { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 8px; font-size: 13px; }
+.upload-progress-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.upload-progress-pct { flex: none; font-variant-numeric: tabular-nums; opacity: 0.85; }
+.upload-progress-track { height: 6px; border-radius: 999px; background: rgba(255, 255, 255, 0.16); overflow: hidden; }
+.upload-progress-bar {
+  height: 100%;
+  border-radius: 999px;
+  background: rgb(var(--accent-rgb));
+  transform: scaleX(0);
+  transform-origin: left center;
+  transition: transform 160ms linear;
+}
+.upload-progress-error .upload-progress-bar { background: #e5484d; }

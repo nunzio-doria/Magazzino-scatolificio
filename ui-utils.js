@@ -419,3 +419,51 @@ function patchLucide() {
   l._patched = true;
 }
 patchLucide();
+
+// --- INDICATORE DI AVANZAMENTO UPLOAD ------------------------------------------
+/**
+ * Mostra in alto una scheda con nome file, percentuale e barra di avanzamento.
+ * Uso: const up = startUploadProgress(file.name); await upload(..., up.update); up.done();
+ * (in caso di errore: up.fail()). A 100% mostra "Elaborazione…" finché non si chiama done().
+ */
+export function startUploadProgress(fileName) {
+  const el = document.createElement('div');
+  el.className = 'upload-progress';
+  el.setAttribute('role', 'status');
+  el.setAttribute('aria-live', 'polite');
+  el.innerHTML = '<div class="upload-progress-row"><span class="upload-progress-name"></span><span class="upload-progress-pct">0%</span></div><div class="upload-progress-track"><div class="upload-progress-bar"></div></div>';
+  el.querySelector('.upload-progress-name').textContent = fileName || 'File';
+  const pctEl = el.querySelector('.upload-progress-pct');
+  const bar = el.querySelector('.upload-progress-bar');
+  document.body.appendChild(el);
+  requestAnimationFrame(() => el.classList.add('upload-progress-visible'));
+
+  let closed = false;
+  const close = (delay) => {
+    if (closed) return;
+    closed = true;
+    setTimeout(() => {
+      el.classList.remove('upload-progress-visible');
+      setTimeout(() => el.remove(), 260);
+    }, delay);
+  };
+  return {
+    update(percent) {
+      if (closed) return;
+      const p = Math.max(0, Math.min(100, Math.round(percent)));
+      bar.style.transform = `scaleX(${p / 100})`;
+      pctEl.textContent = p >= 100 ? 'Elaborazione…' : `${p}%`;
+    },
+    done() {
+      if (closed) return;
+      bar.style.transform = 'scaleX(1)';
+      pctEl.textContent = '100%';
+      close(500);
+    },
+    fail() {
+      el.classList.add('upload-progress-error');
+      pctEl.textContent = 'Errore';
+      close(1400);
+    },
+  };
+}

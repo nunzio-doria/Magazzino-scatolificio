@@ -8,7 +8,7 @@
 import { listMachinesWithCounts, createMachine, deleteMachine, bumpProductsVersion, uploadMachineManual, deleteMachineManual, uploadOperatorManual, deleteOperatorManual } from './supabase.js';
 import { toastSuccess, toastError } from './toast.js';
 import { isAdmin } from './auth.js';
-import { staggerIndex, setButtonBusy, openOverlay, closeOverlay, enableSheetDrag } from './ui-utils.js';
+import { staggerIndex, setButtonBusy, openOverlay, closeOverlay, enableSheetDrag, startUploadProgress } from './ui-utils.js';
 import { confirmDialog } from './ui-modal.js';
 import { refreshManualsCache, getManualsForMachine, getOperatorManualsForMachine, openManualViewer } from './manuals.js';
 import feedback from './feedback.js';
@@ -286,14 +286,17 @@ function buildManualSlotRow(machine, slot, manual) {
 
 async function handleUploadManual(machine, slot, file, btn) {
   setButtonBusy(btn, true);
+  const up = startUploadProgress(file.name);
   try {
-    await uploadMachineManual(machine.id, slot.value, file);
+    await uploadMachineManual(machine.id, slot.value, file, up.update);
+    up.done();
     feedback.confirmAction();
     toastSuccess(`Manuale "${slot.label}" caricato per "${machine.nome}".`);
     await refreshMachines();
   } catch (err) {
     console.error(err);
     feedback.errorAction();
+    up.fail();
     toastError(err.message || 'Impossibile caricare il manuale.');
     setButtonBusy(btn, false);
   }
@@ -323,14 +326,17 @@ async function handleRemoveManual(machine, slot, manual, btn) {
 
 async function handleUploadOperatorManual(machine, file, btn) {
   setButtonBusy(btn, true);
+  const up = startUploadProgress(file.name);
   try {
-    await uploadOperatorManual(machine.id, file);
+    await uploadOperatorManual(machine.id, file, up.update);
+    up.done();
     feedback.confirmAction();
     toastSuccess(`Manuale operatore "${file.name}" caricato per "${machine.nome}".`);
     await refreshMachines();
   } catch (err) {
     console.error(err);
     feedback.errorAction();
+    up.fail();
     toastError(err.message || 'Impossibile caricare il manuale.');
     setButtonBusy(btn, false);
   }

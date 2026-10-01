@@ -12,7 +12,7 @@
 
 import { listMachinesWithCounts, createManualSection, updateManualSection, deleteManualSection, uploadSectionIcon, getSectionIconUrl, updateManualSectionsOrder } from './supabase.js';
 import { refreshManualsCache, getOperatorManualsForMachine, getSectionsForOperatorManual, getAnyManualForMachine, getManualsForMachine, openManualViewer } from './manuals.js';
-import { staggerIndex, setButtonBusy, openOverlay, closeOverlay, enableSheetDrag } from './ui-utils.js';
+import { staggerIndex, setButtonBusy, openOverlay, closeOverlay, enableSheetDrag, startUploadProgress } from './ui-utils.js';
 import { pushLayer, releaseLayer } from './nav-history.js';
 import { confirmDialog } from './ui-modal.js';
 import { toastError, toastSuccess, toastWarning } from './toast.js';
@@ -728,9 +728,13 @@ async function handleCreateSection(e) {
   }
 
   setButtonBusy(els.submitBtn, true);
+  const up = pendingIconFile ? startUploadProgress(pendingIconFile.name) : null;
   try {
     let newIconStoragePath;
-    if (pendingIconFile) newIconStoragePath = await uploadSectionIcon(pendingIconFile);
+    if (pendingIconFile) {
+      newIconStoragePath = await uploadSectionIcon(pendingIconFile, up.update);
+      up.done();
+    }
 
     if (editingSection) {
       await updateManualSection(editingSection.id, {
@@ -763,6 +767,7 @@ async function handleCreateSection(e) {
     renderList();
   } catch (err) {
     console.error(err);
+    up?.fail();
     feedback.errorAction();
     toastError(err.message || `Impossibile ${editingSection ? 'salvare le modifiche' : 'aggiungere il pulsante'}.`);
   } finally {
