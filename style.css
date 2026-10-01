@@ -1002,18 +1002,28 @@ button.category-tab-active:not(:disabled):active { background-color: transparent
 /* Scaffale aperto: il banner blu resta fermo sotto la testata dell'app finché si scorre
    l'elenco, così si può richiudere anche dalla parte più bassa. Sta sopra agli articoli
    (z-index) e ha un'ombra che lo stacca da ciò che gli scorre sotto. */
-.shelf-card.shelf-open .shelf-header {
+.shelf-card.shelf-open .shelf-header-sticky {
   position: sticky;
   top: var(--header-h, 56px);
   z-index: 5;
-  /* Angoli dritti: a riposo è la scheda (overflow: clip) ad arrotondare quelli in alto; quando il
-     banner resta fermo sotto l'header, l'elenco scorre dietro un rettangolo pieno e non può
-     spuntare negli angoli. Niente ombra: era lei a lasciare il "righino" chiaro sotto al banner. */
-  border-radius: 0;
-  border-color: var(--accent);
+  /* Il banner resta con gli angoli arrotondati sopra e sotto. Lo spazio dietro agli angoli è
+     riempito con il colore della pagina (4 quarti di cerchio): l'elenco, scorrendo, passa
+     dietro al banner e negli angoli non si vede, resta "tagliato". */
+  --shelf-r: 0.85rem;
+  background:
+    radial-gradient(circle at 100% 100%, transparent calc(var(--shelf-r) - 0.5px), var(--paper) var(--shelf-r)) top left / var(--shelf-r) var(--shelf-r) no-repeat,
+    radial-gradient(circle at 0 100%, transparent calc(var(--shelf-r) - 0.5px), var(--paper) var(--shelf-r)) top right / var(--shelf-r) var(--shelf-r) no-repeat,
+    radial-gradient(circle at 100% 0, transparent calc(var(--shelf-r) - 0.5px), var(--paper) var(--shelf-r)) bottom left / var(--shelf-r) var(--shelf-r) no-repeat,
+    radial-gradient(circle at 0 0, transparent calc(var(--shelf-r) - 0.5px), var(--paper) var(--shelf-r)) bottom right / var(--shelf-r) var(--shelf-r) no-repeat;
 }
-/* Un solo banner, una sola tinta: anche il filo grigio e il filo di luce della scheda diventano blu. */
-.shelf-card.shelf-open { border-color: var(--accent); box-shadow: 0 1px 2px rgba(13, 17, 23, 0.10), 0 8px 18px -8px rgba(13, 17, 23, 0.22); }
+.shelf-card.shelf-open .shelf-header { border-color: var(--accent); }
+/* Un solo banner, una sola tinta: niente filo chiaro attorno. Il bordo della scheda aperta è
+   trasparente e lo sfondo bianco si ferma al bordo interno (così non resta una cornice bianca). */
+.shelf-card.shelf-open {
+  border-color: transparent;
+  background-clip: padding-box;
+  box-shadow: 0 1px 2px rgba(13, 17, 23, 0.10), 0 8px 18px -8px rgba(13, 17, 23, 0.22);
+}
 /* 150% = raggio che raggiunge l'angolo opposto anche partendo dall'icona a sinistra */
 .shelf-card.shelf-active .shelf-header::before { clip-path: circle(150% at 34px 50%); }
 .shelf-title, .shelf-sub, .shelf-low, .shelf-ico, .shelf-ico-box, .shelf-chevron {

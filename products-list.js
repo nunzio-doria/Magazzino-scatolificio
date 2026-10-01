@@ -339,7 +339,7 @@ function renderGroupedCards({ wrapEl, openSet, groupKeyFn, titleField, subtitleF
     card.className = `list-item-in shelf-card card-plate rounded-xl${isOpen ? ' shelf-open shelf-active' : ''}`;
     card.style.setProperty('--i', staggerIndex(cardIndex));
     card.innerHTML = `
-      <div class="shelf-header flex items-center justify-between gap-3 px-4 py-3.5 border-2 border-graphite-700 rounded-xl">
+      <div class="shelf-header-sticky"><div class="shelf-header flex items-center justify-between gap-3 px-4 py-3.5 border-2 border-graphite-700 rounded-xl">
         <div class="flex items-center gap-3 min-w-0">
           <span class="shelf-ico-box shrink-0 w-9 h-9 rounded-lg bg-graphite-700/50 flex items-center justify-center">
             <i data-lucide="${iconName}" class="shelf-ico w-[18px] h-[18px] text-graphite-400" stroke-width="1.8"></i>
@@ -354,7 +354,7 @@ function renderGroupedCards({ wrapEl, openSet, groupKeyFn, titleField, subtitleF
           </div>
         </div>
         <i data-lucide="chevron-down" class="shelf-chevron w-5 h-5 text-graphite-400 shrink-0" stroke-width="2"></i>
-      </div>
+      </div></div>
       <div class="shelf-body-track">
         <div class="shelf-body-inner">${itemsHtml}</div>
       </div>
