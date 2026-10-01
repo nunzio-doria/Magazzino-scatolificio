@@ -6,7 +6,7 @@
 // Nessuna dipendenza dal visualizzatore PDF: solo dati.
 // =============================================================
 
-import { listMachineManuals, listOperatorManuals, listManualSections, normalizeMachineName } from './supabase.js';
+import { listMachineManuals, listOperatorManuals, listManualSections, listManualGroups, normalizeMachineName } from './supabase.js';
 
 let manualsByMachineId = new Map(); // machine_id -> Map<linea, riga machine_manuals> (linea '' = generale)
 let manualsByMachineName = new Map(); // nome macchina normalizzato (minuscolo) -> Map<linea, riga>
@@ -15,14 +15,16 @@ let operatorManualsByMachineId = new Map(); // machine_id -> Array<riga machine_
 let operatorManualsTableMissing = false;
 let sectionsByOperatorManualId = new Map(); // operator_manual_id -> Array<riga machine_manual_sections>, in ordine
 let sectionsTableMissing = false;
+let groupsByMachineId = new Map(); // machine_id -> Array<riga machine_manual_groups>, in ordine
 
 /** Ricarica dal database le mappe machine_id/nome → { linea → manuale } (ricambi) e machine_id → [manuali] (operatore). Va richiamata dopo ogni upload/eliminazione. */
 export async function refreshManualsCache() {
   try {
-    const [{ manuals, tableMissing }, { manuals: opManuals, tableMissing: opTableMissing }, { sections, tableMissing: sectionsMissing }] = await Promise.all([
+    const [{ manuals, tableMissing }, { manuals: opManuals, tableMissing: opTableMissing }, { sections, tableMissing: sectionsMissing }, { groups }] = await Promise.all([
       listMachineManuals(),
       listOperatorManuals(),
       listManualSections(),
+      listManualGroups(),
     ]);
     manualsByMachineId = new Map();
     manualsByMachineName = new Map();
@@ -51,6 +53,12 @@ export async function refreshManualsCache() {
       sectionsByOperatorManualId.get(row.operator_manual_id).push(row);
     });
     sectionsTableMissing = sectionsMissing;
+
+    groupsByMachineId = new Map();
+    groups.forEach((row) => {
+      if (!groupsByMachineId.has(row.machine_id)) groupsByMachineId.set(row.machine_id, []);
+      groupsByMachineId.get(row.machine_id).push(row);
+    });
   } catch (err) {
     console.warn('Impossibile caricare l\'elenco dei manuali.', err);
   }
@@ -105,6 +113,11 @@ export function isOperatorManualsTableMissing() {
 }
 
 /** Tutte le sezioni/pulsanti (in ordine) definiti per un manuale operatore. */
+/** Gruppi (macrogruppi di piastrelle) di una macchina, nell'ordine scelto dall'admin. */
+export function getGroupsForMachine(machineId) {
+  return groupsByMachineId.get(machineId) || [];
+}
+
 export function getSectionsForOperatorManual(operatorManualId) {
   return sectionsByOperatorManualId.get(operatorManualId) || [];
 }

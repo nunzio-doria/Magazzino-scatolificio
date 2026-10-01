@@ -27,6 +27,7 @@ import {
   getOperatorManualsForMachine,
   isOperatorManualsTableMissing,
   getSectionsForOperatorManual,
+  getGroupsForMachine,
   isSectionsTableMissing,
 } from './manuals-data.js';
 
@@ -40,6 +41,7 @@ export {
   getOperatorManualsForMachine,
   isOperatorManualsTableMissing,
   getSectionsForOperatorManual,
+  getGroupsForMachine,
   isSectionsTableMissing,
 };
 

@@ -767,7 +767,7 @@ function isMissingSectionsTable(error) {
 export async function listManualSections() {
   const { data, error } = await supabase
     .from('machine_manual_sections')
-    .select('id, machine_id, operator_manual_id, label, icon_storage_path, page_start, page_end, sort_order')
+    .select('id, machine_id, operator_manual_id, label, icon_storage_path, page_start, page_end, sort_order, group_id')
     .order('sort_order', { ascending: true })
     .order('created_at', { ascending: true });
   if (error) {
@@ -805,7 +805,7 @@ export function getSectionIconUrl(storagePath) {
 }
 
 /** Crea un nuovo pulsante/sezione per un manuale operatore. Solo admin. */
-export async function createManualSection({ machineId, operatorManualId, label, iconStoragePath, pageStart, pageEnd, sortOrder }) {
+export async function createManualSection({ machineId, operatorManualId, label, iconStoragePath, pageStart, pageEnd, sortOrder, groupId }) {
   const { data: userData } = await supabase.auth.getUser();
   const { data, error } = await supabase
     .from('machine_manual_sections')
@@ -817,6 +817,7 @@ export async function createManualSection({ machineId, operatorManualId, label, 
       page_start: pageStart,
       page_end: pageEnd,
       sort_order: sortOrder ?? 0,
+      group_id: groupId || null,
       created_by: userData?.user?.id || null,
     })
     .select()
@@ -858,7 +859,7 @@ export async function updateManualSectionsOrder(orderedIds) {
  * Se `newIconStoragePath` è presente (l'admin ha scelto una nuova icona), sostituisce anche
  * il file precedente (`previousIconStoragePath`), eliminandolo dallo storage.
  */
-export async function updateManualSection(sectionId, { operatorManualId, label, pageStart, pageEnd, newIconStoragePath, previousIconStoragePath }) {
+export async function updateManualSection(sectionId, { operatorManualId, label, pageStart, pageEnd, newIconStoragePath, previousIconStoragePath, groupId }) {
   const patch = {
     operator_manual_id: operatorManualId,
     label,
@@ -866,6 +867,7 @@ export async function updateManualSection(sectionId, { operatorManualId, label, 
     page_end: pageEnd,
   };
   if (newIconStoragePath !== undefined) patch.icon_storage_path = newIconStoragePath;
+  if (groupId !== undefined) patch.group_id = groupId || null; // undefined = invariato, null/'' = nessun gruppo
 
   const { data, error } = await supabase.from('machine_manual_sections').update(patch).eq('id', sectionId).select().single();
   if (error) {
@@ -876,6 +878,57 @@ export async function updateManualSection(sectionId, { operatorManualId, label, 
     await supabase.storage.from(SECTION_ICONS_BUCKET).remove([previousIconStoragePath]);
   }
   return data;
+}
+
+
+// --- GRUPPI DI PIASTRELLE (macrogruppi mostrati come tab nella vista Manuali) ---
+
+/** Elenco di tutti i gruppi di tutte le macchine, per la cache condivisa (manuals-data.js). Se la tabella manca, restituisce un elenco vuoto. */
+export async function listManualGroups() {
+  const { data, error } = await supabase
+    .from('machine_manual_groups')
+    .select('id, machine_id, name, sort_order')
+    .order('sort_order', { ascending: true })
+    .order('created_at', { ascending: true });
+  if (error) {
+    if (error.code === 'PGRST205' || error.code === '42P01') return { groups: [], tableMissing: true };
+    throw error;
+  }
+  return { groups: data || [], tableMissing: false };
+}
+
+/** Crea un gruppo per una macchina. Solo admin. */
+export async function createManualGroup({ machineId, name, sortOrder }) {
+  const { data: userData } = await supabase.auth.getUser();
+  const { data, error } = await supabase
+    .from('machine_manual_groups')
+    .insert({ machine_id: machineId, name, sort_order: sortOrder ?? 0, created_by: userData?.user?.id || null })
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+/** Rinomina un gruppo. Solo admin. */
+export async function updateManualGroup(groupId, { name }) {
+  const { data, error } = await supabase.from('machine_manual_groups').update({ name }).eq('id', groupId).select().single();
+  if (error) throw error;
+  return data;
+}
+
+/** Elimina un gruppo: le sue piastrelle non vengono toccate, restano senza gruppo (campo group_id azzerato dal database). Solo admin. */
+export async function deleteManualGroup(groupId) {
+  const { error } = await supabase.from('machine_manual_groups').delete().eq('id', groupId);
+  if (error) throw error;
+}
+
+/** Salva l'ordine dei gruppi di una macchina: sort_order 0,1,2... nell'ordine degli id ricevuti. Solo admin. */
+export async function updateManualGroupsOrder(orderedIds) {
+  const results = await Promise.all(
+    orderedIds.map((id, index) => supabase.from('machine_manual_groups').update({ sort_order: index }).eq('id', id))
+  );
+  const failed = results.find((r) => r.error);
+  if (failed) throw failed.error;
 }
 
 

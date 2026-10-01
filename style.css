@@ -497,20 +497,18 @@ input.peer:checked ~ span:first-of-type {
   padding: 18%;
   box-sizing: border-box;
 }
-/* Testo: mai fuori dal pulsante — va a capo anche dentro le parole lunghe,
-   al massimo 2 righe, poi taglia con i puntini. */
+/* Testo: sempre su UNA riga, mai spezzato né sillabato. Se è troppo lungo per il
+   pulsante, il carattere viene rimpicciolito via JS (fitTileLabels in manuals-browser.js);
+   solo oltre la dimensione minima si taglia con i puntini. */
 .manual-section-tile-label {
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
+  display: block;
   width: 100%;
   max-width: 100%;
   min-width: 0;
+  white-space: nowrap;
   overflow: hidden;
-  overflow-wrap: anywhere;
-  word-break: break-word;
-  hyphens: auto;
+  text-overflow: ellipsis;
+  hyphens: none;
   line-height: 1.15;
   flex-shrink: 0;
 }
@@ -1757,3 +1755,25 @@ input:disabled + .input-clear { display: none; }
   transition: transform 160ms linear;
 }
 .upload-progress-error .upload-progress-bar { background: #e5484d; }
+
+/* ---- Tab dei gruppi di piastrelle (Manuali): stesso controllo segmentato del Magazzino,
+   scorrevole in orizzontale quando i gruppi sono tanti. */
+.manuals-seg {
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+}
+.manuals-seg::-webkit-scrollbar { display: none; }
+.manuals-seg .category-tab { flex: 1 0 auto; white-space: nowrap; }
+.manuals-seg .group-tab-edit {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  margin-left: 6px;
+  margin-right: -4px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.14);
+}

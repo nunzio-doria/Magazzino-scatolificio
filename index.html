@@ -515,6 +515,7 @@
         </div>
         <p id="manuals-reorder-hint" class="hidden ui-note text-amber-400/90 text-center -mt-2 mb-3">Trascina per riordinare, tocca la matita per modificare, poi <i data-lucide="check" class="inline w-3.5 h-3.5 align-[-2px]" stroke-width="2.4"></i> per salvare</p>
 
+        <div id="manuals-groups-bar" class="hidden mb-3"></div>
         <div id="manuals-detail-grid" class="grid grid-cols-3 gap-3"></div>
         <p id="manuals-detail-empty" class="hidden text-sm text-graphite-500 text-center py-6">Nessuna sezione ancora disponibile per questa macchina.</p>
 
@@ -552,6 +553,11 @@
             <select id="manual-section-manual" required
               class="w-full rounded-lg bg-graphite-800 border border-graphite-700 px-3.5 py-2.5 text-sm focus:border-amber-400 outline-none transition-colors"></select>
           </div>
+          <div id="manual-section-group-wrap" class="hidden">
+            <label class="block text-xs font-display font-semibold uppercase tracking-wide text-graphite-400 mb-1.5">Gruppo</label>
+            <select id="manual-section-group"
+              class="w-full rounded-lg bg-graphite-800 border border-graphite-700 px-3.5 py-2.5 text-sm focus:border-amber-400 outline-none transition-colors"></select>
+          </div>
           <label class="flex items-center gap-2.5 py-1 cursor-pointer select-none">
             <input id="manual-section-whole" type="checkbox" class="w-[18px] h-[18px] rounded accent-amber-400 shrink-0">
             <span class="text-sm">Manuale intero (dall'inizio alla fine)</span>
@@ -583,6 +589,40 @@
           </button>
           <button id="manual-section-delete" type="button" class="hidden press-spring w-full rounded-lg border border-rose-700/40 text-rose-700 font-display font-bold uppercase tracking-wide py-3">
             Elimina pulsante
+          </button>
+        </form>
+      </div>
+    </div>
+
+    <!-- =================== MODALE "GRUPPO" (Admin, dentro Manuali → modalità modifica) =================== -->
+    <div id="manual-group-modal" class="modal-overlay hidden fixed inset-0 z-[92] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm px-0 sm:px-4">
+      <div class="modal-panel w-full sm:max-w-md bg-graphite-900 border border-graphite-700 rounded-t-2xl sm:rounded-2xl max-h-[85vh] flex flex-col">
+        <div data-sheet-drag class="sheet-grabber sm:hidden"><span class="sheet-grabber-pill"></span></div>
+        <div data-sheet-drag class="flex items-center justify-between px-5 pb-3 pt-1 sm:pt-3 border-b border-graphite-800 shrink-0">
+          <h3 id="manual-group-modal-title" class="font-display font-bold text-lg uppercase tracking-wide">Nuovo gruppo</h3>
+          <button id="manual-group-modal-close" aria-label="Chiudi" class="modal-close modal-close--on-light">
+            <i data-lucide="x" class="w-6 h-6" stroke-width="2.5"></i>
+          </button>
+        </div>
+        <form id="manual-group-form" class="flex-1 overflow-y-auto px-5 py-4 space-y-3.5">
+          <div>
+            <label class="block text-xs font-display font-semibold uppercase tracking-wide text-graphite-400 mb-1.5">Nome gruppo *</label>
+            <input id="manual-group-name" required type="text" maxlength="30" placeholder="es. Sicurezza"
+              class="w-full rounded-lg bg-graphite-800 border border-graphite-700 px-3.5 py-2.5 text-sm focus:border-amber-400 outline-none transition-colors">
+          </div>
+          <div id="manual-group-move-row" class="hidden grid grid-cols-2 gap-3">
+            <button id="manual-group-left" type="button" class="press-spring rounded-lg bg-graphite-800 border border-graphite-700 text-graphite-300 font-display font-semibold uppercase tracking-wide text-xs py-3 flex items-center justify-center gap-1.5 disabled:opacity-40">
+              <i data-lucide="chevron-left" class="w-4 h-4" stroke-width="2.4"></i> Sposta a sinistra
+            </button>
+            <button id="manual-group-right" type="button" class="press-spring rounded-lg bg-graphite-800 border border-graphite-700 text-graphite-300 font-display font-semibold uppercase tracking-wide text-xs py-3 flex items-center justify-center gap-1.5 disabled:opacity-40">
+              Sposta a destra <i data-lucide="chevron-right" class="w-4 h-4" stroke-width="2.4"></i>
+            </button>
+          </div>
+          <button id="manual-group-submit" type="submit" class="press-spring w-full rounded-lg bg-amber-400 hover:bg-amber-300 text-white font-display font-bold uppercase tracking-wide py-3 mt-1">
+            Aggiungi
+          </button>
+          <button id="manual-group-delete" type="button" class="hidden press-spring w-full rounded-lg border border-rose-700/40 text-rose-700 font-display font-bold uppercase tracking-wide py-3">
+            Elimina gruppo
           </button>
         </form>
       </div>

@@ -10,9 +10,9 @@
 //     L'Admin trova qui anche il pulsante "+" per aggiungerne di nuovi.
 // =============================================================
 
-import { listMachinesWithCounts, createManualSection, updateManualSection, deleteManualSection, uploadSectionIcon, getSectionIconUrl, updateManualSectionsOrder } from './supabase.js';
-import { refreshManualsCache, getOperatorManualsForMachine, getSectionsForOperatorManual, getAnyManualForMachine, getManualsForMachine, openManualViewer } from './manuals.js';
-import { staggerIndex, setButtonBusy, openOverlay, closeOverlay, enableSheetDrag, startUploadProgress } from './ui-utils.js';
+import { listMachinesWithCounts, createManualSection, updateManualSection, deleteManualSection, uploadSectionIcon, getSectionIconUrl, updateManualSectionsOrder, createManualGroup, updateManualGroup, deleteManualGroup, updateManualGroupsOrder } from './supabase.js';
+import { refreshManualsCache, getOperatorManualsForMachine, getSectionsForOperatorManual, getGroupsForMachine, getAnyManualForMachine, getManualsForMachine, openManualViewer } from './manuals.js';
+import { staggerIndex, setButtonBusy, openOverlay, closeOverlay, enableSheetDrag, startUploadProgress, syncSegIndicator } from './ui-utils.js';
 import { pushLayer, releaseLayer } from './nav-history.js';
 import { confirmDialog } from './ui-modal.js';
 import { toastError, toastSuccess, toastWarning } from './toast.js';
@@ -29,6 +29,11 @@ let reorderMode = false;
 let reorderSaving = false;
 let detailLayer = null; // voce di cronologia del dettaglio macchina (tasto indietro del telefono)
 let reorderLayer = null; // voce di cronologia della modalità modifica
+let editingGroup = null; // null = si sta creando un nuovo gruppo; altrimenti quello in modifica
+let lastRenderedIds = []; // id delle piastrelle mostrate nell'ultimo disegno (per capire se l'ordine è stato cambiato)
+const activeGroupByMachine = new Map(); // machine_id -> id del gruppo (tab) aperto, oppure NO_GROUP
+const NO_GROUP = 'none'; // tab "Altro": piastrelle senza gruppo
+const GROUP_TAB_STORAGE_KEY = 'magazzino-manuali-tab:';
 let listScrollY = 0; // posizione dell'elenco macchine prima di aprire un dettaglio
 let spareOutsideHandler = null; // chiude il pulsante Spare parts esteso al tocco fuori
 
@@ -111,12 +116,45 @@ export function initManualsBrowser() {
   els.iconPlaceholder = document.getElementById('manual-section-icon-placeholder');
   els.submitBtn = document.getElementById('manual-section-submit');
   els.deleteBtn = document.getElementById('manual-section-delete');
+  els.groupsBar = document.getElementById('manuals-groups-bar');
+  els.groupWrap = document.getElementById('manual-section-group-wrap');
+  els.groupSelect = document.getElementById('manual-section-group');
+  els.groupModal = document.getElementById('manual-group-modal');
+  els.groupModalTitle = document.getElementById('manual-group-modal-title');
+  els.groupModalClose = document.getElementById('manual-group-modal-close');
+  els.groupForm = document.getElementById('manual-group-form');
+  els.groupName = document.getElementById('manual-group-name');
+  els.groupMoveRow = document.getElementById('manual-group-move-row');
+  els.groupLeft = document.getElementById('manual-group-left');
+  els.groupRight = document.getElementById('manual-group-right');
+  els.groupSubmit = document.getElementById('manual-group-submit');
+  els.groupDelete = document.getElementById('manual-group-delete');
 
   if (!els.list) return; // markup non presente (non dovrebbe succedere)
 
   els.detailBack?.addEventListener('click', closeMachineDetail);
 
   els.reorderToggle?.addEventListener('click', toggleReorderMode);
+
+  els.groupsBar?.addEventListener('click', onGroupsBarClick);
+  els.groupModalClose?.addEventListener('click', () => closeOverlay(els.groupModal));
+  els.groupModal?.addEventListener('click', (e) => {
+    if (e.target === els.groupModal) closeOverlay(els.groupModal);
+  });
+  if (els.groupModal) enableSheetDrag(els.groupModal.querySelector('.modal-panel'), () => closeOverlay(els.groupModal));
+  els.groupForm?.addEventListener('submit', handleGroupSubmit);
+  els.groupDelete?.addEventListener('click', handleGroupDelete);
+  els.groupLeft?.addEventListener('click', () => moveGroup(-1));
+  els.groupRight?.addEventListener('click', () => moveGroup(1));
+
+  // Le larghezze reali cambiano con i font caricati e con rotazione/ridimensionamento
+  let fitRaf = 0;
+  const refit = () => {
+    cancelAnimationFrame(fitRaf);
+    fitRaf = requestAnimationFrame(fitTileLabels);
+  };
+  window.addEventListener('resize', refit);
+  document.fonts?.ready.then(refit);
 
   els.modalClose?.addEventListener('click', () => closeOverlay(els.modal));
   els.modal?.addEventListener('click', (e) => {
@@ -274,7 +312,7 @@ function closeMachineDetail({ immediate = false } = {}) {
   }
 }
 
-function renderDetailGrid() {
+function renderDetailGrid({ keepBar = false } = {}) {
   if (!currentMachine) return;
   const machine = currentMachine;
   const operatorManuals = getOperatorManualsForMachine(machine.id);
@@ -288,6 +326,14 @@ function renderDetailGrid() {
   // a parità di valore resta l'ordine di raggruppamento precedente.
   sections.sort((x, y) => (x.section.sort_order ?? 0) - (y.section.sort_order ?? 0));
 
+  // Gruppi (macrogruppi): se la macchina ne ha, si mostra un tab per gruppo e solo le
+  // piastrelle del tab aperto; senza gruppi tutto resta come prima.
+  const view = computeGroupView(machine, sections);
+  const allSections = sections;
+  const visibleSections = view.visible;
+  lastRenderedIds = visibleSections.map((x) => x.section.id);
+  buildGroupBar(view, keepBar);
+
   els.detailGrid.innerHTML = '';
   els.detailGrid.classList.toggle('reorder-mode', reorderMode);
   // innerHTML='' svuota i figli ma non le classi dell'elenco stesso: quelle di
@@ -296,7 +342,7 @@ function renderDetailGrid() {
   els.detailGrid.classList.toggle('opacity-60', reorderSaving);
   els.detailGrid.classList.toggle('pointer-events-none', reorderSaving);
 
-  sections.forEach(({ section, manual }, i) => {
+  visibleSections.forEach(({ section, manual }, i) => {
     const tile = document.createElement(reorderMode ? 'div' : 'button');
     if (!reorderMode) tile.type = 'button';
     tile.dataset.sectionId = section.id;
@@ -340,7 +386,7 @@ function renderDetailGrid() {
     addTile.type = 'button';
     addTile.setAttribute('aria-label', `Aggiungi pulsante per ${machine.nome}`);
     addTile.className = 'manual-section-tile list-item-in press-spring card-plate rounded-2xl flex flex-col items-center justify-center gap-2 p-2 border-2 border-dashed border-amber-400 text-amber-400 hover:text-amber-300 hover:border-amber-300 transition-colors';
-    addTile.style.setProperty('--i', staggerIndex(sections.length));
+    addTile.style.setProperty('--i', staggerIndex(visibleSections.length));
     addTile.innerHTML = `
       <i data-lucide="plus" class="w-7 h-7" stroke-width="1.8"></i>
       <span class="ui-label text-center font-display font-semibold uppercase tracking-wide">Aggiungi</span>
@@ -349,20 +395,279 @@ function renderDetailGrid() {
     els.detailGrid.appendChild(addTile);
   }
 
-  const isEmpty = sections.length === 0 && !isAdmin();
+  const isEmpty = visibleSections.length === 0 && !isAdmin();
   els.detailGrid.classList.toggle('hidden', isEmpty);
   els.detailEmpty?.classList.toggle('hidden', !isEmpty);
   if (els.detailSubtitle) {
     els.detailSubtitle.textContent =
-      sections.length === 0
+      allSections.length === 0
         ? isAdmin()
           ? 'Nessun pulsante ancora: tocca Aggiungi per crearne uno'
           : 'Nessun pulsante ancora disponibile'
-        : `${sections.length} pulsante${sections.length === 1 ? '' : 'i'} disponibil${sections.length === 1 ? 'e' : 'i'}`;
+        : `${allSections.length} pulsante${allSections.length === 1 ? '' : 'i'} disponibil${allSections.length === 1 ? 'e' : 'i'}`;
   }
 
-  updateReorderToggleVisibility(sections.length);
+  updateReorderToggleVisibility(allSections.length);
   window.lucide?.createIcons();
+  fitTileLabels();
+}
+
+// ------------------------------------------------------------ Gruppi di piastrelle --
+
+function getActiveGroupKey(machineId) {
+  if (activeGroupByMachine.has(machineId)) return activeGroupByMachine.get(machineId);
+  try {
+    return localStorage.getItem(GROUP_TAB_STORAGE_KEY + machineId) || null;
+  } catch (err) {
+    return null;
+  }
+}
+
+function setActiveGroupKey(machineId, key) {
+  activeGroupByMachine.set(machineId, key);
+  try {
+    localStorage.setItem(GROUP_TAB_STORAGE_KEY + machineId, key);
+  } catch (err) {
+    /* memoria locale non disponibile: il tab resta ricordato solo finché l'app è aperta */
+  }
+}
+
+/** Calcola i tab da mostrare e le piastrelle del tab aperto. Senza gruppi: nessun tab, tutte le piastrelle. */
+function computeGroupView(machine, all) {
+  const groups = getGroupsForMachine(machine.id);
+  if (!groups.length) return { tabs: [], activeKey: null, visible: all };
+  const ids = new Set(groups.map((g) => g.id));
+  const ungrouped = all.filter((x) => !x.section.group_id || !ids.has(x.section.group_id));
+  // Chi non è admin non vede i gruppi vuoti
+  const tabs = groups
+    .filter((g) => isAdmin() || all.some((x) => x.section.group_id === g.id))
+    .map((g) => ({ key: g.id, label: g.name, group: g }));
+  if (ungrouped.length) tabs.push({ key: NO_GROUP, label: 'Altro', group: null });
+  let key = getActiveGroupKey(machine.id);
+  if (!tabs.some((t) => t.key === key)) key = tabs[0]?.key ?? NO_GROUP;
+  activeGroupByMachine.set(machine.id, key);
+  const visible = key === NO_GROUP ? ungrouped : all.filter((x) => x.section.group_id === key);
+  return { tabs, activeKey: key, visible };
+}
+
+/** Disegna la barra dei tab (stesso controllo segmentato del Magazzino, scorrevole in orizzontale). */
+function buildGroupBar(view, keepBar) {
+  const bar = els.groupsBar;
+  if (!bar) return;
+  const edit = isAdmin() && reorderMode;
+  const show = view.tabs.length > 0 || edit;
+  bar.classList.toggle('hidden', !show);
+  if (!show) {
+    bar.innerHTML = '';
+    return;
+  }
+  if (keepBar && bar.querySelector('.seg')) {
+    // Cambio di tab: si aggiorna solo l'evidenziazione, così il rettangolo scorre
+    bar.querySelectorAll('[data-group-key]').forEach((btn) => btn.classList.toggle('category-tab-active', btn.dataset.groupKey === view.activeKey));
+    placeGroupIndicator(bar);
+    return;
+  }
+  const tabsHtml = view.tabs
+    .map((t) => {
+      const pencil =
+        edit && t.group
+          ? `<span class="group-tab-edit" data-group-edit="${escapeHtml(t.group.id)}" role="button" aria-label="Modifica gruppo ${escapeHtml(t.label)}"><i data-lucide="pencil" class="w-3 h-3" stroke-width="2.4"></i></span>`
+          : '';
+      return `<button type="button" role="tab" data-group-key="${escapeHtml(t.key)}" class="category-tab${t.key === view.activeKey ? ' category-tab-active' : ''} rounded-md min-h-[44px] px-3.5 py-1.5 flex items-center justify-center text-xs font-display font-semibold uppercase tracking-wide">${escapeHtml(t.label)}${pencil}</button>`;
+    })
+    .join('');
+  const addBtn = edit
+    ? '<button type="button" data-group-add="1" aria-label="Nuovo gruppo" class="press-spring shrink-0 w-11 rounded-lg border-2 border-dashed border-amber-400 text-amber-400 hover:text-amber-300 hover:border-amber-300 flex items-center justify-center"><i data-lucide="plus" class="w-5 h-5" stroke-width="2"></i></button>'
+    : '';
+  const main = view.tabs.length
+    ? `<div class="seg manuals-seg flex flex-1 min-w-0 rounded-lg border border-graphite-700 bg-graphite-800 p-0.5" role="tablist"><span class="seg-indicator" aria-hidden="true"></span>${tabsHtml}</div>`
+    : '<p class="flex-1 self-center ui-note text-graphite-500">Nessun gruppo: tocca + per crearne uno</p>';
+  bar.innerHTML = `<div class="flex items-stretch gap-2">${main}${addBtn}</div>`;
+  window.lucide?.createIcons();
+  placeGroupIndicator(bar);
+}
+
+function placeGroupIndicator(bar) {
+  const seg = bar.querySelector('.seg');
+  if (!seg) return;
+  syncSegIndicator(seg);
+  const active = seg.querySelector('.category-tab-active');
+  if (active) {
+    // porta il tab attivo al centro della barra, se questa scorre
+    seg.scrollTo({ left: Math.max(0, active.offsetLeft - (seg.clientWidth - active.offsetWidth) / 2), behavior: 'smooth' });
+  }
+}
+
+/**
+ * In modalità modifica, salva l'ordine delle piastrelle del tab aperto se è stato cambiato,
+ * prima di un'operazione che ridisegna la griglia (cambio tab, gruppi): altrimenti andrebbe perso.
+ * Restituisce false se il salvataggio fallisce (l'operazione va annullata).
+ */
+async function persistVisibleOrder() {
+  if (!reorderMode || !els.detailGrid) return true;
+  const ids = Array.from(els.detailGrid.querySelectorAll('.manual-section-tile[data-section-id]')).map((t) => t.dataset.sectionId);
+  if (ids.length < 2 || ids.join() === lastRenderedIds.join()) return true;
+  try {
+    await updateManualSectionsOrder(ids);
+    await refreshManualsCache();
+    return true;
+  } catch (err) {
+    console.error(err);
+    feedback.errorAction();
+    toastError(err.message || 'Impossibile salvare il nuovo ordine.');
+    return false;
+  }
+}
+
+async function onGroupsBarClick(e) {
+  if (!currentMachine || reorderSaving) return;
+  const editEl = e.target.closest('[data-group-edit]');
+  if (editEl) {
+    e.stopPropagation();
+    const group = getGroupsForMachine(currentMachine.id).find((g) => g.id === editEl.dataset.groupEdit);
+    if (group) openGroupModal(currentMachine, group);
+    return;
+  }
+  if (e.target.closest('[data-group-add]')) {
+    openGroupModal(currentMachine);
+    return;
+  }
+  const tab = e.target.closest('[data-group-key]');
+  if (!tab) return;
+  const key = tab.dataset.groupKey;
+  if (key === getActiveGroupKey(currentMachine.id)) return;
+  if (!(await persistVisibleOrder())) return;
+  setActiveGroupKey(currentMachine.id, key);
+  renderDetailGrid({ keepBar: true });
+}
+
+function openGroupModal(machine, group = null) {
+  editingGroup = group;
+  els.groupForm.reset();
+  if (group) {
+    const groups = getGroupsForMachine(machine.id);
+    const idx = groups.findIndex((g) => g.id === group.id);
+    els.groupModalTitle.textContent = 'Modifica gruppo';
+    els.groupSubmit.textContent = 'Salva modifiche';
+    els.groupName.value = group.name;
+    els.groupDelete.classList.remove('hidden');
+    els.groupMoveRow.classList.toggle('hidden', groups.length < 2);
+    els.groupLeft.disabled = idx <= 0;
+    els.groupRight.disabled = idx < 0 || idx >= groups.length - 1;
+  } else {
+    els.groupModalTitle.textContent = 'Nuovo gruppo';
+    els.groupSubmit.textContent = 'Aggiungi';
+    els.groupDelete.classList.add('hidden');
+    els.groupMoveRow.classList.add('hidden');
+  }
+  openOverlay(els.groupModal);
+}
+
+async function handleGroupSubmit(e) {
+  e.preventDefault();
+  if (!currentMachine) return;
+  const name = els.groupName.value.trim();
+  if (!name) return;
+  const groups = getGroupsForMachine(currentMachine.id);
+  if (groups.some((g) => g.id !== editingGroup?.id && g.name.trim().toLowerCase() === name.toLowerCase())) {
+    toastWarning('Esiste già un gruppo con questo nome.');
+    return;
+  }
+  setButtonBusy(els.groupSubmit, true);
+  try {
+    if (!(await persistVisibleOrder())) return;
+    if (editingGroup) {
+      await updateManualGroup(editingGroup.id, { name });
+      toastSuccess(`Gruppo "${name}" aggiornato.`);
+    } else {
+      const created = await createManualGroup({ machineId: currentMachine.id, name, sortOrder: groups.length });
+      setActiveGroupKey(currentMachine.id, created.id);
+      toastSuccess(`Gruppo "${name}" creato.`);
+    }
+    feedback.confirmAction();
+    closeOverlay(els.groupModal);
+    await refreshManualsCache();
+    renderDetailGrid();
+  } catch (err) {
+    console.error(err);
+    feedback.errorAction();
+    toastError(err.message || 'Impossibile salvare il gruppo.');
+  } finally {
+    setButtonBusy(els.groupSubmit, false);
+  }
+}
+
+async function handleGroupDelete() {
+  if (!editingGroup || !currentMachine) return;
+  const group = editingGroup;
+  const ok = await confirmDialog({
+    title: 'Eliminare il gruppo?',
+    message: `Il gruppo "${group.name}" verrà eliminato. Le sue piastrelle non vengono eliminate: passano nel gruppo "Altro".`,
+    confirmLabel: 'Elimina',
+    danger: true,
+  });
+  if (!ok) return;
+  setButtonBusy(els.groupDelete, true);
+  try {
+    if (!(await persistVisibleOrder())) return;
+    await deleteManualGroup(group.id);
+    if (getActiveGroupKey(currentMachine.id) === group.id) setActiveGroupKey(currentMachine.id, NO_GROUP);
+    feedback.deleteAction();
+    toastSuccess(`Gruppo "${group.name}" eliminato.`);
+    closeOverlay(els.groupModal);
+    await refreshManualsCache();
+    renderDetailGrid();
+  } catch (err) {
+    console.error(err);
+    feedback.errorAction();
+    toastError(err.message || 'Impossibile eliminare il gruppo.');
+  } finally {
+    setButtonBusy(els.groupDelete, false);
+  }
+}
+
+/** Sposta il gruppo in modifica di una posizione a sinistra (-1) o a destra (+1) nella barra dei tab. */
+async function moveGroup(direction) {
+  if (!editingGroup || !currentMachine) return;
+  const groups = [...getGroupsForMachine(currentMachine.id)];
+  const i = groups.findIndex((g) => g.id === editingGroup.id);
+  const j = i + direction;
+  if (i < 0 || j < 0 || j >= groups.length) return;
+  try {
+    if (!(await persistVisibleOrder())) return;
+    [groups[i], groups[j]] = [groups[j], groups[i]];
+    await updateManualGroupsOrder(groups.map((g) => g.id));
+    feedback.confirmAction();
+    closeOverlay(els.groupModal);
+    await refreshManualsCache();
+    renderDetailGrid();
+  } catch (err) {
+    console.error(err);
+    feedback.errorAction();
+    toastError(err.message || 'Impossibile spostare il gruppo.');
+  }
+}
+
+/**
+ * Le etichette delle piastrelle stanno su una sola riga: se una è più larga del
+ * pulsante, il carattere si rimpicciolisce quanto serve (fino a un minimo di leggibilità).
+ */
+const TILE_LABEL_MIN_PX = 7;
+function fitTileLabels() {
+  const labels = els.detailGrid?.querySelectorAll('.manual-section-tile-label');
+  if (!labels?.length) return;
+  labels.forEach((label) => {
+    label.style.fontSize = '';
+    const available = label.clientWidth;
+    if (!available || label.scrollWidth <= available) return; // già in una riga, oppure non ancora visibile
+    let size = parseFloat(getComputedStyle(label).fontSize);
+    size = Math.max(TILE_LABEL_MIN_PX, Math.floor(size * (available / label.scrollWidth) * 4) / 4);
+    label.style.fontSize = `${size}px`;
+    while (label.scrollWidth > label.clientWidth && size > TILE_LABEL_MIN_PX) {
+      size = Math.max(TILE_LABEL_MIN_PX, size - 0.25);
+      label.style.fontSize = `${size}px`;
+    }
+  });
 }
 
 // ---------------------------------------------------------------- Spare Parts --
@@ -689,6 +994,14 @@ function openSectionModal(machine, section = null) {
   els.submitBtn.disabled = !hasManuals;
   els.submitBtn.classList.toggle('opacity-50', !hasManuals);
 
+  // Scelta del gruppo: solo se la macchina ne ha. Nuova piastrella: parte dal tab aperto.
+  const groups = getGroupsForMachine(machine.id);
+  els.groupWrap.classList.toggle('hidden', groups.length === 0);
+  els.groupSelect.innerHTML =
+    '<option value="">Altro (nessun gruppo)</option>' + groups.map((g) => `<option value="${escapeHtml(g.id)}">${escapeHtml(g.name)}</option>`).join('');
+  const activeKey = getActiveGroupKey(machine.id);
+  els.groupSelect.value = section ? section.group_id || '' : groups.some((g) => g.id === activeKey) ? activeKey : '';
+
   if (section) {
     els.modalTitle.textContent = 'Modifica pulsante';
     els.submitBtn.textContent = 'Salva modifiche';
@@ -732,6 +1045,9 @@ async function handleCreateSection(e) {
     }
   }
 
+  const groupHidden = els.groupWrap.classList.contains('hidden');
+  const groupId = groupHidden ? undefined : els.groupSelect.value || null;
+
   setButtonBusy(els.submitBtn, true);
   const up = pendingIconFile ? startUploadProgress(pendingIconFile.name) : null;
   try {
@@ -749,6 +1065,7 @@ async function handleCreateSection(e) {
         pageEnd,
         newIconStoragePath,
         previousIconStoragePath: editingSection.icon_storage_path,
+        groupId,
       });
       feedback.confirmAction();
       toastSuccess(`Pulsante "${label}" aggiornato.`);
@@ -762,6 +1079,7 @@ async function handleCreateSection(e) {
         pageStart,
         pageEnd,
         sortOrder,
+        groupId,
       });
       feedback.confirmAction();
       toastSuccess(`Pulsante "${label}" aggiunto.`);
