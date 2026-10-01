@@ -497,18 +497,21 @@ input.peer:checked ~ span:first-of-type {
   padding: 18%;
   box-sizing: border-box;
 }
-/* Testo: sempre su UNA riga, mai spezzato né sillabato. Se è troppo lungo per il
-   pulsante, il carattere viene rimpicciolito via JS (fitTileLabels in manuals-browser.js);
-   solo oltre la dimensione minima si taglia con i puntini. */
+/* Testo: una parola sola resta su una riga; se ci sono più parole separate da spazio
+   si va a capo SOLO sugli spazi (una sopra e una sotto), mai in mezzo a una parola e
+   mai con i puntini. Se anche così non entra, il carattere si rimpicciolisce via JS
+   (fitTileLabels in manuals-browser.js). */
 .manual-section-tile-label {
   display: block;
   width: 100%;
   max-width: 100%;
   min-width: 0;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  white-space: normal;
+  overflow: visible;
+  overflow-wrap: normal;
+  word-break: normal;
   hyphens: none;
+  text-wrap: balance;
   line-height: 1.15;
   flex-shrink: 0;
 }

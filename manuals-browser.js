@@ -649,21 +649,23 @@ async function moveGroup(direction) {
 }
 
 /**
- * Le etichette delle piastrelle stanno su una sola riga: se una è più larga del
- * pulsante, il carattere si rimpicciolisce quanto serve (fino a un minimo di leggibilità).
+ * Etichette delle piastrelle: una parola sola sta su una riga; con più parole si va a capo
+ * solo sugli spazi, al massimo su due righe. Se la parola più lunga è più larga della
+ * piastrella, o servirebbero più di due righe, il carattere si rimpicciolisce quanto serve
+ * (fino a un minimo di leggibilità). Il testo non viene mai troncato.
  */
 const TILE_LABEL_MIN_PX = 7;
+const TILE_LABEL_MAX_LINES = 2;
 function fitTileLabels() {
   const labels = els.detailGrid?.querySelectorAll('.manual-section-tile-label');
   if (!labels?.length) return;
   labels.forEach((label) => {
     label.style.fontSize = '';
     const available = label.clientWidth;
-    if (!available || label.scrollWidth <= available) return; // già in una riga, oppure non ancora visibile
+    if (!available) return; // non ancora visibile: si riprova a resize / caricamento font
     let size = parseFloat(getComputedStyle(label).fontSize);
-    size = Math.max(TILE_LABEL_MIN_PX, Math.floor(size * (available / label.scrollWidth) * 4) / 4);
-    label.style.fontSize = `${size}px`;
-    while (label.scrollWidth > label.clientWidth && size > TILE_LABEL_MIN_PX) {
+    const fits = () => label.scrollWidth <= label.clientWidth + 0.5 && label.scrollHeight <= Math.ceil(size * 1.15 * TILE_LABEL_MAX_LINES) + 1;
+    while (!fits() && size > TILE_LABEL_MIN_PX) {
       size = Math.max(TILE_LABEL_MIN_PX, size - 0.25);
       label.style.fontSize = `${size}px`;
     }
