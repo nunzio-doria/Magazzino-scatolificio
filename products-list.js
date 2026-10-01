@@ -17,6 +17,38 @@ const openShelves = new Set(); // locazioni espanse, persiste tra i refresh (una
 // finisce l'ultima chiusura avviata; swapTimer = apertura in attesa (l'ultimo tocco vince).
 let closeEndsAt = 0;
 let swapTimer = null;
+let followRaf = 0;
+
+/**
+ * Porta la scheda appena aperta con il banner subito sotto l'header dell'app. La posizione finale
+ * dipende da ciò che sta sopra (il vecchio scaffale che si richiude) e dalla pagina che cresce
+ * mentre il cassetto si apre: invece di calcolarla una volta sola (e sbagliarla), la si
+ * ricalcola a ogni fotogramma finché le animazioni non sono concluse. Un tocco/rotella
+ * dell'utente interrompe subito l'inseguimento.
+ */
+function followCardToTop(card, delayMs) {
+  cancelAnimationFrame(followRaf);
+  const cs = getComputedStyle(document.documentElement);
+  const headerH = parseFloat(cs.getPropertyValue('--header-h')) || 56;
+  const slowMs = parseFloat(cs.getPropertyValue('--dur-slow')) || 340;
+  const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const endAt = performance.now() + delayMs + slowMs + 160;
+  let cancelled = false;
+  const stop = () => { cancelled = true; };
+  ['touchstart', 'wheel', 'keydown'].forEach((ev) =>
+    window.addEventListener(ev, stop, { once: true, passive: true }));
+
+  const step = () => {
+    if (cancelled || !card.isConnected) return;
+    const target = Math.max(0, Math.round(card.getBoundingClientRect().top + window.scrollY - headerH - 8));
+    const diff = target - window.scrollY;
+    if (Math.abs(diff) > 0.5) {
+      window.scrollTo(0, reduced ? target : window.scrollY + diff * 0.22);
+    }
+    if (performance.now() < endAt || Math.abs(diff) > 1) followRaf = requestAnimationFrame(step);
+  };
+  followRaf = requestAnimationFrame(step);
+}
 const openMachines = new Set(); // macchine espanse, persiste tra i refresh
 let viewMode = 'shelf'; // 'shelf' | 'machine' — la vista a elenco non esiste più
 const VIEW_MODE_ORDER = ['shelf', 'machine']; // determina la direzione della transizione
@@ -360,6 +392,7 @@ function renderGroupedCards({ wrapEl, openSet, groupKeyFn, titleField, subtitleF
       // quando quello vecchio ha finito di richiudersi.
       card.classList.add('shelf-active');
       const wait = Math.max(0, closeEndsAt - performance.now());
+      followCardToTop(card, wait);
       if (wait === 0) {
         card.classList.add('shelf-open');
       } else {

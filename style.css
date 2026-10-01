@@ -1006,8 +1006,14 @@ button.category-tab-active:not(:disabled):active { background-color: transparent
   position: sticky;
   top: var(--header-h, 56px);
   z-index: 5;
-  box-shadow: 0 6px 12px -6px rgba(13, 17, 23, 0.35);
+  /* Angoli dritti: a riposo è la scheda (overflow: clip) ad arrotondare quelli in alto; quando il
+     banner resta fermo sotto l'header, l'elenco scorre dietro un rettangolo pieno e non può
+     spuntare negli angoli. Niente ombra: era lei a lasciare il "righino" chiaro sotto al banner. */
+  border-radius: 0;
+  border-color: var(--accent);
 }
+/* Un solo banner, una sola tinta: anche il filo grigio e il filo di luce della scheda diventano blu. */
+.shelf-card.shelf-open { border-color: var(--accent); box-shadow: 0 1px 2px rgba(13, 17, 23, 0.10), 0 8px 18px -8px rgba(13, 17, 23, 0.22); }
 /* 150% = raggio che raggiunge l'angolo opposto anche partendo dall'icona a sinistra */
 .shelf-card.shelf-active .shelf-header::before { clip-path: circle(150% at 34px 50%); }
 .shelf-title, .shelf-sub, .shelf-low, .shelf-ico, .shelf-ico-box, .shelf-chevron {
