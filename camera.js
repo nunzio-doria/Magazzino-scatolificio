@@ -5,6 +5,7 @@
 // =============================================================
 
 import { toastError, toastInfo } from './toast.js';
+import { loadLib } from './ui-utils.js';
 import feedback from './feedback.js';
 
 let html5Qrcode = null;
@@ -33,6 +34,8 @@ export async function startCamera(containerId, onDetected, ui = {}) {
   const isStale = () => myToken !== startToken;
   let instance = null;
   try {
+    await loadLib('qr'); // libreria scanner: caricata solo al primo avvio fotocamera
+    if (isStale()) return null;
     // eslint-disable-next-line no-undef
     instance = new Html5Qrcode(containerId);
     html5Qrcode = instance;

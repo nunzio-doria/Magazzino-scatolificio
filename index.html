@@ -41,15 +41,13 @@
      apposta: un hash sbagliato o goffo bloccherebbe silenziosamente lo
      script in produzione (peggio che non averlo), e va generato/verificato
      con accesso diretto al file servito (v. README per il comando). -->
-<script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js"></script>
-<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-<script src="https://unpkg.com/lucide@1.11.0"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
+<!-- jsPDF, SheetJS (Excel), html5-qrcode e pdf.js NON sono più qui: si caricano solo al primo uso
+     (v. loadLib in ui-utils.js) per non bloccare né rallentare l'avvio dell'app. -->
+<script defer src="https://unpkg.com/lucide@1.11.0"></script>
 <!-- pdf.js: apertura interna dei manuali ricambi PDF (canvas + ricerca testo).
      Caricata qui staticamente come le altre librerie; il worker viene puntato
      alla stessa versione da manuals.js dopo il caricamento. -->
-<script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
 
 <link rel="stylesheet" href="./style.css">
 </head>

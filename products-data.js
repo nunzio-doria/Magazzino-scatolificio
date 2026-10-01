@@ -7,7 +7,7 @@
 import { listProducts, createProduct, updateProduct, deleteProduct, bulkUpsertProducts, getProductsVersion, getProductLocations } from './supabase.js';
 import { toastSuccess, toastError, toastWarning } from './toast.js';
 import feedback from './feedback.js';
-import { replayAnimation, openOverlay, closeOverlay } from './ui-utils.js';
+import { replayAnimation, openOverlay, closeOverlay, loadLib } from './ui-utils.js';
 import { els, state, CATEGORY_LABELS } from './products-shared.js';
 import { renderCurrentList, setListStatic } from './products-list.js';
 
@@ -303,6 +303,7 @@ async function handleImportFileChange(e) {
 
   showImportResult(`Lettura di "${file.name}"…`, 'info');
   try {
+    await loadLib('xlsx');
     const buffer = await file.arrayBuffer();
     // eslint-disable-next-line no-undef
     const workbook = XLSX.read(buffer, { type: 'array' });

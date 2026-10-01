@@ -5,7 +5,7 @@
 import { getConsumptionStats, listTransactions, getProductsVersion } from './supabase.js';
 import { toastError, toastSuccess, toastWarning } from './toast.js';
 import { enhanceSelect } from './ui-select.js';
-import { animateNumber, animateRing, emptyStateHtml, openOverlay, closeOverlay, enableSheetDrag, staggerIndex, animatePanelHeight } from './ui-utils.js';
+import { loadLib, animateNumber, animateRing, emptyStateHtml, openOverlay, closeOverlay, enableSheetDrag, staggerIndex, animatePanelHeight } from './ui-utils.js';
 import feedback from './feedback.js';
 import { refreshLifespan, resetLifespan } from './lifespan.js';
 
@@ -302,12 +302,13 @@ function escapeHtml(str) {
 }
 
 /** Esporta lo storico e i consumi per articolo del periodo corrente in un file Excel */
-function exportReport() {
+async function exportReport() {
   if (!lastHistory.length && !lastStats.length) {
     toastError('Nessun dato da esportare per il periodo selezionato.');
     return;
   }
   try {
+    await loadLib('xlsx');
     // eslint-disable-next-line no-undef
     const wb = XLSX.utils.book_new();
 

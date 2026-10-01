@@ -392,11 +392,12 @@ export function animateFluidSwap(fromSection, toSection, forward, onSettled, { f
   // vecchia fino alla fine e poi "saltare" di colpo alla nuova: è uno degli
   // scatti più percepibili quando due viste hanno lunghezze molto diverse
   // (es. dal Magazzino, con tanti articoli, allo Scanner, molto più corto).
+  // Niente transizione sull'altezza (costringerebbe a ricalcolare il layout a ogni
+  // fotogramma): l'altezza si allinea in un colpo solo quando la vista vecchia è già sparita.
   const toHeight = toSection.offsetHeight;
-  host.style.transition = 'min-height 320ms cubic-bezier(0.22, 1, 0.36, 1)';
-  requestAnimationFrame(() => {
-    host.style.minHeight = `${toHeight}px`;
-  });
+  setTimeout(() => {
+    if (!done) host.style.minHeight = `${toHeight}px`;
+  }, 150);
 
   let done = false;
   const onEnterEnd = (e) => {
@@ -437,7 +438,7 @@ export function animateFluidSwap(fromSection, toSection, forward, onSettled, { f
   // lista, badge, stati vuoti...) risalgono fino a qui e finiscono prima,
   // chiudendo la transizione in anticipo.
   toSection.addEventListener('animationend', onEnterEnd);
-  setTimeout(cleanup, 720); // rete di sicurezza se l'evento non scattasse
+  setTimeout(cleanup, 480); // rete di sicurezza se l'evento non scattasse
 }
 
 /**

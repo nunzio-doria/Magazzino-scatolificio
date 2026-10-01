@@ -210,12 +210,12 @@ input, textarea {
 
 /* ---- Bottom nav: effetto glass -------------------------------------
    Sfondo satinato/traslucido con blur elevato, bordo superiore sottile
-   semi-trasparente e un riflesso di luce che scorre lentamente sulla
-   superficie in loop, come vetro smerigliato illuminato di lato. */
+   semi-trasparente. Nessuna animazione in loop: un elemento con backdrop-filter
+   che si anima obbliga a ricalcolare la sfocatura a ogni fotogramma. */
 .nav-glass {
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.66), rgba(238, 240, 243, 0.45));
-  backdrop-filter: blur(22px) saturate(160%);
-  -webkit-backdrop-filter: blur(22px) saturate(160%);
+  backdrop-filter: blur(14px) saturate(160%);
+  -webkit-backdrop-filter: blur(14px) saturate(160%);
   border-top: 1px solid rgba(255, 255, 255, 0.6);
   box-shadow: 0 -8px 30px -10px rgba(13, 17, 23, 0.16);
   overflow: hidden;
@@ -231,27 +231,6 @@ input, textarea {
    altro nell'app. */
 body.manuals-detail-active .nav-glass {
   box-shadow: 0 -2px 10px -6px rgba(13, 17, 23, 0.1);
-}
-.nav-glass::before {
-  /* riflesso di luce dinamico: una banda chiara che attraversa la nav in loop */
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 45%;
-  height: 100%;
-  background: linear-gradient(115deg, transparent, rgba(255, 255, 255, 0.65) 45%, transparent 90%);
-  transform: translateX(-122%) skewX(-20deg);
-  animation: nav-sheen 7s ease-in-out infinite;
-  pointer-events: none;
-  will-change: transform;
-}
-/* Il riflesso si muove con transform (compositor), non con `left`: animare `left`
-   costringe il browser a ricalcolare il layout a ogni fotogramma. */
-@keyframes nav-sheen {
-  0%   { transform: translateX(-122%) skewX(-20deg); }
-  40%  { transform: translateX(255%) skewX(-20deg); }
-  100% { transform: translateX(255%) skewX(-20deg); }
 }
 /* ---- Bottom nav ----------------------------------------------- */
 .nav-item {
@@ -309,7 +288,6 @@ button.nav-item:not(:disabled):active { transform: none; }
 .nav-item.nav-tapped .nav-icon-wrap svg { animation: nav-tap-soft var(--dur-base) var(--ease-out); }
 
 @media (prefers-reduced-motion: reduce) {
-  .nav-glass::before { animation: none; }
   .nav-item.nav-tapped .nav-icon-wrap svg { animation: none; }
 }
 
@@ -793,15 +771,15 @@ button.lowstock-header:not(:disabled):active { transform: none; background: tran
   100% { opacity: 1; transform: scale(1) translateX(0); }
 }
 
-.view-fluid-exit-left   { animation: fluid-exit-left 260ms var(--ease-in) forwards; }
-.view-fluid-exit-right  { animation: fluid-exit-right 260ms var(--ease-in) forwards; }
+.view-fluid-exit-left   { animation: fluid-exit-left 150ms var(--ease-in) forwards; }
+.view-fluid-exit-right  { animation: fluid-exit-right 150ms var(--ease-in) forwards; }
 /* L'ingresso parte con un piccolo ritardo rispetto all'uscita (invece di
    sovrapporsi quasi del tutto): si vedono due fasi distinte — prima la
    vista vecchia se ne va, poi la nuova arriva — pur restando fluide.
    "both" mantiene lo stato iniziale (invisibile/rimpicciolita) durante il
    ritardo, cosí non si intravede la vista entrante prima del previsto. */
-.view-fluid-enter-right { animation: fluid-enter-from-right 520ms var(--ease-spring) 160ms both; }
-.view-fluid-enter-left  { animation: fluid-enter-from-left 520ms var(--ease-spring) 160ms both; }
+.view-fluid-enter-right { animation: fluid-enter-from-right 280ms var(--ease-out) 50ms both; }
+.view-fluid-enter-left  { animation: fluid-enter-from-left 280ms var(--ease-out) 50ms both; }
 
 /* Variante "flat" (Scaffalatura ↔ Macchina): stesso scivolamento, nessuna scala. */
 @keyframes fluid-flat-exit-left  { from { opacity: 1; transform: translateX(0); } to { opacity: 0; transform: translateX(-6%); } }
@@ -1205,6 +1183,13 @@ button.shelf-item:not(:disabled):active {
    Overlay = .modal-overlay, pannello = .modal-panel, stato aperto = .modal-visible.
    Mobile: cassetto che scorre dal basso. Desktop: pannello centrato che sale
    leggermente con un piccolo scale, stessa durata e stessa curva. ---- */
+/* Nessuna sfocatura dello sfondo sotto le modali: costa a ogni fotogramma su schermo intero */
+.modal-overlay.modal-overlay {
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}
+/* senza sfocatura lo sfondo scurisce un po' di più, per mantenere la separazione */
+.modal-overlay.bg-black\/60 { background-color: rgba(0, 0, 0, 0.68) !important; }
 .modal-overlay {
   transition: opacity var(--dur-base) ease;
   opacity: 0;
@@ -1428,14 +1413,17 @@ html { touch-action: manipulation; } /* niente ritardo/zoom col doppio tocco; pi
 
 /* ---- Barra consumi (dashboard) ----------------------------------- */
 .bar-grow {
-  width: 0;
-  animation: bar-grow 700ms var(--ease-out) forwards;
+  /* larghezza finale fissa, animata con transform (compositor) e non con width (layout) */
+  width: var(--target-width);
+  transform: scaleX(0);
+  transform-origin: left center;
+  animation: bar-grow 600ms var(--ease-out) forwards;
   animation-delay: calc(var(--i, 0) * 40ms);
 }
 /* Aggiornamento silenzioso del Report: le barre del consumo compaiono già alla larghezza finale */
-.list-static .bar-grow { animation: none; width: var(--target-width); }
+.list-static .bar-grow { animation: none; transform: none; }
 @keyframes bar-grow {
-  to { width: var(--target-width); }
+  to { transform: scaleX(1); }
 }
 
 /* ---- Pulsazione pulsante scan attivo ------------------------------- */

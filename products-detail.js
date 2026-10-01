@@ -15,7 +15,7 @@ import { loadIdlePanel } from './scanner.js';
 import { confirmDialog } from './ui-modal.js';
 import { enhanceSelect } from './ui-select.js';
 import feedback from './feedback.js';
-import { openOverlay, closeOverlay, enableSheetDrag, replayAnimation, setButtonBusy } from './ui-utils.js';
+import { openOverlay, closeOverlay, enableSheetDrag, replayAnimation, setButtonBusy, loadLib } from './ui-utils.js';
 import { els, state, CATEGORY_LABELS, LINEA_OPTIONS, escapeHtml } from './products-shared.js';
 import { refresh, pushHistory } from './products-data.js';
 
@@ -699,11 +699,19 @@ function printCurrentLabel() {
 }
 
 /** Stessa etichetta, per un barcode qualsiasi (usata sia dal modale di modifica sia dalla scheda articolo) */
-function printLabelFor(barcode) {
+async function printLabelFor(barcode) {
   barcode = (barcode || '').trim();
   if (!barcode) {
     feedback.errorAction();
     toastError('Inserisci o genera un codice a barre prima di stampare.');
+    return;
+  }
+
+  try {
+    await loadLib('jspdf'); // libreria PDF: caricata solo alla prima stampa
+  } catch (err) {
+    feedback.errorAction();
+    toastError(err.message || 'Impossibile caricare la libreria PDF.');
     return;
   }
 

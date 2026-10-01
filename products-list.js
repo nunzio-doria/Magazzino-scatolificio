@@ -25,15 +25,29 @@ let followRaf = 0;
  * arrotondati né sopra al banner. A riposo (banner non fermo) il taglio è nullo.
  */
 let clipRaf = 0;
+let clipApplied = false; // true se almeno un taglio è attivo: serve a ripulire quando si richiude
 function updateShelfClip() {
   clipRaf = 0;
-  document.querySelectorAll('.shelf-card:not(.shelf-open) .shelf-body-inner').forEach((el) => { el.style.clipPath = ''; });
-  document.querySelectorAll('.shelf-card.shelf-open').forEach((card) => {
+  const open = document.querySelectorAll('.shelf-card.shelf-open');
+  if (!open.length && !clipApplied) return; // nessuno scaffale aperto: niente da fare ad ogni scroll
+  if (clipApplied) {
+    document.querySelectorAll('.shelf-card:not(.shelf-open) .shelf-body-inner').forEach((el) => {
+      if (el.style.clipPath) el.style.clipPath = '';
+    });
+  }
+  // prima tutte le letture, poi le scritture: evita ricalcoli di layout ripetuti
+  const updates = [];
+  open.forEach((card) => {
     const bar = card.querySelector('.shelf-header-sticky');
     const inner = card.querySelector('.shelf-body-inner');
     if (!bar || !inner) return;
     const cut = bar.getBoundingClientRect().bottom - inner.getBoundingClientRect().top;
-    inner.style.clipPath = cut > 0.5 ? `inset(${cut.toFixed(1)}px 0 0 0)` : '';
+    updates.push([inner, cut > 0.5 ? `inset(${cut.toFixed(1)}px 0 0 0)` : '']);
+  });
+  clipApplied = false;
+  updates.forEach(([inner, value]) => {
+    if (inner.style.clipPath !== value) inner.style.clipPath = value;
+    if (value) clipApplied = true;
   });
 }
 function scheduleShelfClip() {

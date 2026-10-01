@@ -365,3 +365,57 @@ export function animatePanelHeight(panel, update, animClass = 'panel-h-anim') {
   };
   panel._heightTimer = setTimeout(done, modalCloseMs() + 60);
 }
+
+// --- CARICAMENTO A RICHIESTA DELLE LIBRERIE PESANTI ---------------------------
+// jsPDF, SheetJS (Excel) e html5-qrcode (scanner) servono solo in azioni precise:
+// non vengono più caricate all'avvio ma al primo utilizzo. Dopo l'avvio, a thread
+// libero, se ne scarica (senza eseguirla) una copia in rete/cache, così il primo
+// uso è rapido e funziona anche offline.
+const LIBS = {
+  jspdf: { url: 'https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js', ready: () => window.jspdf },
+  xlsx: { url: 'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js', ready: () => window.XLSX },
+  qr: { url: 'https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js', ready: () => window.Html5Qrcode },
+};
+const libPromises = {};
+
+export function loadLib(name) {
+  const lib = LIBS[name];
+  if (!lib) return Promise.reject(new Error(`Libreria sconosciuta: ${name}`));
+  if (lib.ready()) return Promise.resolve();
+  if (libPromises[name]) return libPromises[name];
+  libPromises[name] = new Promise((resolve, reject) => {
+    const script = document.createElement('script');
+    script.src = lib.url;
+    script.onload = () => (lib.ready() ? resolve() : reject(new Error(`Libreria ${name} non disponibile dopo il caricamento.`)));
+    script.onerror = () => {
+      delete libPromises[name]; // permette un nuovo tentativo
+      reject(new Error(`Impossibile caricare la libreria ${name}. Controlla la connessione.`));
+    };
+    document.head.appendChild(script);
+  });
+  return libPromises[name];
+}
+
+function prefetchLibs() {
+  Object.values(LIBS).forEach((lib) => {
+    fetch(lib.url, { mode: 'no-cors' }).catch(() => {});
+  });
+}
+const idle = window.requestIdleCallback || ((cb) => setTimeout(cb, 4000));
+window.addEventListener('load', () => idle(prefetchLibs, { timeout: 8000 }));
+
+// --- ICONE LUCIDE: niente scansione inutile -------------------------------------
+// createIcons() rianalizza tutta la pagina a ogni chiamata (ce ne sono decine nel
+// codice). Qui la si rende un no-op quando non c'è nessun segnaposto ancora da
+// trasformare, senza toccare i punti di chiamata.
+function patchLucide() {
+  const l = window.lucide;
+  if (!l || l._patched) return;
+  const original = l.createIcons;
+  l.createIcons = function (...args) {
+    if (!document.querySelector(':not(svg)[data-lucide]')) return;
+    return original.apply(this, args);
+  };
+  l._patched = true;
+}
+patchLucide();
