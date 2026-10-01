@@ -9,6 +9,8 @@
 const ITEMS = [
   { src: './carousel/reparto.png', alt: 'Reparto' },
   { src: './carousel/forno.png', alt: 'Forno' },
+  { src: './carousel/uniformer.jpg', alt: 'Uniformer' },
+  { src: './carousel/saldatrice.jpg', alt: 'Saldatrice' },
 ];
 
 const TILE_W = 168;       // larghezza scheda (px) — deve coincidere con style.css
