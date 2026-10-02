@@ -508,7 +508,12 @@
           <i data-lucide="chevron-left" class="w-4 h-4" stroke-width="2.4"></i>
           Manuali
         </button>
-        <div class="card-plate rounded-2xl p-4 mb-4 flex items-center gap-3">
+        <div class="card-plate rounded-2xl p-4 mb-4 overflow-hidden">
+        <!-- Immagine della macchina a tutta larghezza (solo se l'admin ne ha caricata una) -->
+        <div id="manuals-detail-banner" class="hidden -mx-4 -mt-4 mb-3 h-44 bg-graphite-700/40 flex items-center justify-center">
+          <img id="manuals-detail-banner-img" alt="" decoding="async" class="w-full h-full object-contain p-2">
+        </div>
+        <div class="flex items-center gap-3">
           <span id="manuals-detail-icon-wrap" class="shrink-0 w-11 h-11 rounded-xl bg-amber-400/10 border border-amber-500/30 flex items-center justify-center overflow-hidden">
             <i data-lucide="cog" class="w-5 h-5 text-amber-300" stroke-width="1.8"></i>
           </span>
@@ -520,6 +525,7 @@
             class="hidden press-spring shrink-0 w-11 h-11 rounded-lg bg-graphite-800 border border-graphite-700 text-graphite-400 hover:text-amber-400 hover:border-amber-400 flex items-center justify-center transition-colors">
             <i data-lucide="move" class="w-[18px] h-[18px]" stroke-width="1.8"></i>
           </button>
+        </div>
         </div>
         <p id="manuals-reorder-hint" class="hidden ui-note text-amber-400/90 text-center -mt-2 mb-3">Trascina per riordinare, tocca la matita per modificare, poi <i data-lucide="check" class="inline w-3.5 h-3.5 align-[-2px]" stroke-width="2.4"></i> per salvare</p>
 
@@ -616,7 +622,7 @@
           <div>
             <label class="block text-xs font-display font-semibold uppercase tracking-wide text-graphite-400 mb-1.5">Icona</label>
             <div class="flex items-center gap-3">
-              <span class="shrink-0 w-14 h-14 rounded-xl bg-graphite-800 border border-graphite-700 flex items-center justify-center overflow-hidden">
+              <span class="shrink-0 w-28 h-20 rounded-xl bg-graphite-800 border border-graphite-700 flex items-center justify-center overflow-hidden">
                 <img id="manual-machine-icon-preview" class="hidden w-full h-full object-contain" alt="">
                 <i id="manual-machine-icon-placeholder" data-lucide="cog" class="w-5 h-5 text-graphite-500"></i>
               </span>

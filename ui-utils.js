@@ -467,3 +467,73 @@ export function startUploadProgress(fileName) {
     },
   };
 }
+
+// --- RITAGLIO AUTOMATICO DEI MARGINI DELLE IMMAGINI -------------------------------
+/**
+ * Toglie il bianco/trasparente attorno al soggetto (lasciando un piccolo respiro) e
+ * limita il lato maggiore a maxSide, così un disegno di macchina riempie il riquadro
+ * invece di restare piccolo in mezzo a tanto vuoto. Restituisce un nuovo File PNG;
+ * se l'immagine non è leggibile (es. SVG senza dimensioni, HEIC) o non c'è nulla da
+ * ritagliare, restituisce il file originale.
+ */
+export async function trimImageMargins(file, { maxSide = 1200, padding = 0.04 } = {}) {
+  let url = null;
+  try {
+    url = URL.createObjectURL(file);
+    const img = new Image();
+    img.decoding = 'async';
+    img.src = url;
+    await img.decode();
+    const w0 = img.naturalWidth;
+    const h0 = img.naturalHeight;
+    if (!w0 || !h0) return file;
+
+    const scale = Math.min(1, maxSide / Math.max(w0, h0));
+    const w = Math.max(1, Math.round(w0 * scale));
+    const h = Math.max(1, Math.round(h0 * scale));
+    const canvas = document.createElement('canvas');
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    ctx.drawImage(img, 0, 0, w, h);
+    const { data } = ctx.getImageData(0, 0, w, h);
+
+    // "sfondo" = trasparente oppure quasi bianco
+    const isContent = (i) => data[i + 3] > 12 && !(data[i] > 244 && data[i + 1] > 244 && data[i + 2] > 244);
+    let minX = w, minY = h, maxX = -1, maxY = -1;
+    for (let y = 0; y < h; y++) {
+      const row = y * w * 4;
+      for (let x = 0; x < w; x++) {
+        if (isContent(row + x * 4)) {
+          if (x < minX) minX = x;
+          if (x > maxX) maxX = x;
+          if (y < minY) minY = y;
+          if (y > maxY) maxY = y;
+        }
+      }
+    }
+    if (maxX < 0) return file; // immagine tutta bianca/trasparente: non si tocca
+
+    const padX = Math.round((maxX - minX + 1) * padding);
+    const padY = Math.round((maxY - minY + 1) * padding);
+    const sx = Math.max(0, minX - padX);
+    const sy = Math.max(0, minY - padY);
+    const sw = Math.min(w, maxX + padX + 1) - sx;
+    const sh = Math.min(h, maxY + padY + 1) - sy;
+    const nothingToTrim = sw >= w * 0.97 && sh >= h * 0.97 && scale === 1;
+    if (nothingToTrim) return file;
+
+    const out = document.createElement('canvas');
+    out.width = sw;
+    out.height = sh;
+    out.getContext('2d').drawImage(canvas, sx, sy, sw, sh, 0, 0, sw, sh);
+    const blob = await new Promise((resolve) => out.toBlob(resolve, 'image/png'));
+    if (!blob) return file;
+    const base = (file.name || 'icona').replace(/\.[^.]+$/, '');
+    return new File([blob], `${base}.png`, { type: 'image/png' });
+  } catch (err) {
+    return file;
+  } finally {
+    if (url) URL.revokeObjectURL(url);
+  }
+}

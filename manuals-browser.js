@@ -12,7 +12,7 @@
 
 import { listMachinesWithCounts, updateMachineIcon, updateMachinesOrder, createManualSection, updateManualSection, deleteManualSection, uploadSectionIcon, getSectionIconUrl, updateManualSectionsOrder, createManualGroup, updateManualGroup, deleteManualGroup, updateManualGroupsOrder } from './supabase.js';
 import { refreshManualsCache, getOperatorManualsForMachine, getSectionsForOperatorManual, getGroupsForMachine, getAnyManualForMachine, getManualsForMachine, openManualViewer } from './manuals.js';
-import { staggerIndex, setButtonBusy, openOverlay, closeOverlay, enableSheetDrag, startUploadProgress, syncSegIndicator } from './ui-utils.js';
+import { staggerIndex, setButtonBusy, openOverlay, closeOverlay, enableSheetDrag, startUploadProgress, syncSegIndicator, trimImageMargins } from './ui-utils.js';
 import { pushLayer, releaseLayer } from './nav-history.js';
 import { confirmDialog } from './ui-modal.js';
 import { toastError, toastSuccess, toastWarning } from './toast.js';
@@ -109,6 +109,8 @@ export function initManualsBrowser() {
   els.detailPanel = document.getElementById('manuals-detail-panel');
   els.detailBack = document.getElementById('manuals-detail-back');
   els.detailIconWrap = document.getElementById('manuals-detail-icon-wrap');
+  els.detailBanner = document.getElementById('manuals-detail-banner');
+  els.detailBannerImg = document.getElementById('manuals-detail-banner-img');
   els.detailTitle = document.getElementById('manuals-detail-title');
   els.detailSubtitle = document.getElementById('manuals-detail-subtitle');
   els.detailGrid = document.getElementById('manuals-detail-grid');
@@ -283,7 +285,7 @@ function machineIconUrl(machine) {
 function machineIconHtml(machine, size = 22) {
   const url = machineIconUrl(machine);
   return url
-    ? `<img src="${escapeHtml(url)}" alt="" class="w-full h-full object-contain">`
+    ? `<img src="${escapeHtml(url)}" alt="" loading="lazy" decoding="async" class="w-full h-full object-contain">`
     : `<i data-lucide="cog" class="w-[${size}px] h-[${size}px] text-graphite-400" stroke-width="1.8"></i>`;
 }
 
@@ -315,7 +317,8 @@ function renderList() {
         ? 'nessuna sezione creata'
         : `${count} ${count === 1 ? 'sezione' : 'sezioni'}`;
 
-    const iconBox = `<span class="shrink-0 w-11 h-11 rounded-lg bg-graphite-700/50 flex items-center justify-center overflow-hidden">${machineIconHtml(machine)}</span>`;
+    // Riquadro rettangolare: i disegni delle macchine sono larghi, in un quadrato restavano minuscoli.
+    const iconBox = `<span class="shrink-0 w-24 h-16 rounded-lg bg-graphite-700/50 flex items-center justify-center overflow-hidden">${machineIconHtml(machine)}</span>`;
     const label = `
         <span class="min-w-0 text-left">
           <span class="block font-display font-bold uppercase tracking-wide truncate">${escapeHtml(machine.nome)}</span>
@@ -450,7 +453,14 @@ function onMachineIconPicked() {
   pendingMachineIconFile = file;
   if (file) {
     removeMachineIcon = false;
-    setMachineIconPreview(URL.createObjectURL(file));
+    // Ritaglio automatico dei margini: si vede subito in anteprima ed è ciò che viene caricato.
+    const picked = file;
+    setMachineIconPreview(URL.createObjectURL(picked));
+    trimImageMargins(picked).then((trimmed) => {
+      if (pendingMachineIconFile !== picked) return; // nel frattempo scelto un altro file o rimossa l'icona
+      pendingMachineIconFile = trimmed;
+      if (trimmed !== picked) setMachineIconPreview(URL.createObjectURL(trimmed));
+    });
   } else {
     setMachineIconPreview(removeMachineIcon ? null : machineIconUrl(editingMachine || {}));
   }
@@ -508,10 +518,16 @@ function openMachineDetail(machine) {
   currentMachine = machine;
   reorderMode = false;
   els.detailTitle.textContent = machine.nome;
+  // Con un'immagine caricata: banner a tutta larghezza in cima e niente quadratino; altrimenti l'ingranaggio di sempre.
+  const detailIconUrl = machineIconUrl(machine);
+  if (els.detailBanner && els.detailBannerImg) {
+    els.detailBanner.classList.toggle('hidden', !detailIconUrl);
+    if (detailIconUrl) els.detailBannerImg.src = detailIconUrl;
+    else els.detailBannerImg.removeAttribute('src');
+  }
   if (els.detailIconWrap) {
-    els.detailIconWrap.innerHTML = machineIconUrl(machine)
-      ? machineIconHtml(machine)
-      : '<i data-lucide="cog" class="w-5 h-5 text-amber-300" stroke-width="1.8"></i>';
+    els.detailIconWrap.classList.toggle('hidden', !!detailIconUrl);
+    els.detailIconWrap.innerHTML = '<i data-lucide="cog" class="w-5 h-5 text-amber-300" stroke-width="1.8"></i>';
   }
   renderDetailGrid({ opening: true });
   renderSpareButtons(machine);
