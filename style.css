@@ -441,9 +441,13 @@ input.peer:checked ~ span:first-of-type {
   transform: translateX(0);
   pointer-events: auto;
 }
-/* L'elenco, ormai fuori dal flusso e invisibile, non deve allungare la pagina con il suo
-   contenuto: si ritaglia tutto ciò che sborda dalla vista. */
-#view-manuals.manuals-detail-open { overflow: clip; }
+/* Con il dettaglio aperto la vista NON deve ritagliare nulla: il banner trascinato (position:
+   fixed, ma ancorato al pannello che ha un transform) e le ombre di banner e barra dei gruppi
+   devono poter uscire oltre i bordi della colonna, a sinistra, a destra e in basso.
+   L'elenco macchine, rimasto dietro e ormai invisibile, non deve invece allungare la pagina
+   con il suo contenuto: il ritaglio lo fa lui stesso, sul proprio riquadro. */
+#view-manuals.manuals-detail-open { overflow: visible; }
+#view-manuals.manuals-detail-open #manuals-list-panel { overflow: clip; }
 #view-manuals.manuals-detail-open #manuals-list-panel { visibility: hidden; transition: transform var(--dur-page) var(--ease-page), opacity var(--dur-page) var(--ease-page), visibility 0s linear var(--dur-page); }
 @media (prefers-reduced-motion: reduce) {
   .manuals-panel { transition-duration: 1ms; }
