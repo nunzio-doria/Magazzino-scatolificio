@@ -334,9 +334,23 @@ export async function listDistinctMacchine() {
  * Macchine con il numero di articoli associati, per la gestione in Impostazioni.
  * @returns {Promise<{machines: {id: string|null, nome: string, articoli: number}[], tableMissing: boolean}>}
  */
+/** True se l'errore indica che mancano le colonne icona/ordine su `machines` (sql/machines_icona_e_ordine.sql non ancora eseguito) */
+function isMissingMachineColumn(error) {
+  const msg = `${error?.message || ''} ${error?.details || ''}`;
+  return error?.code === '42703' || error?.code === 'PGRST204' || (/icon_storage_path|sort_order/.test(msg) && /column|schema cache/i.test(msg));
+}
+const MISSING_MACHINE_COLUMNS_MSG = 'Mancano le colonne icona/ordine sulla tabella delle macchine: esegui sql/machines_icona_e_ordine.sql da Supabase → SQL Editor.';
+
+/** Righe di `machines`; se le colonne icona/ordine non esistono ancora ripiega su id e nome, così nulla si rompe. */
+async function selectMachinesRows() {
+  const ext = await supabase.from('machines').select('id, nome, icon_storage_path, sort_order');
+  if (ext.error && isMissingMachineColumn(ext.error)) return supabase.from('machines').select('id, nome');
+  return ext;
+}
+
 export async function listMachinesWithCounts() {
   const [registered, products] = await Promise.all([
-    supabase.from('machines').select('id, nome'),
+    selectMachinesRows(),
     supabase.from('products').select('macchina').not('macchina', 'is', null),
   ]);
   if (products.error) throw products.error;
@@ -344,15 +358,20 @@ export async function listMachinesWithCounts() {
   if (registered.error && !tableMissing) throw registered.error;
 
   const byKey = new Map();
-  const add = (raw, countIt, id = null) => {
+  const add = (raw, countIt, id = null, extra = null) => {
     const nome = normalizeMachineName(raw);
     if (!nome) return;
     const key = nome.toLowerCase();
-    if (!byKey.has(key)) byKey.set(key, { id, nome, articoli: 0 });
-    if (id && !byKey.get(key).id) byKey.get(key).id = id;
-    if (countIt) byKey.get(key).articoli += 1;
+    if (!byKey.has(key)) byKey.set(key, { id, nome, articoli: 0, icon_storage_path: null, sort_order: null });
+    const entry = byKey.get(key);
+    if (id && !entry.id) entry.id = id;
+    if (countIt) entry.articoli += 1;
+    if (extra) {
+      entry.icon_storage_path = extra.icon_storage_path ?? null;
+      entry.sort_order = extra.sort_order ?? null;
+    }
   };
-  (registered.data || []).forEach((r) => add(r.nome, false, r.id));
+  (registered.data || []).forEach((r) => add(r.nome, false, r.id, r));
   products.data.forEach((r) => add(r.macchina, true));
   const machines = Array.from(byKey.values()).sort((a, b) => a.nome.localeCompare(b.nome, 'it'));
   return { machines, tableMissing };
@@ -373,6 +392,41 @@ export async function createMachine(nome) {
     throw error;
   }
   return data;
+}
+
+/**
+ * Imposta (o toglie, con `newIconStoragePath` nullo) l'icona di una macchina. Se c'era già un'icona
+ * diversa, il file precedente viene eliminato dallo storage. Solo admin.
+ */
+export async function updateMachineIcon(machineId, { newIconStoragePath, previousIconStoragePath }) {
+  const { data, error } = await supabase
+    .from('machines')
+    .update({ icon_storage_path: newIconStoragePath || null })
+    .eq('id', machineId)
+    .select('id');
+  if (error) {
+    if (isMissingMachineColumn(error)) throw new Error(MISSING_MACHINE_COLUMNS_MSG);
+    throw error;
+  }
+  if (!data || data.length === 0) throw new Error('Non è stato possibile salvare l\'icona (solo un amministratore può farlo).');
+  if (previousIconStoragePath && previousIconStoragePath !== newIconStoragePath) {
+    await supabase.storage.from(SECTION_ICONS_BUCKET).remove([previousIconStoragePath]);
+  }
+}
+
+/** Salva l'ordine delle macchine nell'elenco Manuali (posizione = indice nell'array). Solo admin. */
+export async function updateMachinesOrder(orderedIds) {
+  const results = await Promise.all(
+    orderedIds.map((id, index) => supabase.from('machines').update({ sort_order: index }).eq('id', id).select('id'))
+  );
+  const failed = results.find((r) => r.error);
+  if (failed) {
+    if (isMissingMachineColumn(failed.error)) throw new Error(MISSING_MACHINE_COLUMNS_MSG);
+    throw failed.error;
+  }
+  if (results.some((r) => !r.data || r.data.length === 0)) {
+    throw new Error('Non è stato possibile salvare l\'ordine (solo un amministratore può farlo).');
+  }
 }
 
 /**

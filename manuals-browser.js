@@ -10,7 +10,7 @@
 //     L'Admin trova qui anche il pulsante "+" per aggiungerne di nuovi.
 // =============================================================
 
-import { listMachinesWithCounts, createManualSection, updateManualSection, deleteManualSection, uploadSectionIcon, getSectionIconUrl, updateManualSectionsOrder, createManualGroup, updateManualGroup, deleteManualGroup, updateManualGroupsOrder } from './supabase.js';
+import { listMachinesWithCounts, updateMachineIcon, updateMachinesOrder, createManualSection, updateManualSection, deleteManualSection, uploadSectionIcon, getSectionIconUrl, updateManualSectionsOrder, createManualGroup, updateManualGroup, deleteManualGroup, updateManualGroupsOrder } from './supabase.js';
 import { refreshManualsCache, getOperatorManualsForMachine, getSectionsForOperatorManual, getGroupsForMachine, getAnyManualForMachine, getManualsForMachine, openManualViewer } from './manuals.js';
 import { staggerIndex, setButtonBusy, openOverlay, closeOverlay, enableSheetDrag, startUploadProgress, syncSegIndicator } from './ui-utils.js';
 import { pushLayer, releaseLayer } from './nav-history.js';
@@ -30,6 +30,12 @@ let reorderSaving = false;
 let detailLayer = null; // voce di cronologia del dettaglio macchina (tasto indietro del telefono)
 let reorderLayer = null; // voce di cronologia della modalità modifica
 let editingGroup = null; // null = si sta creando un nuovo gruppo; altrimenti quello in modifica
+let listReorderMode = false; // modalità modifica dell'ELENCO macchine (riordino + icone), distinta da quella del dettaglio
+let listReorderSaving = false;
+let listReorderLayer = null; // voce di cronologia della modalità modifica dell'elenco
+let editingMachine = null; // macchina di cui si sta cambiando l'icona
+let pendingMachineIconFile = null;
+let removeMachineIcon = false;
 let lastRenderedIds = []; // id delle piastrelle mostrate nell'ultimo disegno (per capire se l'ordine è stato cambiato)
 const activeGroupByMachine = new Map(); // machine_id -> id del gruppo (tab) aperto, oppure NO_GROUP
 const NO_GROUP = 'none'; // tab "Altro": piastrelle senza gruppo
@@ -88,6 +94,17 @@ export function initManualsBrowser() {
   els.empty = document.getElementById('manuals-browser-empty');
 
   els.view = document.getElementById('view-manuals');
+  els.listReorderBar = document.getElementById('manuals-list-reorder-bar');
+  els.listReorderDone = document.getElementById('manuals-list-reorder-done');
+  els.machineIconModal = document.getElementById('manual-machine-icon-modal');
+  els.machineIconTitle = document.getElementById('manual-machine-icon-title');
+  els.machineIconClose = document.getElementById('manual-machine-icon-close');
+  els.machineIconForm = document.getElementById('manual-machine-icon-form');
+  els.machineIconInput = document.getElementById('manual-machine-icon-input');
+  els.machineIconPreview = document.getElementById('manual-machine-icon-preview');
+  els.machineIconPlaceholder = document.getElementById('manual-machine-icon-placeholder');
+  els.machineIconSubmit = document.getElementById('manual-machine-icon-submit');
+  els.machineIconRemove = document.getElementById('manual-machine-icon-remove');
   els.listPanel = document.getElementById('manuals-list-panel');
   els.detailPanel = document.getElementById('manuals-detail-panel');
   els.detailBack = document.getElementById('manuals-detail-back');
@@ -135,6 +152,18 @@ export function initManualsBrowser() {
   els.detailBack?.addEventListener('click', closeMachineDetail);
 
   els.reorderToggle?.addEventListener('click', toggleReorderMode);
+
+  els.listReorderDone?.addEventListener('click', () => {
+    if (!listReorderSaving) exitListReorderMode({ save: true });
+  });
+  els.machineIconClose?.addEventListener('click', () => closeOverlay(els.machineIconModal));
+  els.machineIconModal?.addEventListener('click', (e) => {
+    if (e.target === els.machineIconModal) closeOverlay(els.machineIconModal);
+  });
+  if (els.machineIconModal) enableSheetDrag(els.machineIconModal.querySelector('.modal-panel'), () => closeOverlay(els.machineIconModal));
+  els.machineIconInput?.addEventListener('change', onMachineIconPicked);
+  els.machineIconRemove?.addEventListener('click', onMachineIconRemove);
+  els.machineIconForm?.addEventListener('submit', handleMachineIconSubmit);
 
   els.groupsBar?.addEventListener('click', onGroupsBarClick);
   els.groupModalClose?.addEventListener('click', () => closeOverlay(els.groupModal));
@@ -190,6 +219,12 @@ function applyWholeDocumentToggle() {
 export async function enterManualsBrowser() {
   if (!els.list) return;
   closeMachineDetail({ immediate: true });
+  if (listReorderMode) {
+    // Si rientra nella vista con la modifica dell'elenco rimasta aperta: si chiude senza salvare.
+    releaseLayer(listReorderLayer);
+    listReorderLayer = null;
+    listReorderMode = false;
+  }
   if (!loaded) {
     els.skeleton?.classList.remove('hidden');
     els.list.classList.add('hidden');
@@ -197,7 +232,7 @@ export async function enterManualsBrowser() {
   }
   try {
     const [{ machines }] = await Promise.all([listMachinesWithCounts(), refreshManualsCache()]);
-    cachedMachines = machines.filter((m) => m.id); // solo le macchine registrate possono avere un manuale collegato
+    cachedMachines = sortMachinesForList(machines.filter((m) => m.id)); // solo le macchine registrate possono avere un manuale collegato
     renderList();
     loaded = true;
   } catch (err) {
@@ -215,6 +250,10 @@ export function resetManualsBrowser() {
   currentMachine = null;
   reorderMode = false;
   reorderSaving = false;
+  listReorderMode = false;
+  listReorderSaving = false;
+  listReorderLayer = null;
+  els.view?.classList.remove('manuals-list-editing');
   detailLayer = null; // (le voci di cronologia le azzera resetLayers al logout)
   reorderLayer = null;
   document.body.classList.remove('manuals-detail-active');
@@ -226,8 +265,40 @@ function sectionsCountForMachine(machine) {
   return getOperatorManualsForMachine(machine.id).reduce((sum, m) => sum + getSectionsForOperatorManual(m.id).length, 0);
 }
 
+/** Ordine dell'elenco: prima quelle riordinate dall'admin (sort_order), poi le altre in ordine alfabetico. */
+function sortMachinesForList(list) {
+  return list.slice().sort((a, b) => {
+    const sa = a.sort_order ?? Infinity;
+    const sb = b.sort_order ?? Infinity;
+    if (sa !== sb) return sa < sb ? -1 : 1;
+    return a.nome.localeCompare(b.nome, 'it');
+  });
+}
+
+function machineIconUrl(machine) {
+  return machine.icon_storage_path ? getSectionIconUrl(machine.icon_storage_path) : null;
+}
+
+/** Contenuto del riquadro icona di una macchina: l'immagine scelta dall'admin oppure l'ingranaggio. */
+function machineIconHtml(machine, size = 22) {
+  const url = machineIconUrl(machine);
+  return url
+    ? `<img src="${escapeHtml(url)}" alt="" class="w-full h-full object-contain">`
+    : `<i data-lucide="cog" class="w-[${size}px] h-[${size}px] text-graphite-400" stroke-width="1.8"></i>`;
+}
+
+function updateListReorderBar() {
+  els.listReorderBar?.classList.toggle('hidden', !listReorderMode);
+  if (els.listReorderDone) els.listReorderDone.disabled = listReorderSaving;
+}
+
 function renderList() {
   els.list.innerHTML = '';
+  els.list.classList.toggle('reorder-mode', listReorderMode);
+  els.view?.classList.toggle('manuals-list-editing', listReorderMode);
+  els.list.classList.toggle('opacity-60', listReorderSaving);
+  els.list.classList.toggle('pointer-events-none', listReorderSaving);
+  updateListReorderBar();
   if (cachedMachines.length === 0) {
     els.list.classList.add('hidden');
     els.empty?.classList.remove('hidden');
@@ -244,22 +315,47 @@ function renderList() {
         ? 'nessuna sezione creata'
         : `${count} ${count === 1 ? 'sezione' : 'sezioni'}`;
 
-    const row = document.createElement('button');
-    row.type = 'button';
-    row.className = 'list-item-in press-spring w-full flex items-center justify-between gap-3 px-4 py-3.5 card-plate rounded-xl';
-    row.style.setProperty('--i', staggerIndex(i));
-    row.innerHTML = `
-      <span class="flex items-center gap-3 min-w-0">
-        <span class="shrink-0 w-9 h-9 rounded-lg bg-graphite-700/50 flex items-center justify-center">
-          <i data-lucide="cog" class="w-[18px] h-[18px] text-graphite-400" stroke-width="1.8"></i>
-        </span>
+    const iconBox = `<span class="shrink-0 w-11 h-11 rounded-lg bg-graphite-700/50 flex items-center justify-center overflow-hidden">${machineIconHtml(machine)}</span>`;
+    const label = `
         <span class="min-w-0 text-left">
           <span class="block font-display font-bold uppercase tracking-wide truncate">${escapeHtml(machine.nome)}</span>
           <span class="block ui-note text-graphite-500 mt-0.5">${meta}</span>
-        </span>
+        </span>`;
+
+    if (listReorderMode) {
+      // Modalità modifica: la riga vibra, si trascina, e la matita apre la modale dell'icona.
+      const row = document.createElement('div');
+      row.dataset.machineId = machine.id;
+      row.className = 'manual-section-tile press-spring w-full flex items-center gap-3 pl-4 pr-14 py-3 card-plate rounded-xl';
+      row.innerHTML = `${iconBox}${label}`;
+      const editBtn = document.createElement('button');
+      editBtn.type = 'button';
+      editBtn.dataset.editBtn = '1';
+      editBtn.className = 'reorder-handle';
+      editBtn.setAttribute('aria-label', `Modifica l'icona di ${machine.nome}`);
+      editBtn.innerHTML = '<i data-lucide="pencil" class="w-3.5 h-3.5" stroke-width="2.4"></i>';
+      editBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        openMachineIconModal(machine);
+      });
+      row.appendChild(editBtn);
+      makeTileDraggable(row, els.list);
+      els.list.appendChild(row);
+      return;
+    }
+
+    const row = document.createElement('button');
+    row.type = 'button';
+    row.className = 'list-item-in press-spring w-full flex items-center justify-between gap-3 px-4 py-3 card-plate rounded-xl';
+    row.style.setProperty('--i', staggerIndex(i));
+    row.innerHTML = `
+      <span class="flex items-center gap-3 min-w-0">
+        ${iconBox}${label}
       </span>
       <i data-lucide="chevron-right" class="w-5 h-5 text-graphite-400 shrink-0"></i>
     `;
+    // Admin: tenendo premuto su una macchina si entra in modalità modifica (riordino e icone).
+    if (isAdmin()) attachLongPress(row, () => enterListReorderMode());
     row.addEventListener('click', () => openMachineDetail(machine));
     els.list.appendChild(row);
   });
@@ -268,12 +364,155 @@ function renderList() {
   window.lucide?.createIcons();
 }
 
+// ---------------------------------------------------------------- modifica elenco macchine (Admin) --
+
+function enterListReorderMode() {
+  if (listReorderMode || listReorderSaving || !isAdmin()) return;
+  listReorderMode = true;
+  if (!listReorderLayer) listReorderLayer = pushLayer(() => exitListReorderMode({ save: true }));
+  feedback.modeSelect();
+  feedback.longPress();
+  renderList();
+}
+
+/** Esce dalla modifica dell'elenco; con `save` salva il nuovo ordine letto dal DOM (se è cambiato). */
+async function exitListReorderMode({ save }) {
+  if (!listReorderMode) return;
+  releaseLayer(listReorderLayer);
+  listReorderLayer = null;
+  const ids = Array.from(els.list.querySelectorAll('[data-machine-id]')).map((t) => t.dataset.machineId);
+  const changed = save && ids.length > 0 && ids.join() !== cachedMachines.map((m) => m.id).join();
+  if (!changed) {
+    listReorderMode = false;
+    renderList();
+    window.lucide?.createIcons();
+    return;
+  }
+  // Durante il salvataggio resta in modalità modifica ma bloccata, come nel dettaglio.
+  listReorderSaving = true;
+  els.list.classList.add('opacity-60', 'pointer-events-none');
+  updateListReorderBar();
+  try {
+    await updateMachinesOrder(ids);
+    cachedMachines.forEach((m) => {
+      m.sort_order = ids.indexOf(m.id);
+    });
+    cachedMachines = sortMachinesForList(cachedMachines);
+    feedback.confirmAction();
+    toastSuccess('Ordine delle macchine aggiornato.');
+  } catch (err) {
+    console.error(err);
+    feedback.errorAction();
+    toastError(err.message || 'Impossibile salvare il nuovo ordine.');
+  } finally {
+    listReorderSaving = false;
+    listReorderMode = false;
+    renderList();
+    window.lucide?.createIcons();
+  }
+}
+
+// ---------------------------------------------------------------- modale "Icona macchina" --
+
+function setMachineIconPreview(url) {
+  if (url) {
+    els.machineIconPreview.src = url;
+    els.machineIconPreview.classList.remove('hidden');
+    els.machineIconPlaceholder.classList.add('hidden');
+  } else {
+    els.machineIconPreview.removeAttribute('src');
+    els.machineIconPreview.classList.add('hidden');
+    els.machineIconPlaceholder.classList.remove('hidden');
+  }
+}
+
+function openMachineIconModal(machine) {
+  editingMachine = machine;
+  pendingMachineIconFile = null;
+  removeMachineIcon = false;
+  els.machineIconForm.reset();
+  els.machineIconTitle.textContent = machine.nome;
+  const url = machineIconUrl(machine);
+  setMachineIconPreview(url);
+  els.machineIconRemove.classList.toggle('hidden', !url);
+  openOverlay(els.machineIconModal);
+  window.lucide?.createIcons();
+}
+
+function onMachineIconPicked() {
+  let file = els.machineIconInput.files?.[0] || null;
+  // Come per le icone dei pulsanti: il selettore non filtra per tipo, controllo qui che sia un'immagine.
+  if (file && !(file.type || '').startsWith('image/') && !/\.(png|jpe?g|webp|gif|svg|bmp|avif|heic|heif)$/i.test(file.name || '')) {
+    toastWarning('Seleziona un file immagine (PNG, JPG, WEBP, SVG...)');
+    els.machineIconInput.value = '';
+    file = null;
+  }
+  pendingMachineIconFile = file;
+  if (file) {
+    removeMachineIcon = false;
+    setMachineIconPreview(URL.createObjectURL(file));
+  } else {
+    setMachineIconPreview(removeMachineIcon ? null : machineIconUrl(editingMachine || {}));
+  }
+}
+
+/** "Rimuovi icona": toglie l'anteprima e, al salvataggio, cancella l'icona (si torna all'ingranaggio). */
+function onMachineIconRemove() {
+  pendingMachineIconFile = null;
+  removeMachineIcon = true;
+  els.machineIconInput.value = '';
+  setMachineIconPreview(null);
+  els.machineIconRemove.classList.add('hidden');
+}
+
+async function handleMachineIconSubmit(e) {
+  e.preventDefault();
+  if (!editingMachine) return;
+  if (!pendingMachineIconFile && !removeMachineIcon) {
+    closeOverlay(els.machineIconModal); // niente da salvare
+    return;
+  }
+  setButtonBusy(els.machineIconSubmit, true);
+  const up = pendingMachineIconFile ? startUploadProgress(pendingMachineIconFile.name) : null;
+  try {
+    let newPath = null; // null = icona rimossa
+    if (pendingMachineIconFile) {
+      newPath = await uploadSectionIcon(pendingMachineIconFile, up.update);
+      up.done();
+    }
+    await updateMachineIcon(editingMachine.id, {
+      newIconStoragePath: newPath,
+      previousIconStoragePath: editingMachine.icon_storage_path,
+    });
+    editingMachine.icon_storage_path = newPath;
+    feedback.confirmAction();
+    toastSuccess(newPath ? 'Icona aggiornata.' : 'Icona rimossa.');
+    closeOverlay(els.machineIconModal);
+    // L'elenco è in modalità modifica: si ridisegna senza uscirne e senza perdere l'ordine appena trascinato.
+    const order = Array.from(els.list.querySelectorAll('[data-machine-id]')).map((t) => t.dataset.machineId);
+    if (order.length) cachedMachines.sort((a, b) => order.indexOf(a.id) - order.indexOf(b.id));
+    renderList();
+  } catch (err) {
+    console.error(err);
+    up?.fail();
+    feedback.errorAction();
+    toastError(err.message || 'Impossibile salvare l\'icona.');
+  } finally {
+    setButtonBusy(els.machineIconSubmit, false);
+  }
+}
+
 // ---------------------------------------------------------------- dettaglio --
 
 function openMachineDetail(machine) {
   currentMachine = machine;
   reorderMode = false;
   els.detailTitle.textContent = machine.nome;
+  if (els.detailIconWrap) {
+    els.detailIconWrap.innerHTML = machineIconUrl(machine)
+      ? machineIconHtml(machine)
+      : '<i data-lucide="cog" class="w-5 h-5 text-amber-300" stroke-width="1.8"></i>';
+  }
   renderDetailGrid({ opening: true });
   renderSpareButtons(machine);
   listScrollY = window.scrollY;
@@ -851,8 +1090,7 @@ function flipSiblings(grid, skip, mutate) {
  * dito/mouse): al posto suo resta un segnaposto che segue il punto toccato, così
  * al rilascio l'ordine nel DOM è già quello nuovo — non serve altro calcolo.
  */
-function makeTileDraggable(tile) {
-  const grid = els.detailGrid;
+function makeTileDraggable(tile, grid = els.detailGrid) {
   let dragging = false;
   let placeholder = null;
   let offsetX = 0;

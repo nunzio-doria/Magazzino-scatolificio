@@ -449,6 +449,11 @@ input.peer:checked ~ span:first-of-type {
 #view-manuals.manuals-detail-open { overflow: visible; }
 #view-manuals.manuals-detail-open #manuals-list-panel { overflow: clip; }
 #view-manuals.manuals-detail-open #manuals-list-panel { visibility: hidden; transition: transform var(--dur-page) var(--ease-page), opacity var(--dur-page) var(--ease-page), visibility 0s linear var(--dur-page); }
+/* Modifica dell'ELENCO macchine (riordino/icone): anche qui nessun ritaglio, perché la riga
+   trascinata e le ombre possono uscire dai bordi della colonna. Il dettaglio, parcheggiato a
+   destra, in questo stato non serve: lo si nasconde invece di ritagliarlo. */
+#view-manuals.manuals-list-editing { overflow: visible; }
+#view-manuals.manuals-list-editing .manuals-panel-detail { visibility: hidden; }
 @media (prefers-reduced-motion: reduce) {
   .manuals-panel { transition-duration: 1ms; }
 }
@@ -507,7 +512,9 @@ input.peer:checked ~ span:first-of-type {
 /* Modalità "Riordina" (Admin, Manuali): ogni tile mostra una maniglia e oscilla
    leggermente, come i grip delle springboard — segnala chiaramente che si può
    trascinare, senza dover leggere l'avviso in testo per capirlo. */
-#manuals-detail-grid.reorder-mode .manual-section-tile {
+#manuals-detail-grid.reorder-mode .manual-section-tile,
+#manuals-browser-list.reorder-mode .manual-section-tile {
+  position: relative;
   animation: reorder-wobble 340ms ease-in-out infinite;
   cursor: grab;
   /* Senza touch-action:none il browser prende il gesto per uno scroll e annulla il
@@ -517,12 +524,14 @@ input.peer:checked ~ span:first-of-type {
   -webkit-user-select: none;
   -webkit-touch-callout: none;
 }
-#manuals-detail-grid .manual-section-tile {
+#manuals-detail-grid .manual-section-tile,
+#manuals-browser-list > * {
   -webkit-touch-callout: none;
   user-select: none;
   -webkit-user-select: none;
 }
-#manuals-detail-grid.reorder-mode .manual-section-tile:nth-child(even) {
+#manuals-detail-grid.reorder-mode .manual-section-tile:nth-child(even),
+#manuals-browser-list.reorder-mode .manual-section-tile:nth-child(even) {
   animation-direction: reverse;
 }
 @keyframes reorder-wobble {
@@ -559,7 +568,8 @@ input.peer:checked ~ span:first-of-type {
   animation: none !important;
 }
 @media (prefers-reduced-motion: reduce) {
-  #manuals-detail-grid.reorder-mode .manual-section-tile { animation: none; }
+  #manuals-detail-grid.reorder-mode .manual-section-tile,
+  #manuals-browser-list.reorder-mode .manual-section-tile { animation: none; }
 }
 
 /* Pulsante Spare parts esteso (più manuali ricambi): la lista si apre e si chiude
