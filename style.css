@@ -460,7 +460,10 @@ input.peer:checked ~ span:first-of-type {
    il loro stesso piccolo movimento si sommerebbe a quello del pannello ancora in
    corsa, risultando confuso invece che pulito. */
 #manuals-detail-grid .list-item-in {
-  animation-delay: calc(var(--dur-page) + var(--i, 0) * 30ms);
+  animation-delay: calc(var(--i, 0) * 22ms); /* cambio gruppo: compaiono subito, a cascata breve */
+}
+#manuals-detail-grid.grid-opening .list-item-in {
+  animation-delay: calc(var(--dur-page) + var(--i, 0) * 30ms); /* apertura del dettaglio: dopo il pannello */
 }
 
 /* Pulsanti dell'indice macchina: banner a tutta larghezza come gli scaffali del Magazzino.
@@ -501,7 +504,7 @@ input.peer:checked ~ span:first-of-type {
    leggermente, come i grip delle springboard — segnala chiaramente che si può
    trascinare, senza dover leggere l'avviso in testo per capirlo. */
 #manuals-detail-grid.reorder-mode .manual-section-tile {
-  animation: reorder-wobble 260ms ease-in-out infinite;
+  animation: reorder-wobble 340ms ease-in-out infinite;
   cursor: grab;
   /* Senza touch-action:none il browser prende il gesto per uno scroll e annulla il
      puntatore (pointercancel): l'icona si solleva ma non si muove. */
@@ -519,8 +522,8 @@ input.peer:checked ~ span:first-of-type {
   animation-direction: reverse;
 }
 @keyframes reorder-wobble {
-  0%, 100% { transform: rotate(-1deg); }
-  50% { transform: rotate(1deg); }
+  0%, 100% { transform: rotate(-0.3deg); }
+  50% { transform: rotate(0.3deg); }
 }
 .reorder-handle {
   position: absolute;

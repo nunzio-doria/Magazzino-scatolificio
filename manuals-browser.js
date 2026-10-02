@@ -274,7 +274,7 @@ function openMachineDetail(machine) {
   currentMachine = machine;
   reorderMode = false;
   els.detailTitle.textContent = machine.nome;
-  renderDetailGrid();
+  renderDetailGrid({ opening: true });
   renderSpareButtons(machine);
   listScrollY = window.scrollY;
   els.view?.classList.add('manuals-detail-open');
@@ -303,7 +303,7 @@ function closeMachineDetail({ immediate = false } = {}) {
   }
 }
 
-function renderDetailGrid({ keepBar = false } = {}) {
+function renderDetailGrid({ keepBar = false, opening = false } = {}) {
   if (!currentMachine) return;
   const machine = currentMachine;
   const operatorManuals = getOperatorManualsForMachine(machine.id);
@@ -326,6 +326,9 @@ function renderDetailGrid({ keepBar = false } = {}) {
   buildGroupBar(view, keepBar);
 
   els.detailGrid.innerHTML = '';
+  // Il ritardo extra (attesa che il pannello finisca di scorrere) vale solo all'apertura del
+  // dettaglio: cambiando gruppo i banner devono comparire subito.
+  els.detailGrid.classList.toggle('grid-opening', opening);
   els.detailGrid.classList.toggle('reorder-mode', reorderMode);
   // innerHTML='' svuota i figli ma non le classi dell'elenco stesso: quelle di
   // blocco visivo durante il salvataggio vanno quindi ripulite esplicitamente,
@@ -816,6 +819,34 @@ async function exitReorderMode({ save }) {
 }
 
 /**
+ * Fa scivolare i banner che cambiano posto invece di farli teletrasportare: si misurano le
+ * posizioni PRIMA, si esegue la modifica al DOM, poi ogni banner parte dalla vecchia posizione
+ * e scorre alla nuova. Si usa la proprietà `translate` (indipendente da `transform`, che il
+ * tremolio della modalità modifica usa già). Sicura se richiamata durante uno scorrimento.
+ */
+const FLIP_MS = 240;
+const FLIP_EASE = 'cubic-bezier(0.16, 1, 0.3, 1)';
+function flipSiblings(grid, skip, mutate) {
+  const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+  const sibs = Array.from(grid.children).filter((c) => c !== skip);
+  if (reduce || !sibs[0]?.animate) {
+    mutate();
+    return;
+  }
+  const before = sibs.map((c) => c.getBoundingClientRect().top); // posizione visiva attuale (anche a metà scorrimento)
+  sibs.forEach((c) => c._flip?.cancel());
+  mutate();
+  sibs.forEach((c, i) => {
+    const dy = before[i] - c.getBoundingClientRect().top;
+    if (Math.abs(dy) < 0.5) return;
+    c._flip = c.animate([{ translate: `0 ${dy}px` }, { translate: '0 0' }], { duration: FLIP_MS, easing: FLIP_EASE });
+    c._flip.onfinish = () => {
+      c._flip = null;
+    };
+  });
+}
+
+/**
  * Trascinamento libero di una tile dentro la griglia, via Pointer Events (uniforme
  * dito/mouse): al posto suo resta un segnaposto che segue il punto toccato, così
  * al rilascio l'ordine nel DOM è già quello nuovo — non serve altro calcolo.
@@ -878,7 +909,7 @@ function makeTileDraggable(tile) {
       const isAfter = e.clientY > rect.top + rect.height / 2; // elenco in colonna: conta solo l'altezza
       const ref = isAfter ? overTile.nextSibling : overTile;
       if (ref !== placeholder && placeholder.nextSibling !== ref) {
-        grid.insertBefore(placeholder, ref);
+        flipSiblings(grid, tile, () => grid.insertBefore(placeholder, ref));
         feedback.dragSwap();
       }
     }
@@ -892,6 +923,7 @@ function makeTileDraggable(tile) {
     } catch (err) {
       /* già rilasciato */
     }
+    const dropRect = tile.getBoundingClientRect(); // dove si trova ora, sotto il dito
     placeholder?.replaceWith(tile);
     placeholder = null;
     tile.classList.remove('reorder-dragging');
@@ -903,6 +935,19 @@ function makeTileDraggable(tile) {
     tile.style.left = '';
     tile.style.top = '';
     tile.style.zIndex = '';
+    // Rilascio: dal punto in cui è stato lasciato il banner scivola nel suo posto (niente scatto).
+    const slot = tile.getBoundingClientRect();
+    const dx = dropRect.left - slot.left;
+    const dy = dropRect.top - slot.top;
+    if (tile.animate && (Math.abs(dx) > 0.5 || Math.abs(dy) > 0.5) && !window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
+      tile.animate(
+        [
+          { translate: `${dx}px ${dy}px`, scale: '1.05' },
+          { translate: '0 0', scale: '1' },
+        ],
+        { duration: FLIP_MS, easing: FLIP_EASE }
+      );
+    }
   };
 
   tile.addEventListener('pointerdown', start);
