@@ -463,57 +463,38 @@ input.peer:checked ~ span:first-of-type {
   animation-delay: calc(var(--dur-page) + var(--i, 0) * 30ms);
 }
 
-/* Griglia pulsanti dell'indice macchina: tile quadrata, icona grande e
-   centrata, etichetta su 2 righe al massimo. */
+/* Pulsanti dell'indice macchina: banner a tutta larghezza come gli scaffali del Magazzino.
+   Icona a sinistra in un riquadro, dettaglio (nome della sezione) a destra. */
 .manual-section-tile {
-  aspect-ratio: 1 / 1;
   position: relative;
 }
-.manual-section-tile-icon {
-  width: 44%;
-  height: 44%;
-  object-fit: contain;
+.manual-section-banner-ico {
+  width: 48px;
+  height: 48px;
+  border-radius: 0.5rem;
+  overflow: hidden;
 }
-
-/* Pulsanti con icona: l'immagine occupa quasi tutto il quadrato, il testo resta in basso. */
-#manuals-detail-grid .manual-section-tile--icon {
-  justify-content: space-between;
-  gap: 4px;
-  padding: 6px;
-}
-#manuals-detail-grid .manual-section-tile--icon .manual-section-tile-icon {
-  width: 100%;
-  height: auto;
-  flex: 1 1 0;
-  min-height: 0;
-}
-#manuals-detail-grid .manual-section-tile--icon .manual-section-tile-icon img {
+.manual-section-banner-ico img {
   width: 100%;
   height: 100%;
   object-fit: contain;
 }
 /* Icona predefinita (libro) quando non c'è un'immagine: più piccola, non a tutto riquadro */
-#manuals-detail-grid .manual-section-tile-icon--fallback {
-  padding: 18%;
+.manual-section-banner-ico--fallback {
+  padding: 11px;
   box-sizing: border-box;
 }
-/* Testo: una parola sola resta su una riga; se ci sono più parole separate da spazio
-   si va a capo SOLO sugli spazi (una sopra e una sotto), mai in mezzo a una parola e
-   mai con i puntini. Se anche così non entra, il carattere si rimpicciolisce via JS
-   (fitTileLabels in manuals-browser.js). */
-.manual-section-tile-label {
-  display: block;
-  width: 100%;
-  max-width: 100%;
-  min-width: 0;
-  white-space: normal;
-  overflow: visible;
-  overflow-wrap: normal;
-  word-break: normal;
-  hyphens: none;
-  text-wrap: balance;
-  line-height: 1.15;
-  flex-shrink: 0;
+/* Il nome va a capo sugli spazi, al massimo su due righe (poi puntini): il banner è largo,
+   quindi quasi sempre ne basta una. */
+.manual-section-banner-label {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  line-height: 1.2;
+  text-align: left;
 }
 
 /* Modalità "Riordina" (Admin, Manuali): ogni tile mostra una maniglia e oscilla
@@ -543,8 +524,9 @@ input.peer:checked ~ span:first-of-type {
 }
 .reorder-handle {
   position: absolute;
-  top: 4px;
-  right: 4px;
+  top: 50%;
+  right: 10px;
+  margin-top: -15px;
   width: 30px;
   height: 30px;
   border-radius: 999px;
@@ -564,6 +546,7 @@ input.peer:checked ~ span:first-of-type {
   opacity: 0.98;
 }
 .reorder-placeholder {
+  border-radius: 0.75rem;
   border: 2px dashed var(--accent-edge, rgba(255, 255, 255, 0.3));
   background: rgba(255, 255, 255, 0.04);
   animation: none !important;
@@ -574,7 +557,7 @@ input.peer:checked ~ span:first-of-type {
 
 /* Pulsante Spare parts esteso (più manuali ricambi): la lista si apre e si chiude
    dentro lo stesso pulsante con un vero accordion (stessa tecnica grid-template-rows
-   delle tendine dei campi), la freccia si capovolge. */
+   delle tendine dei campi). La freccia guarda in giù da chiuso e si capovolge (in su) da aperto. */
 .spare-chevron { transition: transform 180ms ease; }
 .spare-group[data-open="true"] .spare-chevron { transform: rotate(180deg); }
 .spare-group-list-track {
@@ -1569,6 +1552,8 @@ button.custom-select-option:not(:disabled):active {
    in base allo scroll (vedi updateCustomScrollbar in manuals.js), trascinabile
    sia col dito che col mouse. ---- */
 #manual-viewer-canvas-wrap {
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-x pan-y;
   scrollbar-width: none; /* Firefox */
   -ms-overflow-style: none; /* Edge legacy */
 }
@@ -1629,8 +1614,14 @@ button.custom-select-option:not(:disabled):active {
   -webkit-user-select: text;
   user-select: text;
   -webkit-touch-callout: default;
+  /* Il text layer ha overflow:hidden, quindi per il browser è un contenitore a sé: il
+     touch-action dell'area che scorre (#manual-viewer-canvas-wrap) non gli arriva. Lo si
+     dichiara qui: strisciare su/giù o di lato scorre le pagine, la pressione prolungata
+     seleziona il testo, il pizzico resta al JS dello zoom. */
+  touch-action: pan-x pan-y;
 }
 .textLayer span, .textLayer br {
+  touch-action: pan-x pan-y;
   color: transparent;
   position: absolute;
   white-space: pre;
@@ -1645,6 +1636,7 @@ button.custom-select-option:not(:disabled):active {
 .textLayer br::selection {
   background: transparent;
 }
+.manual-page, .manual-page canvas { touch-action: pan-x pan-y; }
 .manual-page canvas {
   position: relative;
   z-index: 0;
@@ -1763,12 +1755,16 @@ input:disabled + .input-clear { display: none; }
    scorrevole in orizzontale quando i gruppi sono tanti. */
 .manuals-seg {
   overflow-x: auto;
-  scrollbar-width: none;
+  overflow-y: hidden;
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* Edge legacy */
   -webkit-overflow-scrolling: touch;
   overscroll-behavior-x: contain;
+  touch-action: pan-x pan-y; /* il dito scorre i gruppi di lato; in verticale scorre la pagina */
 }
-.manuals-seg::-webkit-scrollbar { display: none; }
+.manuals-seg::-webkit-scrollbar { display: none; width: 0; height: 0; }
 .manuals-seg .category-tab { flex: 1 0 auto; white-space: nowrap; }
+#manuals-groups-bar { min-width: 0; }
 .manuals-seg .group-tab-edit {
   display: inline-flex;
   align-items: center;

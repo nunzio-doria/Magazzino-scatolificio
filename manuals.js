@@ -46,7 +46,12 @@ export {
 };
 
 const PDFJS_VERSION = '3.11.174';
-const MIN_ZOOM = 0.3;
+const MIN_ZOOM = 0.2;
+// Su schermi larghi (desktop) "adatta alla larghezza" dà pagine enormi: prima bisognava premere
+// tre volte il pulsante zoom −, che da 1 arriva a 0,3 (1 → 0,75 → 0,5 → 0,3). Il manuale ora
+// si apre già a quel livello; sul telefono resta l'adattamento alla larghezza.
+const DESKTOP_MIN_WIDTH = 900; // larghezza utile del visualizzatore da cui si considera "desktop"
+const DESKTOP_INITIAL_ZOOM = 0.3;
 const MAX_ZOOM = 3;
 // Limite di pixel (larghezza × altezza) per il canvas di una singola pagina. Oltre questa
 // soglia, soprattutto con più pagine ad alta risoluzione tenute in memoria insieme, iOS/Safari
@@ -314,6 +319,7 @@ async function computeFitScale(token) {
   if (token !== state.loadToken) return;
   const base = page1.getViewport({ scale: 1 });
   state.fitScale = containerWidth / base.width;
+  state.zoom = containerWidth >= DESKTOP_MIN_WIDTH ? DESKTOP_INITIAL_ZOOM : 1;
 }
 
 function updatePageIndicator() {

@@ -147,15 +147,6 @@ export function initManualsBrowser() {
   els.groupLeft?.addEventListener('click', () => moveGroup(-1));
   els.groupRight?.addEventListener('click', () => moveGroup(1));
 
-  // Le larghezze reali cambiano con i font caricati e con rotazione/ridimensionamento
-  let fitRaf = 0;
-  const refit = () => {
-    cancelAnimationFrame(fitRaf);
-    fitRaf = requestAnimationFrame(fitTileLabels);
-  };
-  window.addEventListener('resize', refit);
-  document.fonts?.ready.then(refit);
-
   els.modalClose?.addEventListener('click', () => closeOverlay(els.modal));
   els.modal?.addEventListener('click', (e) => {
     if (e.target === els.modal) closeOverlay(els.modal);
@@ -346,18 +337,19 @@ function renderDetailGrid({ keepBar = false } = {}) {
     const tile = document.createElement(reorderMode ? 'div' : 'button');
     if (!reorderMode) tile.type = 'button';
     tile.dataset.sectionId = section.id;
-    tile.className = `manual-section-tile manual-section-tile--icon${reorderMode ? '' : ' list-item-in'} press-spring card-plate rounded-2xl flex flex-col items-center justify-center gap-2 p-2 border-2 border-graphite-700`;
+    tile.className = `manual-section-tile manual-section-tile--banner${reorderMode ? '' : ' list-item-in'} press-spring card-plate rounded-xl flex items-center gap-3 px-4 py-3 w-full text-left border-2 border-graphite-700`;
     tile.style.setProperty('--i', staggerIndex(i));
     const iconUrl = section.icon_storage_path ? getSectionIconUrl(section.icon_storage_path) : null;
+    // Banner come gli scaffali del Magazzino: icona a sinistra, dettaglio (nome della sezione) a destra.
     tile.innerHTML = `
-      <span class="manual-section-tile-icon${iconUrl ? '' : ' manual-section-tile-icon--fallback'} flex items-center justify-center">
+      <span class="manual-section-banner-ico bg-graphite-700/50${iconUrl ? '' : ' manual-section-banner-ico--fallback'} shrink-0 flex items-center justify-center">
         ${
           iconUrl
             ? `<img src="${escapeHtml(iconUrl)}" alt="" class="w-full h-full object-contain">`
-            : '<i data-lucide="book-open" class="w-full h-full text-graphite-400" stroke-width="1.6"></i>'
+            : '<i data-lucide="book-open" class="w-full h-full text-graphite-400" stroke-width="1.8"></i>'
         }
       </span>
-      <span class="manual-section-tile-label ui-label text-center font-display font-semibold uppercase tracking-wide" title="${escapeHtml(section.label)}">${escapeHtml(section.label)}</span>
+      <span class="manual-section-banner-label min-w-0 flex-1 font-display font-bold uppercase tracking-wide" title="${escapeHtml(section.label)}">${escapeHtml(section.label)}</span>
     `;
     if (reorderMode) {
       // Modalità modifica: la tile vibra, si trascina, e la matita apre la modale di questa stessa icona.
@@ -385,11 +377,11 @@ function renderDetailGrid({ keepBar = false } = {}) {
     const addTile = document.createElement('button');
     addTile.type = 'button';
     addTile.setAttribute('aria-label', `Aggiungi pulsante per ${machine.nome}`);
-    addTile.className = 'manual-section-tile list-item-in press-spring card-plate rounded-2xl flex flex-col items-center justify-center gap-2 p-2 border-2 border-dashed border-amber-400 text-amber-400 hover:text-amber-300 hover:border-amber-300 transition-colors';
+    addTile.className = 'manual-section-tile manual-section-tile--banner list-item-in press-spring card-plate rounded-xl flex items-center gap-3 px-4 py-3 w-full text-left border-2 border-dashed border-amber-400 text-amber-400 hover:text-amber-300 hover:border-amber-300 transition-colors';
     addTile.style.setProperty('--i', staggerIndex(visibleSections.length));
     addTile.innerHTML = `
-      <i data-lucide="plus" class="w-7 h-7" stroke-width="1.8"></i>
-      <span class="ui-label text-center font-display font-semibold uppercase tracking-wide">Aggiungi</span>
+      <span class="manual-section-banner-ico bg-graphite-700/50 shrink-0 flex items-center justify-center"><i data-lucide="plus" class="w-6 h-6" stroke-width="1.8"></i></span>
+      <span class="manual-section-banner-label min-w-0 flex-1 font-display font-bold uppercase tracking-wide">Aggiungi</span>
     `;
     addTile.addEventListener('click', () => openSectionModal(machine));
     els.detailGrid.appendChild(addTile);
@@ -409,7 +401,6 @@ function renderDetailGrid({ keepBar = false } = {}) {
 
   updateReorderToggleVisibility(allSections.length);
   window.lucide?.createIcons();
-  fitTileLabels();
 }
 
 // ------------------------------------------------------------ Gruppi di piastrelle --
@@ -648,30 +639,6 @@ async function moveGroup(direction) {
   }
 }
 
-/**
- * Etichette delle piastrelle: una parola sola sta su una riga; con più parole si va a capo
- * solo sugli spazi, al massimo su due righe. Se la parola più lunga è più larga della
- * piastrella, o servirebbero più di due righe, il carattere si rimpicciolisce quanto serve
- * (fino a un minimo di leggibilità). Il testo non viene mai troncato.
- */
-const TILE_LABEL_MIN_PX = 7;
-const TILE_LABEL_MAX_LINES = 2;
-function fitTileLabels() {
-  const labels = els.detailGrid?.querySelectorAll('.manual-section-tile-label');
-  if (!labels?.length) return;
-  labels.forEach((label) => {
-    label.style.fontSize = '';
-    const available = label.clientWidth;
-    if (!available) return; // non ancora visibile: si riprova a resize / caricamento font
-    let size = parseFloat(getComputedStyle(label).fontSize);
-    const fits = () => label.scrollWidth <= label.clientWidth + 0.5 && label.scrollHeight <= Math.ceil(size * 1.15 * TILE_LABEL_MAX_LINES) + 1;
-    while (!fits() && size > TILE_LABEL_MIN_PX) {
-      size = Math.max(TILE_LABEL_MIN_PX, size - 0.25);
-      label.style.fontSize = `${size}px`;
-    }
-  });
-}
-
 // ---------------------------------------------------------------- Spare Parts --
 
 const SPARE_GROUP_CLASS =
@@ -719,7 +686,7 @@ function renderSpareButtons(machine) {
   main.className = SPARE_MAIN_CLASS;
   main.innerHTML =
     '<i data-lucide="cog" class="w-4 h-4" stroke-width="2.2"></i> Spare parts' +
-    (multi ? ' <i data-lucide="chevron-up" class="spare-chevron w-3.5 h-3.5 opacity-80" stroke-width="2.6"></i>' : '');
+    (multi ? ' <i data-lucide="chevron-down" class="spare-chevron w-3.5 h-3.5 opacity-80" stroke-width="2.6"></i>' : '');
   group.appendChild(main);
 
   if (!multi) {
@@ -878,6 +845,7 @@ function makeTileDraggable(tile) {
     offsetY = e.clientY - rect.top;
     placeholder = document.createElement('div');
     placeholder.className = 'manual-section-tile reorder-placeholder';
+    placeholder.style.height = `${rect.height}px`;
     tile.after(placeholder);
     tile.style.animation = 'none';
     tile.style.position = 'fixed';
@@ -907,7 +875,7 @@ function makeTileDraggable(tile) {
     const overTile = below?.closest('.manual-section-tile');
     if (overTile && overTile !== placeholder && overTile.parentElement === grid && overTile !== tile) {
       const rect = overTile.getBoundingClientRect();
-      const isAfter = e.clientX > rect.left + rect.width / 2 || e.clientY > rect.top + rect.height / 2;
+      const isAfter = e.clientY > rect.top + rect.height / 2; // elenco in colonna: conta solo l'altezza
       const ref = isAfter ? overTile.nextSibling : overTile;
       if (ref !== placeholder && placeholder.nextSibling !== ref) {
         grid.insertBefore(placeholder, ref);
