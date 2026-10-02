@@ -422,48 +422,119 @@ patchLucide();
 
 // --- INDICATORE DI AVANZAMENTO UPLOAD ------------------------------------------
 /**
- * Mostra in alto una scheda con nome file, percentuale e barra di avanzamento.
- * Uso: const up = startUploadProgress(file.name); await upload(..., up.update); up.done();
- * (in caso di errore: up.fail()). A 100% mostra "Elaborazione…" finché non si chiama done().
+ * Modale quadrato al centro dello schermo (sempre a tema chiaro) con un anello a tacche che si
+ * accendono, la percentuale e il nome del file. Blocca i tocchi sulla schermata sotto finché
+ * l'upload non finisce. Uso: const up = startUploadProgress(file.name);
+ * await upload(..., up.update); up.done();  (in caso di errore: up.fail()).
+ * A 100% mostra "Elaborazione…" finché non si chiama done().
  */
+const UP_TICKS = 60;
+const UP_ARROW = '<path d="m5 12 7-7 7 7"/><path d="M12 19V5"/>';
+const UP_CHECK = '<path d="M20 6 9 17l-5-5"/>';
+const UP_CROSS = '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>';
+
 export function startUploadProgress(fileName) {
   const el = document.createElement('div');
-  el.className = 'upload-progress';
-  el.setAttribute('role', 'status');
+  el.className = 'upload-modal';
+  el.setAttribute('role', 'alertdialog');
   el.setAttribute('aria-live', 'polite');
-  el.innerHTML = '<div class="upload-progress-row"><span class="upload-progress-name"></span><span class="upload-progress-pct">0%</span></div><div class="upload-progress-track"><div class="upload-progress-bar"></div></div>';
-  el.querySelector('.upload-progress-name').textContent = fileName || 'File';
-  const pctEl = el.querySelector('.upload-progress-pct');
-  const bar = el.querySelector('.upload-progress-bar');
+  el.setAttribute('aria-label', 'Caricamento in corso');
+  let ticksSvg = '';
+  for (let i = 0; i < UP_TICKS; i++) {
+    ticksSvg += `<line x1="66" x2="66" y1="6" y2="15" stroke-width="3" stroke-linecap="round" transform="rotate(${(i * 360) / UP_TICKS} 66 66)"></line>`;
+  }
+  el.innerHTML = `
+    <div class="upload-modal-card">
+      <div class="upload-modal-ring">
+        <svg viewBox="0 0 132 132" width="132" height="132" aria-hidden="true">
+          <g class="upload-modal-orbit"><circle cx="66" cy="66" r="50" fill="none" stroke-width="2" stroke-linecap="round" stroke-dasharray="0.1 12"></circle></g>
+          <g class="upload-modal-ticks">${ticksSvg}</g>
+        </svg>
+        <div class="upload-modal-core upload-modal-core-up">
+          <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${UP_ARROW}</svg>
+        </div>
+      </div>
+      <div class="upload-modal-pct">0%</div>
+      <div class="upload-modal-name"></div>
+      <div class="upload-modal-status">Caricamento in corso</div>
+    </div>`;
+  el.querySelector('.upload-modal-name').textContent = fileName || 'File';
+  const ticks = Array.from(el.querySelectorAll('.upload-modal-ticks line'));
+  const core = el.querySelector('.upload-modal-core');
+  const coreSvg = core.querySelector('svg');
+  const pctEl = el.querySelector('.upload-modal-pct');
+  const statusEl = el.querySelector('.upload-modal-status');
   document.body.appendChild(el);
-  requestAnimationFrame(() => el.classList.add('upload-progress-visible'));
+  requestAnimationFrame(() => el.classList.add('upload-modal-visible'));
 
+  let target = 0;
+  let shown = 0;
+  let tone = 'busy'; // busy | ok | error
+  let raf = 0;
   let closed = false;
+
+  const paint = () => {
+    const lit = Math.floor((shown / 100) * UP_TICKS);
+    ticks.forEach((tick, i) => {
+      const on = i < lit;
+      const head = i === lit && tone === 'busy' && shown < 100;
+      tick.style.stroke = on ? (tone === 'ok' ? '#2f9e6b' : tone === 'error' ? '#e5484d' : `rgb(var(--accent-rgb))`) : '#d5dae3';
+      tick.setAttribute('y1', head ? 2 : 6);
+      tick.style.opacity = on || head ? 1 : 0.7;
+    });
+    pctEl.textContent = tone === 'error' ? 'Errore' : `${Math.round(shown)}%`;
+  };
+  const loop = () => {
+    raf = 0;
+    if (closed) return;
+    // la percentuale "insegue" il valore reale con un movimento morbido, anche se l'upload arriva a scatti
+    shown += (target - shown) * 0.2;
+    if (Math.abs(target - shown) < 0.15) shown = target;
+    paint();
+    if (shown !== target) raf = requestAnimationFrame(loop);
+  };
+  const kick = () => {
+    if (!raf && !closed) raf = requestAnimationFrame(loop);
+  };
   const close = (delay) => {
     if (closed) return;
     closed = true;
+    cancelAnimationFrame(raf);
+    clearTimeout(watchdog);
     setTimeout(() => {
-      el.classList.remove('upload-progress-visible');
+      el.classList.remove('upload-modal-visible');
       setTimeout(() => el.remove(), 260);
     }, delay);
   };
+  const watchdog = setTimeout(() => close(0), 15 * 60 * 1000); // rete di sicurezza: non lascia mai la schermata bloccata
+  paint();
+
   return {
     update(percent) {
-      if (closed) return;
-      const p = Math.max(0, Math.min(100, Math.round(percent)));
-      bar.style.transform = `scaleX(${p / 100})`;
-      pctEl.textContent = p >= 100 ? 'Elaborazione…' : `${p}%`;
+      if (closed || tone !== 'busy') return;
+      target = Math.max(target, Math.max(0, Math.min(100, percent)));
+      if (target >= 100) statusEl.textContent = 'Elaborazione…';
+      kick();
     },
     done() {
       if (closed) return;
-      bar.style.transform = 'scaleX(1)';
-      pctEl.textContent = '100%';
-      close(500);
+      tone = 'ok';
+      target = 100;
+      shown = 100;
+      paint();
+      core.className = 'upload-modal-core upload-modal-core-ok';
+      coreSvg.innerHTML = UP_CHECK;
+      statusEl.textContent = 'File caricato';
+      close(1000);
     },
     fail() {
-      el.classList.add('upload-progress-error');
-      pctEl.textContent = 'Errore';
-      close(1400);
+      if (closed) return;
+      tone = 'error';
+      paint();
+      core.className = 'upload-modal-core upload-modal-core-error';
+      coreSvg.innerHTML = UP_CROSS;
+      statusEl.textContent = 'Caricamento non riuscito';
+      close(1800);
     },
   };
 }
