@@ -550,7 +550,7 @@ export function startUploadProgress(fileName) {
  * rimosso partendo dai bordi, così le parti chiare DENTRO la macchina restano intatte.
  * Per le foto (sfondo non uniforme) e per le immagini illeggibili restituisce il file originale.
  */
-export async function trimImageMargins(file, { maxSide = 1200, padding = 0.04, tolerance = 10 } = {}) {
+export async function trimImageMargins(file, { maxSide = 2400, padding = 0.04, tolerance = 10 } = {}) {
   let url = null;
   try {
     url = URL.createObjectURL(file);
