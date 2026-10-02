@@ -1072,26 +1072,26 @@ button.shelf-item:not(:disabled):active {
   transition: clip-path var(--dur-slow) var(--ease-out);
   pointer-events: none;
 }
-.shelf-group.group-open .shelf-group-header { border-color: var(--accent); }
-.shelf-group.group-open .shelf-group-header::before { clip-path: circle(150% at 34px 50%); }
-.shelf-group.group-open .shelf-title { color: #ffffff; }
-.shelf-group.group-open .shelf-sub { color: rgba(255, 255, 255, 0.75); }
-.shelf-group.group-open .shelf-low { color: #ffd0d6; }
-.shelf-group.group-open .shelf-ico,
-.shelf-group.group-open .shelf-chevron { color: #ffffff; }
-.shelf-group.group-open .shelf-ico-box { background-color: rgba(255, 255, 255, 0.18); }
-.shelf-group.group-open .shelf-chevron { transform: rotate(180deg); }
+.shelf-group.group-open > .shelf-group-header { border-color: var(--accent); }
+.shelf-group.group-open > .shelf-group-header::before { clip-path: circle(150% at 34px 50%); }
+.shelf-group.group-open > .shelf-group-header .shelf-title { color: #ffffff; }
+.shelf-group.group-open > .shelf-group-header .shelf-sub { color: rgba(255, 255, 255, 0.75); }
+.shelf-group.group-open > .shelf-group-header .shelf-low { color: #ffd0d6; }
+.shelf-group.group-open > .shelf-group-header .shelf-ico,
+.shelf-group.group-open > .shelf-group-header .shelf-chevron { color: #ffffff; }
+.shelf-group.group-open > .shelf-group-header .shelf-ico-box { background-color: rgba(255, 255, 255, 0.18); }
+.shelf-group.group-open > .shelf-group-header .shelf-chevron { transform: rotate(180deg); }
 
 .group-body-track {
   display: grid;
   grid-template-rows: 0fr;
   transition: grid-template-rows var(--dur-slow) var(--ease-inout);
 }
-.shelf-group.group-open .group-body-track { grid-template-rows: 1fr; }
+.shelf-group.group-open > .group-body-track { grid-template-rows: 1fr; }
 /* Ritaglio solo durante l'animazione; a gruppo aperto del tutto (.group-settled) si toglie, così i
    banner degli scaffali interni restano fermi sotto la testata dell'app (sticky) mentre si scorre. */
 .group-body-inner { min-height: 0; overflow: hidden; }
-.shelf-group.group-settled .group-body-inner { overflow: visible; }
+.shelf-group.group-settled > .group-body-track > .group-body-inner { overflow: visible; }
 .group-shelves {
   margin-left: 0.5rem;
   padding: 0.625rem 0 0 0.625rem;
