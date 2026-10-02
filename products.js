@@ -11,7 +11,7 @@ import { toastError } from './toast.js';
 import { startCamera, stopCamera } from './camera.js';
 import feedback from './feedback.js';
 import { els, state, CATEGORY_LABELS } from './products-shared.js';
-import { initProductsList, setCategory, setListStatic } from './products-list.js';
+import { initProductsList, setCategory, setListStatic, collapseAllShelves } from './products-list.js';
 import { initProductsData, refresh, enterProducts, resetProducts } from './products-data.js';
 import { initProductsDetail, openDetail, stopBarcodeScan } from './products-detail.js';
 
@@ -70,6 +70,8 @@ export function teardownProducts() {
   stopBarcodeScan();
   // Uscendo dal Magazzino: al rientro gli elementi già presenti non devono rifare l'animazione d'ingresso
   setListStatic(true);
+  // ...e al rientro gruppi di scaffali e scaffali devono essere tutti chiusi
+  collapseAllShelves();
 }
 
 async function handleSearchScanDetected(code) {

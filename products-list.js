@@ -12,18 +12,46 @@ import { els, state, LINEA_OPTIONS, MACHINE_VIEW_CATEGORIES, escapeHtml, shelfLa
 import { refresh } from './products-data.js';
 import { openDetail } from './products-detail.js';
 
-const openShelves = new Set(); // locazioni espanse, persiste tra i refresh (una sola alla volta, salvo durante la ricerca)
-// Cambio scaffale: prima si richiude il vecchio, poi si apre il nuovo. closeEndsAt = istante in cui
-// finisce l'ultima chiusura avviata; swapTimer = apertura in attesa (l'ultimo tocco vince).
-let closeEndsAt = 0;
-let swapTimer = null;
+const openShelves = new Set(); // locazioni espanse, persiste tra i refresh (una sola alla volta per gruppo, salvo durante la ricerca)
+const openGroups = new Set(); // gruppi di scaffali (SA, SB...) espansi: indipendenti tra loro, ognuno si apre/chiude per conto suo
+// Cambio scaffale: prima si richiude il vecchio, poi si apre il nuovo. Lo stato (closeEndsAt = istante in cui
+// finisce l'ultima chiusura avviata; swapTimer = apertura in attesa, l'ultimo tocco vince) è per ambito:
+// ogni gruppo SA/SB... ha il suo, così aprire uno scaffale in SB non interferisce con SA.
+const scopes = new Map(); // chiave ambito -> { closeEndsAt, swapTimer }
+function scopeOf(key) {
+  if (!scopes.has(key)) scopes.set(key, { closeEndsAt: 0, swapTimer: null });
+  return scopes.get(key);
+}
 let followRaf = 0;
+
+/**
+ * Uscendo dal Magazzino: al rientro deve essere tutto chiuso (gruppi e scaffali). Si azzera lo stato e
+ * si richiudono le schede di scatto (classe shelf-reset-instant ferma per un istante le transizioni),
+ * così non si vede nulla richiudersi mentre la sezione sta già uscendo.
+ */
+export function collapseAllShelves() {
+  cancelAnimationFrame(followRaf);
+  scopes.forEach((sc) => clearTimeout(sc.swapTimer));
+  scopes.clear();
+  openShelves.clear();
+  openGroups.clear();
+  openMachines.clear();
+  const host = document.getElementById('view-products');
+  if (!host) return;
+  host.classList.add('shelf-reset-instant');
+  host.querySelectorAll('.shelf-card.shelf-open, .shelf-card.shelf-active').forEach((c) => c.classList.remove('shelf-open', 'shelf-active'));
+  host.querySelectorAll('.shelf-group.group-open, .shelf-group.group-settled').forEach((g) => g.classList.remove('group-open', 'group-settled'));
+  scheduleShelfClip();
+  void host.offsetHeight; // applica lo stato chiuso senza transizione, poi si ripristinano le animazioni
+  requestAnimationFrame(() => requestAnimationFrame(() => host.classList.remove('shelf-reset-instant')));
+}
 
 /**
  * Taglio dell'elenco dietro al banner fermo in alto: la parte di elenco che sta sopra il bordo
  * inferiore del banner viene ritagliata (clip-path), quindi non può mai comparire negli angoli
  * arrotondati né sopra al banner. A riposo (banner non fermo) il taglio è nullo.
  */
+const openMachines = new Set(); // macchine espanse, persiste tra i refresh
 let clipRaf = 0;
 let clipApplied = false; // true se almeno un taglio è attivo: serve a ripulire quando si richiude
 function updateShelfClip() {
@@ -87,7 +115,6 @@ function followCardToTop(card, delayMs) {
   };
   followRaf = requestAnimationFrame(step);
 }
-const openMachines = new Set(); // macchine espanse, persiste tra i refresh
 let viewMode = 'shelf'; // 'shelf' | 'machine' — la vista a elenco non esiste più
 const VIEW_MODE_ORDER = ['shelf', 'machine']; // determina la direzione della transizione
 let viewModeBusy = false; // true mentre una animateFluidSwap tra scaffalatura/macchina è in corso
@@ -287,7 +314,7 @@ function renderShelves() {
     subtitleFields: isRicambi
       ? (p) => [p.codice_articolo, p.macchina, p.linea, totHint(p)]
       : (p) => [p.macchina, p.punto_utilizzo_standard, p.linea, totHint(p)],
-    unassignedLabel: 'Non assegnata',
+    unassignedLabel: UNASSIGNED_SHELF,
     iconName: 'shelving-unit',
     // Solo per Cuscinetti/Cinghie/Ricambi tecnici: scaffali con la stessa sigla iniziale (SD002,
     // SD003, SD004...) restano ravvicinati, e si stacca visivamente quando la sigla cambia (SE001...).
@@ -295,11 +322,13 @@ function renderShelves() {
   });
 }
 
-/** Sigla di serie di una locazione: la parte di lettere iniziale (SD002 → SD, A-12-3 → A). Nessuna lettera iniziale = nessuna serie. */
+/** Sigla di serie di una locazione: la parte di lettere iniziale (SD002 → SD, A-12-3 → A). Nessuna lettera iniziale = '' (senza sigla). */
 function shelfSeries(key) {
+  if (key === UNASSIGNED_SHELF) return '~'; // "Non assegnata" ha un gruppo tutto suo
   const m = String(key).match(/^([A-Za-z]+)/);
-  return m ? m[1].toUpperCase() : null;
+  return m ? m[1].toUpperCase() : '';
 }
+const UNASSIGNED_SHELF = 'Non assegnata';
 
 /**
  * Vista "riordino per macchina": stessa logica della scaffalatura ma
@@ -348,13 +377,32 @@ function renderGroupedCards({ wrapEl, openSet, entriesFn, titleField, subtitleFi
     a.localeCompare(b, 'it', { numeric: true, sensitivity: 'base' })
   );
 
-  let lastSeries; // undefined = non ancora iniziato (niente separatore prima della primissima card)
-  sortedKeys.forEach((key, cardIndex) => {
-    if (seriesFn) {
-      const series = seriesFn(key);
-      if (lastSeries !== undefined && series !== lastSeries) wrapEl.appendChild(buildSeriesDivider(series));
-      lastSeries = series;
+  // Con seriesFn (Cuscinetti/Cinghie/Ricambi per scaffale) gli scaffali della stessa sigla stanno
+  // insieme in un gruppo chiuso "Scaffale SA": un tocco lo espande mostrando tutti gli scaffali.
+  // I gruppi sono indipendenti: aprirne uno non chiude gli altri.
+  const seriesOfKey = (key) => (seriesFn ? seriesFn(key) : null);
+  const groupEls = new Map(); // sigla -> elemento interno dove vanno gli scaffali del gruppo
+  const siblingKeys = new Map(); // sigla -> chiavi (scaffali) del gruppo: la regola "uno solo aperto" vale dentro al gruppo
+  if (seriesFn) {
+    for (const key of sortedKeys) {
+      const series = seriesOfKey(key);
+      if (!siblingKeys.has(series)) siblingKeys.set(series, []);
+      siblingKeys.get(series).push(key);
     }
+  }
+  const scopeKey = (series) => (seriesFn ? `g:${series}` : 'all');
+  const getParent = (series) => {
+    if (!seriesFn) return wrapEl;
+    if (!groupEls.has(series)) {
+      const { el, inner } = buildShelfGroup(series, siblingKeys.get(series), groups, unassignedLabel, iconName, searching);
+      groupEls.set(series, inner);
+      wrapEl.appendChild(el);
+    }
+    return groupEls.get(series);
+  };
+
+  sortedKeys.forEach((key, cardIndex) => {
+    const series = seriesOfKey(key);
     const items = groups.get(key);
     const totQty = items.reduce((sum, { qty }) => sum + (qty || 0), 0);
     const lowCount = items.filter(({ p }) => p.quantita_disponibile < p.scorta_minima).length;
@@ -415,36 +463,38 @@ function renderGroupedCards({ wrapEl, openSet, entriesFn, titleField, subtitleFi
         card.classList.toggle('shelf-active', on);
         return;
       }
-      clearTimeout(swapTimer);
-      swapTimer = null;
+      const scope = scopeOf(scopeKey(series));
+      clearTimeout(scope.swapTimer);
+      scope.swapTimer = null;
 
       if (openSet.has(key)) {
         // Già aperto: si richiude e basta.
         openSet.delete(key);
         card.classList.remove('shelf-open', 'shelf-active');
-        closeEndsAt = Math.max(closeEndsAt, performance.now() + modalCloseMs());
+        scope.closeEndsAt = Math.max(scope.closeEndsAt, performance.now() + modalCloseMs());
         return;
       }
 
-      // Un solo scaffale aperto: chiude l'eventuale precedente (tinta e cassetto insieme)...
-      const others = wrapEl.querySelectorAll('.shelf-card.shelf-open, .shelf-card.shelf-active');
+      // Un solo scaffale aperto (per gruppo): chiude l'eventuale precedente (tinta e cassetto insieme)...
+      const scopeEl = seriesFn ? card.parentElement : wrapEl;
+      const others = scopeEl.querySelectorAll(':scope > .shelf-card.shelf-open, :scope > .shelf-card.shelf-active');
       if (others.length) {
         others.forEach((c) => c.classList.remove('shelf-open', 'shelf-active'));
-        closeEndsAt = Math.max(closeEndsAt, performance.now() + modalCloseMs());
+        scope.closeEndsAt = Math.max(scope.closeEndsAt, performance.now() + modalCloseMs());
       }
-      openSet.clear();
+      (seriesFn ? siblingKeys.get(series) : [...openSet]).forEach((k) => openSet.delete(k));
       openSet.add(key);
 
       // ...e la tinta blu del nuovo parte subito dal centro; il cassetto si apre solo
       // quando quello vecchio ha finito di richiudersi.
       card.classList.add('shelf-active');
-      const wait = Math.max(0, closeEndsAt - performance.now());
+      const wait = Math.max(0, scope.closeEndsAt - performance.now());
       followCardToTop(card, wait);
       if (wait === 0) {
         card.classList.add('shelf-open');
       } else {
-        swapTimer = setTimeout(() => {
-          swapTimer = null;
+        scope.swapTimer = setTimeout(() => {
+          scope.swapTimer = null;
           if (card.isConnected && openSet.has(key)) card.classList.add('shelf-open');
         }, wait);
       }
@@ -461,7 +511,7 @@ function renderGroupedCards({ wrapEl, openSet, entriesFn, titleField, subtitleFi
       btn.classList.add('hover:bg-graphite-700/30', 'transition-colors');
     });
 
-    wrapEl.appendChild(card);
+    getParent(series).appendChild(card);
   });
 
   window.lucide?.createIcons();
@@ -469,18 +519,77 @@ function renderGroupedCards({ wrapEl, openSet, entriesFn, titleField, subtitleFi
 }
 
 /**
- * Separatore tra una serie e la successiva (es. SD... → SE...): un'etichetta con la
- * sigla e una linea, più uno spazio verticale extra (margin-top maggiore del normale
- * space-y-2.5 della lista) per staccare visivamente il gruppo che segue.
+ * Gruppo di scaffali con la stessa sigla (SA001, SA002... → "Scaffale SA"): un'unica scheda chiusa;
+ * al tocco si espande (stessa animazione a cassetto degli scaffali) mostrando tutti i suoi scaffali.
+ * Lo stato aperto/chiuso è in openGroups: i gruppi sono indipendenti, nessuno chiude gli altri.
+ * Ritorna l'elemento del gruppo e il contenitore interno dove vanno aggiunti gli scaffali.
  */
-function buildSeriesDivider(series) {
+function buildShelfGroup(series, keys, groups, unassignedLabel, iconName, searching) {
+  const productIds = new Set();
+  const lowIds = new Set();
+  for (const k of keys) {
+    for (const { p } of groups.get(k)) {
+      productIds.add(p.id);
+      if (p.quantita_disponibile < p.scorta_minima) lowIds.add(p.id);
+    }
+  }
+  const title = series === '~' ? unassignedLabel : series ? `Scaffale ${series}` : 'Senza sigla';
+  const shelvesTxt = series === '~' ? '' : `${keys.length} ${keys.length === 1 ? 'scaffale' : 'scaffali'} · `;
+  const isOpen = searching || openGroups.has(series);
+
   const el = document.createElement('div');
-  el.className = 'shelf-series-divider flex items-center gap-2 px-1';
+  el.className = `list-item-in shelf-group${isOpen ? ' group-open group-settled' : ''}`;
   el.innerHTML = `
-    <span class="shrink-0 text-[11px] font-display font-bold uppercase tracking-wide text-graphite-500">${series ? `Serie ${escapeHtml(series)}` : 'Senza sigla'}</span>
-    <span class="flex-1 h-px bg-graphite-800"></span>
+    <div class="shelf-group-header flex items-center justify-between gap-3 px-4 py-3.5 border-2 border-graphite-700 rounded-xl">
+      <div class="flex items-center gap-3 min-w-0">
+        <span class="shelf-ico-box shrink-0 w-9 h-9 rounded-lg bg-graphite-700/50 flex items-center justify-center">
+          <i data-lucide="${iconName === 'wrench' ? 'wrench' : 'layers'}" class="shelf-ico w-[18px] h-[18px] text-graphite-400" stroke-width="1.8"></i>
+        </span>
+        <div class="min-w-0">
+          <p class="shelf-title font-display font-bold uppercase tracking-wide truncate">${escapeHtml(title)}</p>
+          <p class="shelf-sub ui-note text-graphite-500 mt-0.5 flex flex-wrap gap-x-2">
+            <span class="whitespace-nowrap">${shelvesTxt}${productIds.size} ${productIds.size === 1 ? 'articolo' : 'articoli'}</span>${
+    lowIds.size ? `<span class="shelf-low whitespace-nowrap font-semibold text-rose-700">${lowIds.size} sotto scorta</span>` : ''
+  }
+          </p>
+        </div>
+      </div>
+      <i data-lucide="chevron-down" class="shelf-chevron w-5 h-5 text-graphite-400 shrink-0" stroke-width="2"></i>
+    </div>
+    <div class="group-body-track">
+      <div class="group-body-inner"><div class="group-shelves space-y-2.5"></div></div>
+    </div>
   `;
-  return el;
+  const track = el.querySelector('.group-body-track');
+  const inner = el.querySelector('.group-shelves');
+
+  // Con il cassetto aperto del tutto il ritaglio (overflow) va tolto: serve perché i banner degli
+  // scaffali interni possano restare fermi in alto (sticky) mentre si scorre.
+  let settleTimer = null;
+  const settle = () => {
+    clearTimeout(settleTimer);
+    if (el.classList.contains('group-open')) el.classList.add('group-settled');
+  };
+  track.addEventListener('transitionend', (e) => {
+    if (e.target === track && e.propertyName === 'grid-template-rows') settle();
+  });
+
+  el.querySelector('.shelf-group-header').addEventListener('click', () => {
+    const on = !el.classList.contains('group-open');
+    if (!searching) {
+      if (on) openGroups.add(series);
+      else openGroups.delete(series);
+    }
+    el.classList.toggle('group-open', on);
+    clearTimeout(settleTimer);
+    if (on) {
+      settleTimer = setTimeout(settle, modalCloseMs() + 120); // ripiego se transitionend non arriva
+    } else {
+      el.classList.remove('group-settled'); // in chiusura si torna a ritagliare subito
+    }
+    scheduleShelfClip();
+  });
+  return { el, inner };
 }
 
 async function pickLineaFilter() {

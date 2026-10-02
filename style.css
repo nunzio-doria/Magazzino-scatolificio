@@ -1049,6 +1049,73 @@ button.shelf-item:not(:disabled):active {
   .shelf-item { animation-duration: 1ms !important; animation-delay: 0ms !important; }
 }
 
+/* ---- Gruppo di scaffali (Scaffale SA, SB...): scheda unica chiusa che si espande a cassetto con
+   tutti gli scaffali della sigla. Stesso linguaggio dell'intestazione scaffale (blu pieno che parte
+   dal centro dell'icona, testi bianchi, chevron che ruota); i gruppi sono indipendenti tra loro. --- */
+.shelf-group-header {
+  cursor: pointer;
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgba(13, 17, 23, 0.10), 0 8px 18px -8px rgba(13, 17, 23, 0.22);
+  transition: border-color var(--dur-base) ease, transform var(--dur-slow) var(--ease-spring);
+}
+.shelf-group-header:active { transform: scale(0.985); }
+.shelf-group-header::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: var(--accent);
+  clip-path: circle(0% at 34px 50%);
+  transition: clip-path var(--dur-slow) var(--ease-out);
+  pointer-events: none;
+}
+.shelf-group.group-open .shelf-group-header { border-color: var(--accent); }
+.shelf-group.group-open .shelf-group-header::before { clip-path: circle(150% at 34px 50%); }
+.shelf-group.group-open .shelf-title { color: #ffffff; }
+.shelf-group.group-open .shelf-sub { color: rgba(255, 255, 255, 0.75); }
+.shelf-group.group-open .shelf-low { color: #ffd0d6; }
+.shelf-group.group-open .shelf-ico,
+.shelf-group.group-open .shelf-chevron { color: #ffffff; }
+.shelf-group.group-open .shelf-ico-box { background-color: rgba(255, 255, 255, 0.18); }
+.shelf-group.group-open .shelf-chevron { transform: rotate(180deg); }
+
+.group-body-track {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows var(--dur-slow) var(--ease-inout);
+}
+.shelf-group.group-open .group-body-track { grid-template-rows: 1fr; }
+/* Ritaglio solo durante l'animazione; a gruppo aperto del tutto (.group-settled) si toglie, così i
+   banner degli scaffali interni restano fermi sotto la testata dell'app (sticky) mentre si scorre. */
+.group-body-inner { min-height: 0; overflow: hidden; }
+.shelf-group.group-settled .group-body-inner { overflow: visible; }
+.group-shelves {
+  margin-left: 0.5rem;
+  padding: 0.625rem 0 0 0.625rem;
+  border-left: 2px solid rgba(var(--accent-rgb), 0.28);
+}
+.group-shelves > .shelf-card { margin-top: 0; }
+
+/* Uscendo dal Magazzino tutto si richiude di scatto (nessuna animazione visibile). */
+.shelf-reset-instant .shelf-group-header,
+.shelf-reset-instant .shelf-group-header::before,
+.shelf-reset-instant .group-body-track,
+.shelf-reset-instant .shelf-header,
+.shelf-reset-instant .shelf-header::before,
+.shelf-reset-instant .shelf-body-track,
+.shelf-reset-instant .shelf-title,
+.shelf-reset-instant .shelf-sub,
+.shelf-reset-instant .shelf-low,
+.shelf-reset-instant .shelf-ico,
+.shelf-reset-instant .shelf-ico-box,
+.shelf-reset-instant .shelf-chevron { transition: none !important; }
+@media (prefers-reduced-motion: reduce) {
+  .group-body-track, .shelf-group-header::before { transition-duration: 1ms; }
+}
+
 /* ---- Scheda articolo (sola lettura) ---------------------------------
    Righe "etichetta a sinistra, valore a destra" dentro un'unica scheda,
    separate da un filo. Il pulsante tondo di modifica (.fab-round) usa la
