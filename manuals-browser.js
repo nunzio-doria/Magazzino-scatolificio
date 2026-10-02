@@ -15,7 +15,7 @@ import { refreshManualsCache, getOperatorManualsForMachine, getSectionsForOperat
 import { staggerIndex, setButtonBusy, openOverlay, closeOverlay, enableSheetDrag, startUploadProgress, syncSegIndicator, trimImageMargins } from './ui-utils.js';
 import { pushLayer, releaseLayer } from './nav-history.js';
 import { confirmDialog } from './ui-modal.js';
-import { toastError, toastSuccess, toastWarning } from './toast.js';
+import { toastError, toastInfo, toastSuccess, toastWarning } from './toast.js';
 import { isAdmin } from './auth.js';
 import feedback from './feedback.js';
 
@@ -105,6 +105,7 @@ export function initManualsBrowser() {
   els.machineIconPlaceholder = document.getElementById('manual-machine-icon-placeholder');
   els.machineIconSubmit = document.getElementById('manual-machine-icon-submit');
   els.machineIconRemove = document.getElementById('manual-machine-icon-remove');
+  els.machineIconClean = document.getElementById('manual-machine-icon-clean');
   els.listPanel = document.getElementById('manuals-list-panel');
   els.detailPanel = document.getElementById('manuals-detail-panel');
   els.detailBack = document.getElementById('manuals-detail-back');
@@ -165,6 +166,7 @@ export function initManualsBrowser() {
   if (els.machineIconModal) enableSheetDrag(els.machineIconModal.querySelector('.modal-panel'), () => closeOverlay(els.machineIconModal));
   els.machineIconInput?.addEventListener('change', onMachineIconPicked);
   els.machineIconRemove?.addEventListener('click', onMachineIconRemove);
+  els.machineIconClean?.addEventListener('click', onMachineIconClean);
   els.machineIconForm?.addEventListener('submit', handleMachineIconSubmit);
 
   els.groupsBar?.addEventListener('click', onGroupsBarClick);
@@ -438,6 +440,7 @@ function openMachineIconModal(machine) {
   const url = machineIconUrl(machine);
   setMachineIconPreview(url);
   els.machineIconRemove.classList.toggle('hidden', !url);
+  els.machineIconClean?.classList.toggle('hidden', !url);
   openOverlay(els.machineIconModal);
   window.lucide?.createIcons();
 }
@@ -466,6 +469,37 @@ function onMachineIconPicked() {
   }
 }
 
+/**
+ * "Ripulisci immagine attuale": rielabora l'immagine già caricata (toglie sfondo e margini)
+ * senza doverla ricaricare dal telefono. Il risultato si salva con "Salva".
+ */
+async function onMachineIconClean() {
+  const url = machineIconUrl(editingMachine || {});
+  if (!url || pendingMachineIconFile) return;
+  setButtonBusy(els.machineIconClean, true);
+  try {
+    const res = await fetch(url, { cache: 'no-store' });
+    if (!res.ok) throw new Error('download non riuscito');
+    const blob = await res.blob();
+    const original = new File([blob], `${editingMachine.nome || 'macchina'}.png`, { type: blob.type || 'image/png' });
+    const cleaned = await trimImageMargins(original);
+    if (cleaned === original) {
+      toastInfo('Non c\'è niente da ripulire in questa immagine.');
+      return;
+    }
+    pendingMachineIconFile = cleaned;
+    removeMachineIcon = false;
+    setMachineIconPreview(URL.createObjectURL(cleaned));
+    els.machineIconClean.classList.add('hidden');
+    toastInfo('Immagine ripulita: premi Salva per applicarla.');
+  } catch (err) {
+    console.error(err);
+    toastError('Impossibile elaborare l\'immagine attuale: ricaricala dal telefono.');
+  } finally {
+    setButtonBusy(els.machineIconClean, false);
+  }
+}
+
 /** "Rimuovi icona": toglie l'anteprima e, al salvataggio, cancella l'icona (si torna all'ingranaggio). */
 function onMachineIconRemove() {
   pendingMachineIconFile = null;
@@ -473,6 +507,7 @@ function onMachineIconRemove() {
   els.machineIconInput.value = '';
   setMachineIconPreview(null);
   els.machineIconRemove.classList.add('hidden');
+  els.machineIconClean?.classList.add('hidden');
 }
 
 async function handleMachineIconSubmit(e) {
@@ -654,7 +689,7 @@ function renderDetailGrid({ keepBar = false, opening = false } = {}) {
         ? isAdmin()
           ? 'Nessun pulsante ancora: tocca Aggiungi per crearne uno'
           : 'Nessun pulsante ancora disponibile'
-        : `${allSections.length} pulsante${allSections.length === 1 ? '' : 'i'} disponibil${allSections.length === 1 ? 'e' : 'i'}`;
+        : `${allSections.length} ${allSections.length === 1 ? 'pulsante disponibile' : 'pulsanti disponibili'}`;
   }
 
   updateReorderToggleVisibility(allSections.length);

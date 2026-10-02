@@ -470,13 +470,16 @@ export function startUploadProgress(fileName) {
 
 // --- RITAGLIO AUTOMATICO DEI MARGINI DELLE IMMAGINI -------------------------------
 /**
- * Toglie il bianco/trasparente attorno al soggetto (lasciando un piccolo respiro) e
- * limita il lato maggiore a maxSide, così un disegno di macchina riempie il riquadro
- * invece di restare piccolo in mezzo a tanto vuoto. Restituisce un nuovo File PNG;
- * se l'immagine non è leggibile (es. SVG senza dimensioni, HEIC) o non c'è nulla da
- * ritagliare, restituisce il file originale.
+ * Prepara l'immagine di una macchina: toglie lo sfondo piatto (bianco, grigio chiaro o
+ * trasparente) che circonda il soggetto, lo rende trasparente, ritaglia attorno alla
+ * macchina lasciando un piccolo respiro e limita il lato maggiore a maxSide. Così il
+ * disegno riempie il riquadro e si fonde con lo sfondo della scheda.
+ *
+ * Lo sfondo viene riconosciuto dai quattro angoli (devono avere lo stesso colore) e
+ * rimosso partendo dai bordi, così le parti chiare DENTRO la macchina restano intatte.
+ * Per le foto (sfondo non uniforme) e per le immagini illeggibili restituisce il file originale.
  */
-export async function trimImageMargins(file, { maxSide = 1200, padding = 0.04 } = {}) {
+export async function trimImageMargins(file, { maxSide = 1200, padding = 0.04, tolerance = 10 } = {}) {
   let url = null;
   try {
     url = URL.createObjectURL(file);
@@ -496,15 +499,53 @@ export async function trimImageMargins(file, { maxSide = 1200, padding = 0.04 } 
     canvas.height = h;
     const ctx = canvas.getContext('2d', { willReadFrequently: true });
     ctx.drawImage(img, 0, 0, w, h);
-    const { data } = ctx.getImageData(0, 0, w, h);
+    const imageData = ctx.getImageData(0, 0, w, h);
+    const d = imageData.data;
 
-    // "sfondo" = trasparente oppure quasi bianco
-    const isContent = (i) => data[i + 3] > 12 && !(data[i] > 244 && data[i + 1] > 244 && data[i + 2] > 244);
+    // Sfondo di riferimento dai quattro angoli
+    const corners = [0, (w - 1) * 4, (h - 1) * w * 4, ((h - 1) * w + (w - 1)) * 4];
+    const transparentCorners = corners.filter((i) => d[i + 3] < 12).length;
+    const solid = corners.filter((i) => d[i + 3] >= 12);
+    let bg = null;
+    if (transparentCorners < 4) {
+      if (transparentCorners > 0) return file; // angoli misti: non è uno sfondo uniforme
+      bg = [0, 1, 2].map((c) => Math.round(solid.reduce((n, i) => n + d[i + c], 0) / solid.length));
+      const uniform = solid.every((i) => Math.max(Math.abs(d[i] - bg[0]), Math.abs(d[i + 1] - bg[1]), Math.abs(d[i + 2] - bg[2])) <= tolerance);
+      if (!uniform) return file; // foto o sfondo non uniforme
+    }
+
+    if (bg) {
+      // Riempimento dai bordi: solo lo sfondo collegato ai bordi diventa trasparente
+      const isBg = (i) => d[i + 3] < 12 || Math.max(Math.abs(d[i] - bg[0]), Math.abs(d[i + 1] - bg[1]), Math.abs(d[i + 2] - bg[2])) <= tolerance;
+      const seen = new Uint8Array(w * h);
+      const stack = [];
+      const push = (x, y) => {
+        const p = y * w + x;
+        if (seen[p] || !isBg(p * 4)) return;
+        seen[p] = 1;
+        stack.push(p);
+      };
+      for (let x = 0; x < w; x++) { push(x, 0); push(x, h - 1); }
+      for (let y = 0; y < h; y++) { push(0, y); push(w - 1, y); }
+      while (stack.length) {
+        const p = stack.pop();
+        const x = p % w;
+        const y = (p - x) / w;
+        d[p * 4 + 3] = 0;
+        if (x > 0) push(x - 1, y);
+        if (x < w - 1) push(x + 1, y);
+        if (y > 0) push(x, y - 1);
+        if (y < h - 1) push(x, y + 1);
+      }
+      ctx.putImageData(imageData, 0, 0);
+    }
+
+    // Riquadro del soggetto = pixel non trasparenti
     let minX = w, minY = h, maxX = -1, maxY = -1;
     for (let y = 0; y < h; y++) {
       const row = y * w * 4;
       for (let x = 0; x < w; x++) {
-        if (isContent(row + x * 4)) {
+        if (d[row + x * 4 + 3] > 12) {
           if (x < minX) minX = x;
           if (x > maxX) maxX = x;
           if (y < minY) minY = y;
@@ -512,7 +553,7 @@ export async function trimImageMargins(file, { maxSide = 1200, padding = 0.04 } 
         }
       }
     }
-    if (maxX < 0) return file; // immagine tutta bianca/trasparente: non si tocca
+    if (maxX < 0) return file; // tutto trasparente: non si tocca
 
     const padX = Math.round((maxX - minX + 1) * padding);
     const padY = Math.round((maxY - minY + 1) * padding);
@@ -520,8 +561,7 @@ export async function trimImageMargins(file, { maxSide = 1200, padding = 0.04 } 
     const sy = Math.max(0, minY - padY);
     const sw = Math.min(w, maxX + padX + 1) - sx;
     const sh = Math.min(h, maxY + padY + 1) - sy;
-    const nothingToTrim = sw >= w * 0.97 && sh >= h * 0.97 && scale === 1;
-    if (nothingToTrim) return file;
+    if (!bg && sw >= w * 0.97 && sh >= h * 0.97 && scale === 1) return file; // niente da fare
 
     const out = document.createElement('canvas');
     out.width = sw;
