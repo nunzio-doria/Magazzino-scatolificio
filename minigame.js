@@ -12,6 +12,7 @@
 // =============================================================
 
 import { pushLayer, releaseLayer } from './nav-history.js';
+import { isSoundEnabled, isHapticsEnabled } from './feedback.js'; // rispetta le impostazioni suoni/vibrazione dell'app
 
 const HOLD_MS = 5000; // pressione prolungata necessaria
 const MOVE_TOLERANCE = 24; // px di spostamento del dito oltre i quali la pressione è annullata
@@ -19,20 +20,22 @@ const MAX_LIVES = 3;
 const POINTS_PER_LEVEL = 5; // ogni 5 barattoli presi sale il livello
 
 // ---------- Sprite pixel-art ----------
-const PAL = { S: '#cfd6e0', D: '#8791a5', R: '#d9453f', r: '#9c2a27', Y: '#f4cf55', H: '#ffffff' };
+// Barattolo metallico: nessuna scritta né colore, solo acciaio con la
+// cordonatura (le due nervature orizzontali) sul corpo.
+const PAL = { H: '#f4f7fb', S: '#cdd5e1', M: '#a0abbd', D: '#6f7b91', K: '#4b5469' };
 const CAN = [
-  '.SSSSSSS.',
-  'SDDDDDDDS',
-  '.RRRRRRR.',
-  '.RHRRRRr.',
-  '.RYYYYYr.',
-  '.RYrrrYr.',
-  '.RYYYYYr.',
-  '.RHRRRRr.',
-  '.RHRRRRr.',
-  '.RRRRRRr.',
-  'SDDDDDDDS',
-  '.SSSSSSS.',
+  '.SHHSSMD.',
+  'SHHSSSMDK',
+  '.MHSSMDK.',
+  '.SHHHSMD.',
+  '.DMDDKKK.',
+  '.MHSSMDK.',
+  '.MHSSMDK.',
+  '.DMDDKKK.',
+  '.SHHHSMD.',
+  '.MHSSMDK.',
+  'MSSSSMDKK',
+  '.MSSMMDK.',
 ];
 const CW = 9;
 const CH = 12;
@@ -178,15 +181,215 @@ function pixelButton(label, primary) {
   );
 }
 
+// ---------- Vibrazione ----------
+function vib(ms) {
+  try {
+    if (isHapticsEnabled() && navigator.vibrate) navigator.vibrate(ms);
+  } catch (_) {
+    /* vibrazione non disponibile: nessun problema */
+  }
+}
+
+// ---------- Audio ----------
+// Tutto sintetizzato al volo con Web Audio (nessun file audio): musichetta
+// chiptune a 4 voci (melodia, arpeggio, basso, batteria) + effetti sonori.
+// La canzoncina è originale, in Do maggiore (Do – La min – Fa – Sol), 8 battute in loop.
+const mtof = (m) => 440 * Math.pow(2, (m - 69) / 12);
+
+const MELODY = [
+  76, 79, 76, 72, 67, 72, 76, 79, // Do
+  81, 79, 76, 72, 69, 72, 76, 81, // La min
+  77, 81, 77, 72, 69, 72, 77, 81, // Fa
+  79, 77, 74, 71, 67, 71, 74, 0, //  Sol
+  72, 76, 79, 84, 79, 76, 72, 76, // Do
+  69, 72, 76, 81, 76, 72, 76, 72, // La min
+  77, 76, 74, 72, 74, 76, 77, 81, // Fa
+  79, 77, 74, 71, 74, 77, 79, 0, //  Sol
+];
+const CHORDS = [
+  { root: 48, arp: [64, 67, 72, 67] }, // Do
+  { root: 45, arp: [64, 69, 72, 69] }, // La min
+  { root: 41, arp: [65, 69, 72, 69] }, // Fa
+  { root: 43, arp: [62, 67, 71, 67] }, // Sol
+];
+const PENTA = [72, 74, 76, 79, 81, 84, 86, 88]; // scala dei "catch" consecutivi
+const BASE_BPM = 128;
+
+function createAudio(startMuted) {
+  const AC = window.AudioContext || window.webkitAudioContext;
+  if (!AC) return null;
+  let ctx;
+  try {
+    ctx = new AC();
+  } catch (_) {
+    return null;
+  }
+
+  const master = ctx.createGain();
+  master.gain.value = startMuted ? 0 : 0.7;
+  const comp = ctx.createDynamicsCompressor();
+  master.connect(comp);
+  comp.connect(ctx.destination);
+  const musicBus = ctx.createGain();
+  musicBus.gain.value = 0.5;
+  musicBus.connect(master);
+  const sfxBus = ctx.createGain();
+  sfxBus.gain.value = 0.9;
+  sfxBus.connect(master);
+
+  // Rumore bianco (per hi-hat, rullante, clangore)
+  const nbuf = ctx.createBuffer(1, ctx.sampleRate, ctx.sampleRate);
+  const nd = nbuf.getChannelData(0);
+  for (let i = 0; i < nd.length; i++) nd[i] = Math.random() * 2 - 1;
+
+  // Onda a impulso 25% (timbro "NES") per l'arpeggio
+  const N = 32;
+  const real = new Float32Array(N + 1);
+  const imag = new Float32Array(N + 1);
+  for (let n = 1; n <= N; n++) real[n] = (2 / (n * Math.PI)) * Math.sin(n * Math.PI * 0.25);
+  const pulse = ctx.createPeriodicWave(real, imag);
+
+  function tone(bus, t, { type = 'square', wave = null, f, f2 = null, dur = 0.1, vol = 0.1 }) {
+    const o = ctx.createOscillator();
+    const g = ctx.createGain();
+    if (wave) o.setPeriodicWave(wave);
+    else o.type = type;
+    o.frequency.setValueAtTime(f, t);
+    if (f2) o.frequency.exponentialRampToValueAtTime(f2, t + dur);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.linearRampToValueAtTime(vol, t + 0.004);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g);
+    g.connect(bus);
+    o.start(t);
+    o.stop(t + dur + 0.03);
+  }
+
+  function noise(bus, t, { dur = 0.05, vol = 0.1, kind = 'highpass', freq = 6000 }) {
+    const s = ctx.createBufferSource();
+    s.buffer = nbuf;
+    const fl = ctx.createBiquadFilter();
+    fl.type = kind;
+    fl.frequency.value = freq;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(vol, t);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    s.connect(fl);
+    fl.connect(g);
+    g.connect(bus);
+    s.start(t, Math.random() * 0.5);
+    s.stop(t + dur + 0.03);
+  }
+
+  // ----- Musica -----
+  let bpm = BASE_BPM;
+  let step = 0;
+  let nextTime = 0;
+  let timer = null;
+
+  function scheduleStep(i, t) {
+    const bar = Math.floor(i / 8);
+    const s = i % 8;
+    const ch = CHORDS[bar % 4];
+    const sd = 60 / bpm / 2; // durata di una croma
+
+    const m = MELODY[i];
+    if (m) tone(musicBus, t, { type: 'square', f: mtof(m), dur: sd * 0.9, vol: 0.085 });
+
+    if (s % 2 === 1) tone(musicBus, t, { wave: pulse, f: mtof(ch.arp[(s - 1) / 2]), dur: sd * 0.8, vol: 0.07 });
+
+    if (s === 0 || s === 2 || s === 6) tone(musicBus, t, { type: 'triangle', f: mtof(ch.root), dur: sd * 1.8, vol: 0.2 });
+    else if (s === 4) tone(musicBus, t, { type: 'triangle', f: mtof(ch.root + 7), dur: sd * 1.8, vol: 0.2 });
+
+    if (s === 0 || s === 4) tone(musicBus, t, { type: 'sine', f: 150, f2: 45, dur: 0.13, vol: 0.28 }); // cassa
+    const fill = bar === 7 && s >= 6;
+    if (s === 2 || s === 6 || fill) noise(musicBus, t, { dur: 0.09, vol: 0.1, kind: 'bandpass', freq: 1800 }); // rullante
+    noise(musicBus, t, { dur: 0.03, vol: s % 2 ? 0.035 : 0.05, kind: 'highpass', freq: 7000 }); // hi-hat
+  }
+
+  function tick() {
+    while (nextTime < ctx.currentTime + 0.15) {
+      scheduleStep(step, nextTime);
+      nextTime += 60 / bpm / 2;
+      step = (step + 1) % 64;
+    }
+  }
+
+  // ----- Effetti -----
+  const sfx = {
+    catch(combo) {
+      const t = ctx.currentTime;
+      const n = PENTA[Math.min(combo, PENTA.length - 1)];
+      tone(sfxBus, t, { type: 'square', f: mtof(n), dur: 0.09, vol: 0.15 });
+      tone(sfxBus, t + 0.05, { type: 'square', f: mtof(n + 7), dur: 0.1, vol: 0.12 });
+      tone(sfxBus, t, { type: 'sine', f: mtof(n + 24), dur: 0.16, vol: 0.05 }); // tintinnio metallico
+    },
+    miss() {
+      const t = ctx.currentTime;
+      tone(sfxBus, t, { type: 'sawtooth', f: 220, f2: 80, dur: 0.3, vol: 0.16 });
+      noise(sfxBus, t, { dur: 0.12, vol: 0.14, kind: 'lowpass', freq: 600 });
+    },
+    clank() {
+      const t = ctx.currentTime;
+      noise(sfxBus, t, { dur: 0.07, vol: 0.12, kind: 'bandpass', freq: 3200 });
+      tone(sfxBus, t, { type: 'sine', f: 1760, dur: 0.18, vol: 0.05 });
+      tone(sfxBus, t, { type: 'sine', f: 2637, dur: 0.14, vol: 0.04 });
+    },
+    levelUp() {
+      const t = ctx.currentTime + 0.05;
+      [72, 76, 79, 84].forEach((n, k) => tone(sfxBus, t + k * 0.07, { type: 'square', f: mtof(n), dur: 0.1, vol: 0.13 }));
+    },
+    gameOver() {
+      const t = ctx.currentTime + 0.3;
+      [67, 64, 60, 55].forEach((n, k) =>
+        tone(sfxBus, t + k * 0.22, { type: 'square', f: mtof(n), dur: k === 3 ? 0.6 : 0.24, vol: 0.14 })
+      );
+    },
+    click() {
+      tone(sfxBus, ctx.currentTime, { type: 'square', f: 660, dur: 0.05, vol: 0.1 });
+    },
+  };
+
+  return {
+    ...sfx,
+    startMusic() {
+      if (timer) return;
+      step = 0;
+      nextTime = ctx.currentTime + 0.08;
+      timer = setInterval(tick, 30);
+      tick();
+    },
+    stopMusic() {
+      clearInterval(timer);
+      timer = null;
+    },
+    setTempo(v) {
+      bpm = v;
+    },
+    setMuted(m) {
+      master.gain.setTargetAtTime(m ? 0 : 0.7, ctx.currentTime, 0.02);
+    },
+    resume() {
+      if (ctx.state !== 'running') ctx.resume().catch(() => {});
+    },
+    suspend() {
+      if (ctx.state === 'running') ctx.suspend().catch(() => {});
+    },
+    dispose() {
+      clearInterval(timer);
+      timer = null;
+      ctx.close().catch(() => {});
+    },
+  };
+}
+
 // ---------- Gioco ----------
 function launchGame() {
   if (active) return;
   active = true;
-  try {
-    if (navigator.vibrate) navigator.vibrate(40);
-  } catch (_) {
-    /* vibrazione non disponibile: nessun problema */
-  }
+  vib(40);
+  let muted = !isSoundEnabled(); // parte silenzioso se l'app ha i suoni disattivati
+  const audio = createAudio(muted);
 
   // --- DOM ---
   const overlay = mk('div', {
@@ -234,6 +437,28 @@ function launchGame() {
   closeBtn.type = 'button';
   closeBtn.setAttribute('aria-label', 'Chiudi minigioco');
 
+  const muteBtn = mk(
+    'button',
+    {
+      position: 'absolute',
+      top: 'calc(env(safe-area-inset-top, 0px) + 8px)',
+      left: 'calc(50% + 28px)',
+      width: '40px',
+      height: '40px',
+      borderRadius: '8px',
+      border: '2px solid rgba(255,255,255,.3)',
+      background: 'rgba(255,255,255,.1)',
+      color: '#fff',
+      fontSize: '16px',
+      lineHeight: '1',
+      cursor: 'pointer',
+      display: audio ? 'block' : 'none',
+    },
+    muted ? '🔇' : '🔊'
+  );
+  muteBtn.type = 'button';
+  muteBtn.setAttribute('aria-label', 'Attiva o disattiva l\'audio');
+
   const hint = mk(
     'div',
     {
@@ -279,7 +504,7 @@ function launchGame() {
   exitBtn.type = 'button';
   panel.append(panelTitle, panelScore, retryBtn, exitBtn);
 
-  wrap.append(canvas, hint, closeBtn, panel);
+  wrap.append(canvas, hint, closeBtn, muteBtn, panel);
   overlay.append(wrap);
   document.body.append(overlay);
 
@@ -303,6 +528,7 @@ function launchGame() {
     spawn: 1,
     hurt: 0,
     bump: 0,
+    combo: 0,
     cx: 60,
     tcx: 60,
     bw: 28,
@@ -367,7 +593,12 @@ function launchGame() {
     g.bw = baseBucketW();
     g.cx = W / 2;
     g.tcx = W / 2;
+    g.combo = 0;
     panel.style.display = 'none';
+    if (audio) {
+      audio.setTempo(BASE_BPM);
+      audio.startMusic();
+    }
   }
 
   function spawnCan() {
@@ -404,20 +635,20 @@ function launchGame() {
     }
   }
 
-  function vibrate(ms) {
-    try {
-      if (navigator.vibrate) navigator.vibrate(ms);
-    } catch (_) {
-      /* ignora */
-    }
-  }
+  const vibrate = vib;
 
   function loseLife() {
     g.lives -= 1;
     g.hurt = 0.25;
+    g.combo = 0;
     vibrate(35);
+    if (audio) audio.miss();
     if (g.lives <= 0) {
       g.state = 'over';
+      if (audio) {
+        audio.stopMusic();
+        audio.gameOver();
+      }
       panelScore.textContent = `Punteggio: ${g.score}`;
       panel.style.display = 'flex';
       vibrate(120);
@@ -451,9 +682,18 @@ function launchGame() {
         const center = c.x + CW / 2;
         if (center >= left + 1 && center <= left + g.bw - 1) {
           // Preso: entra nel secchio
+          const lvBefore = level();
           g.score += 1;
+          g.combo += 1;
           g.bump = 0.12;
-          burst(center, g.by, '#f4cf55', 6);
+          if (audio) {
+            audio.catch(g.combo - 1);
+            if (level() > lvBefore) {
+              audio.levelUp();
+              audio.setTempo(BASE_BPM + Math.min(level(), 10) * 5); // la musica accelera
+            }
+          }
+          burst(center, g.by, '#e8eef8', 6);
           g.cans.splice(i, 1);
           continue;
         }
@@ -465,7 +705,10 @@ function launchGame() {
       }
 
       if (c.y + CH >= H - GROUND_H) {
-        if (c.missed) burst(c.x + CW / 2, H - GROUND_H, '#d9453f', 5);
+        if (c.missed) {
+          burst(c.x + CW / 2, H - GROUND_H, '#a0abbd', 5);
+          if (audio) audio.clank();
+        }
         g.cans.splice(i, 1);
       }
     }
@@ -642,10 +885,20 @@ function launchGame() {
   const onResize = () => layout();
   const onVisibility = () => {
     last = 0; // evita un salto di tempo al ritorno sulla pagina
+    if (audio) {
+      if (document.hidden) audio.suspend();
+      else audio.resume();
+    }
+  };
+  // Le policy autoplay (soprattutto iOS) sbloccano l'audio solo dopo un gesto: lo si riprova a ogni tocco
+  const unlockAudio = () => {
+    if (audio) audio.resume();
   };
 
   window.addEventListener('pointermove', onPointer);
   window.addEventListener('pointerdown', onPointer);
+  window.addEventListener('pointerdown', unlockAudio);
+  window.addEventListener('pointerup', unlockAudio);
   window.addEventListener('keydown', onKeyDown);
   window.addEventListener('keyup', onKeyUp);
   window.addEventListener('resize', onResize);
@@ -659,10 +912,13 @@ function launchGame() {
     cancelAnimationFrame(raf);
     window.removeEventListener('pointermove', onPointer);
     window.removeEventListener('pointerdown', onPointer);
+    window.removeEventListener('pointerdown', unlockAudio);
+    window.removeEventListener('pointerup', unlockAudio);
     window.removeEventListener('keydown', onKeyDown);
     window.removeEventListener('keyup', onKeyUp);
     window.removeEventListener('resize', onResize);
     document.removeEventListener('visibilitychange', onVisibility);
+    if (audio) audio.dispose();
     overlay.remove();
     if (!fromBack) releaseLayer(layer);
   }
@@ -671,8 +927,18 @@ function launchGame() {
   closeBtn.addEventListener('click', () => close(false));
   exitBtn.addEventListener('click', () => close(false));
   retryBtn.addEventListener('click', () => {
+    if (audio) audio.click();
     startRound();
     last = 0;
+  });
+  muteBtn.addEventListener('click', () => {
+    muted = !muted;
+    muteBtn.textContent = muted ? '🔇' : '🔊';
+    if (audio) {
+      audio.setMuted(muted);
+      audio.resume();
+      if (!muted) audio.click();
+    }
   });
 
   layout();
