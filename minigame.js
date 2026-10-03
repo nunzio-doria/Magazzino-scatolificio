@@ -20,9 +20,14 @@
 // alba e tramonto) oppure si forza dal menu di pausa (Giorno / Notte / Auto),
 // dove si trovano anche gli interruttori di vibrazione e suono.
 //
-// Solo illustrativo: vive interamente nel browser. Non legge né scrive nulla
-// su Supabase, né su localStorage, né altrove. Le scelte fatte nel menu di
-// pausa restano solo finché l'app non viene ricaricata.
+// All'apertura compare la schermata iniziale: Nuova partita, High score
+// (le 5 migliori classifiche, con nome di chi le ha fatte), Impostazioni.
+// A fine partita, se il punteggio entra in classifica, si inserisce il nome.
+//
+// Vive interamente nel browser. Non scrive nulla su Supabase: l'unico dato
+// salvato (in localStorage, solo su questo dispositivo) è la classifica con
+// l'ultimo nome usato. Le scelte del menu di pausa/impostazioni restano
+// solo finché l'app non viene ricaricata.
 // =============================================================
 
 import { pushLayer, releaseLayer } from './nav-history.js';
@@ -47,6 +52,60 @@ const smooth = (x) => {
   const k = clamp(x, 0, 1);
   return k * k * (3 - 2 * k);
 };
+
+// ---------- Classifica (high score) ----------
+// Le 5 migliori partite, salvate in localStorage solo su questo dispositivo.
+const SCORES_KEY = 'magazzino-minigame-scores';
+const NAME_KEY = 'magazzino-minigame-name';
+const MAX_SCORES = 5;
+const NAME_MAX = 10;
+const cleanName = (v) =>
+  String(v || '')
+    .toUpperCase()
+    .replace(/[^A-Z0-9 .\-]/g, '')
+    .slice(0, NAME_MAX);
+const byRank = (a, b) => b.score - a.score || a.at - b.at; // a parità vince chi l'ha fatto prima
+
+function loadScores() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(SCORES_KEY) || '[]');
+    if (!Array.isArray(raw)) return [];
+    return raw
+      .filter((e) => e && Number.isFinite(e.score) && e.score > 0)
+      .map((e) => ({ name: cleanName(e.name).trim() || '---', score: Math.floor(e.score), at: Number(e.at) || 0 }))
+      .sort(byRank)
+      .slice(0, MAX_SCORES);
+  } catch (_) {
+    return [];
+  }
+}
+function scoreQualifies(score) {
+  if (!(score > 0)) return false;
+  const list = loadScores();
+  return list.length < MAX_SCORES || score > list[list.length - 1].score;
+}
+// Inserisce il punteggio e restituisce la posizione (0 = primo) nella nuova classifica
+function insertScore(name, score) {
+  const entry = { name, score: Math.floor(score), at: Date.now() };
+  const list = loadScores();
+  list.push(entry);
+  list.sort(byRank);
+  const pos = list.indexOf(entry);
+  try {
+    localStorage.setItem(SCORES_KEY, JSON.stringify(list.slice(0, MAX_SCORES)));
+    localStorage.setItem(NAME_KEY, name);
+  } catch (_) {
+    /* memoria piena o bloccata: la classifica vale solo per questa sessione */
+  }
+  return pos;
+}
+function lastName() {
+  try {
+    return cleanName(localStorage.getItem(NAME_KEY));
+  } catch (_) {
+    return '';
+  }
+}
 
 // ---------- Preferenze di sessione (nessun salvataggio su disco) ----------
 // sound / haptics null = segue le impostazioni dell'app; true/false = scelta fatta nel menu di pausa
@@ -400,6 +459,12 @@ const HAP = {
   miss: 35,
   over: 120,
   tap: [15],
+  back: [15, 25, 15], // si torna indietro: doppio tocco leggero
+  record: [30, 40, 30, 40, 30, 40, 90], // nuovo high score: tre colpi che salgono e uno lungo
+  saved: [20, 40, 45], // nome registrato: il "timbro"
+  denied: [30, 40, 30], // nome vuoto
+  key: [15], // lettera digitata
+  keyFull: [15, 40, 15], // nome al massimo o carattere non valido
 };
 
 // ---------- Audio ----------
@@ -1289,6 +1354,48 @@ function createAudio() {
       [988, 784, 587, 392].forEach((f, k) => tone(sfxBus, t + k * 0.08, { type: 'sine', f, dur: 0.22, vol: 0.12 }));
       tone(sfxBus, t + 0.05, { type: 'triangle', f: 98, dur: 0.4, vol: 0.12 });
     },
+    // --- Home, classifica, nome ---
+    // Nuova partita: tre note che salgono e uno sbuffo, come una linea che si avvia
+    start() {
+      const t = at();
+      [60, 67, 72].forEach((n, k) => tone(sfxBus, t + k * 0.06, { type: 'square', f: mtof(n), dur: 0.09, vol: 0.12 }));
+      noise(sfxBus, t, { dur: 0.18, vol: 0.05, kind: 'bandpass', freq: 900 });
+    },
+    // Torna indietro: due toni che scendono
+    back() {
+      const t = at();
+      tone(sfxBus, t, { type: 'square', f: 660, dur: 0.04, vol: 0.09 });
+      tone(sfxBus, t + 0.05, { type: 'square', f: 495, dur: 0.06, vol: 0.09 });
+    },
+    // Nuovo high score: fanfara a squillo con scintillio
+    record() {
+      const t = at() + 0.1;
+      [72, 76, 79, 84, 79, 84, 88].forEach((n, k) => tone(sfxBus, t + k * 0.09, { type: 'square', f: mtof(n), dur: k === 6 ? 0.5 : 0.1, vol: 0.13 }));
+      tone(sfxBus, t + 0.54, { type: 'triangle', f: mtof(60), dur: 0.5, vol: 0.16 });
+      noise(sfxBus, t + 0.54, { dur: 0.35, vol: 0.05, kind: 'highpass', freq: 8000 });
+    },
+    // Nome registrato: colpo di timbro + tintinnio
+    saved() {
+      const t = at();
+      tone(sfxBus, t, { type: 'sine', f: 150, f2: 55, dur: 0.12, vol: 0.26 });
+      noise(sfxBus, t, { dur: 0.06, vol: 0.12, kind: 'bandpass', freq: 2600 });
+      tone(sfxBus, t + 0.08, { type: 'sine', f: 1568, dur: 0.22, vol: 0.08 });
+      tone(sfxBus, t + 0.14, { type: 'sine', f: 2093, dur: 0.26, vol: 0.07 });
+    },
+    // Nome vuoto: doppio ronzio basso
+    denied() {
+      const t = at();
+      tone(sfxBus, t, { type: 'square', f: 200, dur: 0.07, vol: 0.12 });
+      tone(sfxBus, t + 0.1, { type: 'square', f: 160, dur: 0.1, vol: 0.12 });
+    },
+    // Lettera digitata (più acuta se il nome è pieno)
+    key(full) {
+      tone(sfxBus, at(), { type: 'square', f: full ? 1175 : 880, dur: 0.025, vol: 0.07 });
+    },
+    // Riga della classifica che compare
+    row() {
+      tone(sfxBus, at(), { type: 'triangle', f: 740, dur: 0.04, vol: 0.07 });
+    },
     auto() {
       const t = at();
       noise(sfxBus, t, { dur: 0.03, vol: 0.12, kind: 'bandpass', freq: 3400 });
@@ -1491,28 +1598,109 @@ function launchGame({ fx = null } = {}) {
     'Prendi i barattoli col secchio'
   );
 
-  // Game over
-  const panel = mk('div', {
-    position: 'absolute',
-    inset: '0',
-    display: 'none',
-    flexDirection: 'column',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: '14px',
-    background: 'rgba(5,8,20,.78)',
-    color: '#fff',
-    fontFamily: FONT_UI,
-    textTransform: 'uppercase',
-    textAlign: 'center',
-  });
+  // Schermate a pannello (home, classifica, game over): si scorrono se lo schermo è basso
+  const mkScreen = (bg) => {
+    const scr = mk('div', {
+      position: 'absolute',
+      inset: '0',
+      display: 'none',
+      overflowY: 'auto',
+      background: bg,
+      color: '#fff',
+      fontFamily: FONT_UI,
+      textTransform: 'uppercase',
+      textAlign: 'center',
+      padding: 'calc(env(safe-area-inset-top, 0px) + 12px) 16px 16px',
+      boxSizing: 'border-box',
+    });
+    const inner = mk('div', {
+      margin: 'auto',
+      width: '100%',
+      maxWidth: '300px',
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      gap: '14px',
+    });
+    scr.append(inner);
+    return { scr, inner };
+  };
+  const wide = (b) => {
+    b.type = 'button';
+    b.style.width = '100%';
+    return b;
+  };
+
+  // Home
+  const homeScr = mkScreen('rgba(5,8,20,.32)');
+  const homeIcon = mk('div', { display: 'flex', filter: 'drop-shadow(0 3px 0 rgba(0,0,0,.45))' });
+  homeIcon.append(svgIcon(ITEMS.can.rows, ITEMS.can.pal, 6));
+  const homeTitle = mk('div', { fontSize: '56px', lineHeight: '.95', fontWeight: '700', letterSpacing: '.05em', color: '#f4cf55', textShadow: '0 4px 0 rgba(0,0,0,.6)' });
+  homeTitle.append(mk('div', null, 'Pesca'), mk('div', { fontSize: '34px', color: '#fff' }, 'i barattoli'));
+  const homeBest = mk('div', { fontSize: '18px', fontWeight: '600', letterSpacing: '.08em', color: '#cbd5e8', minHeight: '22px', textShadow: '0 2px 0 rgba(0,0,0,.6)' }, '');
+  const newGameBtn = wide(pixelButton('Nuova partita', true));
+  const scoresBtn = wide(pixelButton('High score', false));
+  const settingsBtn = wide(pixelButton('Impostazioni', false));
+  const homeExitBtn = wide(pixelButton('Esci', false));
+  homeExitBtn.style.background = 'transparent';
+  homeExitBtn.style.borderColor = 'rgba(255,255,255,.2)';
+  homeExitBtn.style.color = '#cbd5e8';
+  const homeBtns = mk('div', { display: 'flex', flexDirection: 'column', gap: '10px', width: '100%', marginTop: '8px' });
+  homeBtns.append(newGameBtn, scoresBtn, settingsBtn, homeExitBtn);
+  homeScr.inner.append(homeIcon, homeTitle, homeBest, homeBtns);
+
+  // Classifica
+  const scoresScr = mkScreen('rgba(5,8,20,.82)');
+  const scoresTitle = mk('div', { fontSize: '42px', fontWeight: '700', letterSpacing: '.08em', color: '#f4cf55' }, 'High score');
+  const scoresList = mk('div', { display: 'flex', flexDirection: 'column', gap: '8px', width: '100%' });
+  const scoresBackBtn = wide(pixelButton('Indietro', true));
+  const scoresRetryBtn = wide(pixelButton('Riprova', true));
+  const scoresMenuBtn = wide(pixelButton('Menu', false));
+  const scoresBtns = mk('div', { display: 'flex', flexDirection: 'column', gap: '10px', width: '100%', marginTop: '6px' });
+  scoresBtns.append(scoresBackBtn, scoresRetryBtn, scoresMenuBtn);
+  scoresScr.inner.append(scoresTitle, scoresList, scoresBtns);
+
+  // Game over (con inserimento del nome se il punteggio entra in classifica)
+  const overScr = mkScreen('rgba(5,8,20,.78)');
+  const panel = overScr.scr;
+  const panelInner = overScr.inner;
   const panelTitle = mk('div', { fontSize: '44px', fontWeight: '700', color: '#ff6b6b', letterSpacing: '.06em' }, 'Game over');
   const panelScore = mk('div', { fontSize: '24px', fontWeight: '600', letterSpacing: '.06em' }, '');
-  const retryBtn = pixelButton('Riprova', true);
-  const exitBtn = pixelButton('Esci', false);
-  retryBtn.type = 'button';
-  exitBtn.type = 'button';
-  panel.append(panelTitle, panelScore, retryBtn, exitBtn);
+  const panelBest = mk('div', { fontSize: '16px', fontWeight: '600', letterSpacing: '.08em', color: '#9fb4e8' }, '');
+  const nameBox = mk('div', { display: 'none', flexDirection: 'column', alignItems: 'center', gap: '10px', width: '100%' });
+  const nameLabel = mk('div', { fontSize: '18px', fontWeight: '600', letterSpacing: '.08em', color: '#f4cf55' }, 'Inserisci il tuo nome');
+  const nameInput = mk('input', {
+    width: '100%',
+    height: '54px',
+    boxSizing: 'border-box',
+    textAlign: 'center',
+    fontFamily: FONT_UI,
+    fontWeight: '700',
+    fontSize: '30px',
+    letterSpacing: '.18em',
+    textTransform: 'uppercase',
+    color: '#fff',
+    background: 'rgba(255,255,255,.1)',
+    border: '2px solid #f4cf55',
+    borderRadius: '10px',
+    outline: 'none',
+    padding: '0 8px',
+  });
+  nameInput.type = 'text';
+  nameInput.maxLength = NAME_MAX;
+  nameInput.autocomplete = 'off';
+  nameInput.spellcheck = false;
+  nameInput.setAttribute('autocapitalize', 'characters');
+  nameInput.setAttribute('autocorrect', 'off');
+  nameInput.setAttribute('enterkeyhint', 'done');
+  nameInput.setAttribute('aria-label', 'Nome per la classifica');
+  const saveBtn = wide(pixelButton('Salva', true));
+  nameBox.append(nameLabel, nameInput, saveBtn);
+  const retryBtn = wide(pixelButton('Riprova', true));
+  const exitBtn = wide(pixelButton('Menu', false));
+  const overBtns = mk('div', { display: 'flex', flexDirection: 'column', gap: '10px', width: '100%', marginTop: '4px' });
+  overBtns.append(retryBtn, exitBtn);
+  panelInner.append(panelTitle, panelScore, panelBest, nameBox, overBtns);
 
   // Menu di pausa: vibrazione, suono, sfondo Giorno/Notte/Auto, legenda bonus e malus
   const menu = mk('div', {
@@ -1612,15 +1800,19 @@ function launchGame({ fx = null } = {}) {
   );
 
   const resumeBtn = pixelButton('Riprendi', true);
-  const quitBtn = pixelButton('Esci', false);
+  const quitBtn = pixelButton('Menu principale', false);
+  const backBtn = pixelButton('Indietro', true); // visibile solo nelle Impostazioni aperte dalla home
   resumeBtn.type = 'button';
   quitBtn.type = 'button';
+  backBtn.type = 'button';
   resumeBtn.style.width = '100%';
   quitBtn.style.width = '100%';
-  card.append(menuTitle, hapticsRow, soundRow, bgLabel, bgSeg, legend, resumeBtn, quitBtn);
+  backBtn.style.width = '100%';
+  backBtn.style.display = 'none';
+  card.append(menuTitle, hapticsRow, soundRow, bgLabel, bgSeg, legend, resumeBtn, quitBtn, backBtn);
   menu.append(card);
 
-  wrap.append(canvas, hint, pauseBtn, panel, menu);
+  wrap.append(canvas, hint, pauseBtn, homeScr.scr, scoresScr.scr, panel, menu);
   overlay.append(wrap);
   document.body.append(overlay);
 
@@ -1639,7 +1831,7 @@ function launchGame({ fx = null } = {}) {
   const keys = { left: false, right: false };
 
   const g = {
-    state: 'intro', // intro | play | paused | over
+    state: 'home', // home | intro | play | paused | over
     resume: 'play',
     introT: 0,
     score: 0,
@@ -1742,9 +1934,7 @@ function launchGame({ fx = null } = {}) {
     }));
   }
 
-  function startRound(intro) {
-    g.state = intro ? 'intro' : 'play';
-    g.introT = intro ? 0.95 : 0;
+  function resetRound() {
     g.score = 0;
     g.lives = MAX_LIVES;
     g.items = [];
@@ -1762,8 +1952,13 @@ function launchGame({ fx = null } = {}) {
     g.tcx = W / 2;
     g.vx = 0;
     g.combo = 0;
-    panel.style.display = 'none';
-    pauseBtn.style.display = 'flex';
+  }
+
+  function startRound(intro) {
+    resetRound();
+    g.state = intro ? 'intro' : 'play';
+    g.introT = intro ? 0.95 : 0;
+    showScreen(null);
     if (audio) {
       audio.setTempo(BASE_BPM);
       if (!intro) audio.startMusic();
@@ -1889,14 +2084,9 @@ function launchGame({ fx = null } = {}) {
       g.state = 'over';
       g.fx = { magnet: 0, stop: 0, oil: 0, freeze: 0 };
       g.timeScale = 1;
-      pauseBtn.style.display = 'none';
-      if (audio) {
-        audio.stopMusic();
-        audio.gameOver();
-      }
-      panelScore.textContent = `Punteggio: ${g.score}`;
-      panel.style.display = 'flex';
-      vib(HAP.over, 3);
+      if (audio) audio.stopMusic();
+      if (scoreQualifies(g.score)) beginNameEntry();
+      else showGameOver();
     }
   }
 
@@ -2003,7 +2193,6 @@ function launchGame({ fx = null } = {}) {
       if (g.introT <= 0) {
         g.state = 'play';
         if (audio) audio.startMusic();
-        if (fx) vib(HAP.launch, 2);
       }
     }
 
@@ -2391,6 +2580,8 @@ function launchGame({ fx = null } = {}) {
     ctx.fillStyle = rgbStr(mixC([23, 28, 51], [69, 83, 119], env.d));
     for (let x = 0; x < W; x += 8) ctx.fillRect(x, H - GROUND_H + 3, 4, 1);
 
+    if (g.state === 'home') return; // la schermata iniziale mostra solo il cielo
+
     for (const c of g.items) drawItem(c);
     drawBucket();
 
@@ -2478,6 +2669,7 @@ function launchGame({ fx = null } = {}) {
     g.state = 'paused';
     keys.left = false;
     keys.right = false;
+    setMenuMode('pause');
     refreshMenu();
     menu.style.display = 'block';
     if (audio) {
@@ -2509,12 +2701,247 @@ function launchGame({ fx = null } = {}) {
     vib(HAP[mode], 2);
   }
 
+  // ---------- Schermate: home, classifica, impostazioni, game over ----------
+  let screen = 'home'; // home | scores | settings | over | null (si sta giocando)
+  let subLayer = null; // voce di cronologia di classifica/impostazioni: il tasto indietro del telefono torna alla home
+  let afterOver = false; // la classifica è stata aperta subito dopo una partita
+  let lockUntil = 0; // dopo un game over ignora i tocchi per un attimo (il dito è ancora sul gioco)
+
+  function showScreen(name) {
+    screen = name;
+    homeScr.scr.style.display = name === 'home' ? 'flex' : 'none';
+    scoresScr.scr.style.display = name === 'scores' ? 'flex' : 'none';
+    panel.style.display = name === 'over' ? 'flex' : 'none';
+    pauseBtn.style.display = name === null ? 'flex' : 'none';
+    if (name !== 'settings') menu.style.display = 'none';
+  }
+  const locked = () => performance.now() < lockUntil;
+  const feel = (soundName, pattern, prio = 2) => {
+    if (audio && audio[soundName]) audio[soundName]();
+    vib(pattern, prio);
+  };
+
+  function pushSub(onBack) {
+    releaseSub();
+    subLayer = pushLayer(() => {
+      subLayer = null;
+      onBack();
+    });
+  }
+  function releaseSub() {
+    if (!subLayer) return;
+    const l = subLayer;
+    subLayer = null;
+    releaseLayer(l);
+  }
+
+  function showHint() {
+    clearTimeout(hintTimer);
+    hint.style.opacity = '1';
+    hintTimer = setTimeout(() => {
+      hint.style.opacity = '0';
+    }, 3500);
+  }
+
+  function goHome() {
+    releaseSub();
+    if (audio) audio.stopMusic();
+    resetRound();
+    g.state = 'home';
+    keys.left = false;
+    keys.right = false;
+    clearTimeout(hintTimer);
+    hint.style.opacity = '0';
+    const best = loadScores()[0];
+    homeBest.textContent = best ? `Record: ${best.name} ${best.score}` : 'Nessun record';
+    showScreen('home');
+    last = 0;
+  }
+
+  function newGame() {
+    if (screen !== 'home') return;
+    feel('start', HAP.launch);
+    startRound(true);
+    last = 0;
+    showHint();
+  }
+
+  // Classifica: 5 righe, posizioni vuote con trattini; la riga appena fatta è evidenziata
+  function renderScores(hi) {
+    const list = loadScores();
+    const rankCol = ['#f4cf55', '#d6deee', '#d99a62', '#9fb4e8', '#9fb4e8'];
+    scoresList.replaceChildren();
+    for (let i = 0; i < MAX_SCORES; i++) {
+      const e = list[i];
+      const isHi = i === hi;
+      const row = mk('div', {
+        display: 'grid',
+        gridTemplateColumns: '30px 1fr auto',
+        alignItems: 'center',
+        gap: '8px',
+        padding: '8px 12px',
+        borderRadius: '8px',
+        fontSize: '26px',
+        fontWeight: '700',
+        letterSpacing: '.08em',
+        background: isHi ? '#f4cf55' : 'rgba(255,255,255,.09)',
+        color: isHi ? '#1a1a2e' : e ? '#fff' : 'rgba(255,255,255,.35)',
+        textAlign: 'left',
+      });
+      row.append(
+        mk('span', { color: isHi ? '#1a1a2e' : rankCol[i] }, String(i + 1)),
+        mk('span', { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }, e ? e.name : '---'),
+        mk('span', null, e ? String(e.score) : '--')
+      );
+      scoresList.append(row);
+      if (!matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        row.animate([{ opacity: 0, transform: 'translateX(-14px)' }, { opacity: 1, transform: 'none' }], { duration: 220, delay: 90 + i * 80, easing: 'ease-out', fill: 'backwards' });
+      }
+      if (audio) setTimeout(() => active && screen === 'scores' && audio.row(), 90 + i * 80); // un \"tic\" per ogni riga che compare
+    }
+  }
+
+  function openScores(fromOver, hi = -1) {
+    afterOver = fromOver;
+    scoresBackBtn.style.display = fromOver ? 'none' : '';
+    scoresRetryBtn.style.display = fromOver ? '' : 'none';
+    scoresMenuBtn.style.display = fromOver ? '' : 'none';
+    scoresTitle.textContent = hi === 0 ? 'Nuovo record!' : 'High score';
+    showScreen('scores');
+    renderScores(hi);
+    if (!fromOver) {
+      pushSub(() => leaveScores(true));
+      feel('pauseOpen', HAP.tap);
+    }
+  }
+  function leaveScores(fromBack) {
+    if (screen !== 'scores') return;
+    if (!fromBack) releaseSub();
+    feel('back', HAP.back);
+    goHome();
+  }
+
+  function setMenuMode(mode) {
+    const inSettings = mode === 'settings';
+    menuTitle.textContent = inSettings ? 'Impostazioni' : 'Pausa';
+    resumeBtn.style.display = inSettings ? 'none' : '';
+    quitBtn.style.display = inSettings ? 'none' : '';
+    backBtn.style.display = inSettings ? '' : 'none';
+  }
+  function openSettings() {
+    if (screen !== 'home') return;
+    setMenuMode('settings');
+    refreshMenu();
+    showScreen('settings');
+    menu.style.display = 'block';
+    pushSub(() => closeSettings(true));
+    feel('pauseOpen', HAP.pause);
+  }
+  function closeSettings(fromBack) {
+    if (screen !== 'settings') return;
+    if (!fromBack) releaseSub();
+    menu.style.display = 'none';
+    showScreen('home');
+    feel('pauseClose', HAP.resume);
+  }
+
+  function showGameOver() {
+    panelTitle.textContent = 'Game over';
+    panelTitle.style.color = '#ff6b6b';
+    panelScore.textContent = `Punteggio: ${g.score}`;
+    const best = loadScores()[0];
+    panelBest.textContent = best ? `Record: ${best.name} ${best.score}` : '';
+    nameBox.style.display = 'none';
+    overBtns.style.display = 'flex';
+    panelInner.style.margin = 'auto';
+    lockUntil = performance.now() + 700;
+    showScreen('over');
+    feel('gameOver', HAP.over, 3);
+  }
+
+  function beginNameEntry() {
+    panelTitle.textContent = 'Nuovo record!';
+    panelTitle.style.color = '#f4cf55';
+    panelScore.textContent = `Punteggio: ${g.score}`;
+    panelBest.textContent = '';
+    nameBox.style.display = 'flex';
+    overBtns.style.display = 'none';
+    panelInner.style.margin = '10vh auto auto'; // in alto: la tastiera non copre il campo né il pulsante
+    nameInput.value = lastName();
+    prevLen = nameInput.value.length;
+    lockUntil = performance.now() + 900;
+    showScreen('over');
+    feel('record', HAP.record, 3);
+    setTimeout(() => {
+      if (active && screen === 'over' && nameBox.style.display === 'flex') nameInput.focus();
+    }, 1000);
+  }
+
+  let prevLen = 0;
+  nameInput.addEventListener('input', () => {
+    const raw = nameInput.value;
+    const v = cleanName(raw);
+    if (v !== raw) nameInput.value = v;
+    if (v.length === prevLen && raw !== v) vib(HAP.keyFull, 1); // carattere non valido
+    else if (v.length >= NAME_MAX && v.length > prevLen) {
+      if (audio) audio.key(true);
+      vib(HAP.keyFull, 1);
+    } else feel('key', HAP.key, 1);
+    prevLen = v.length;
+  });
+  function saveName() {
+    if (locked() || screen !== 'over' || nameBox.style.display !== 'flex') return;
+    const name = cleanName(nameInput.value).trim();
+    if (!name) {
+      feel('denied', HAP.denied);
+      nameInput.animate([{ transform: 'translateX(-8px)' }, { transform: 'translateX(8px)' }, { transform: 'translateX(-5px)' }, { transform: 'none' }], { duration: 260 });
+      nameInput.focus();
+      return;
+    }
+    nameInput.blur();
+    const pos = insertScore(name, g.score);
+    feel('saved', HAP.saved);
+    openScores(true, pos);
+  }
+  nameInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      saveName();
+    }
+  });
+  saveBtn.addEventListener('click', saveName);
+
+  newGameBtn.addEventListener('click', newGame);
+  scoresBtn.addEventListener('click', () => {
+    if (screen === 'home') openScores(false);
+  });
+  settingsBtn.addEventListener('click', openSettings);
+  homeExitBtn.addEventListener('click', () => {
+    if (screen !== 'home') return;
+    feel('back', HAP.back);
+    close(false);
+  });
+  scoresBackBtn.addEventListener('click', () => leaveScores(false));
+  scoresRetryBtn.addEventListener('click', () => {
+    if (screen !== 'scores') return;
+    feel('click', HAP.tap);
+    startRound(false);
+    last = 0;
+  });
+  scoresMenuBtn.addEventListener('click', () => {
+    if (screen !== 'scores') return;
+    feel('back', HAP.back);
+    goHome();
+  });
+  backBtn.addEventListener('click', () => closeSettings(false));
+
   pauseBtn.addEventListener('click', openPause);
   resumeBtn.addEventListener('click', closePause);
   quitBtn.addEventListener('click', () => {
-    if (audio) audio.click();
-    vib(HAP.tap, 2);
-    close(false);
+    if (g.state !== 'paused') return;
+    menu.style.display = 'none';
+    feel('back', HAP.back);
+    goHome();
   });
   hapticsSw.addEventListener('click', () => {
     if (effHaptics()) {
@@ -2561,8 +2988,11 @@ function launchGame({ fx = null } = {}) {
     setTarget(e.clientX);
   };
   const onKeyDown = (e) => {
+    if (e.target && e.target.tagName === 'INPUT') return; // si sta scrivendo il nome
     if (e.key === 'Escape' || e.key === 'p' || e.key === 'P') {
       if (g.state === 'paused') closePause();
+      else if (screen === 'settings') closeSettings(false);
+      else if (screen === 'scores' && !afterOver) leaveScores(false);
       else openPause();
     } else if (g.state === 'paused') return;
     else if (e.key === 'ArrowLeft' || e.key === 'a') keys.left = true;
@@ -2614,7 +3044,10 @@ function launchGame({ fx = null } = {}) {
     vibStop();
     if (audio) audio.dispose();
     overlay.remove();
-    if (!fromBack) releaseLayer(layer);
+    if (!fromBack) {
+      releaseSub();
+      releaseLayer(layer);
+    }
     // il motore audio resta acceso un attimo per non tagliare l'ultimo suono, poi si spegne
     setTimeout(() => {
       if (!active && graph) graph.idle();
@@ -2623,26 +3056,23 @@ function launchGame({ fx = null } = {}) {
   layer = pushLayer(() => close(true));
 
   exitBtn.addEventListener('click', () => {
-    if (audio) audio.click();
-    vib(HAP.tap, 2);
-    close(false);
+    if (locked() || screen !== 'over') return;
+    feel('back', HAP.back);
+    goHome();
   });
   retryBtn.addEventListener('click', () => {
-    if (audio) audio.click();
-    vib(HAP.tap, 2);
+    if (locked() || screen !== 'over') return;
+    feel('click', HAP.tap);
     startRound(false);
     last = 0;
   });
 
   layout();
   updateEnv(0, true); // lo sfondo parte già coerente con l'ora, senza transizione
-  startRound(!!fx);
+  goHome(); // all'apertura compare la schermata iniziale
   if (fx) {
     // il gioco "salta fuori" mentre i frammenti dello schermo cadono
     wrap.animate([{ transform: 'scale(1.07)', filter: 'brightness(1.8)' }, { transform: 'scale(1)', filter: 'brightness(1)' }], { duration: 560, easing: 'ease-out' });
   }
-  hintTimer = setTimeout(() => {
-    hint.style.opacity = '0';
-  }, 3500);
   raf = requestAnimationFrame(frame);
 }
