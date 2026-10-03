@@ -1732,25 +1732,29 @@ button.custom-select-option:not(:disabled):active {
   align-self: stretch;
   margin: 0 -1.5rem 1.5rem;       /* esce dal padding laterale: tutta larghezza schermo */
   overflow: hidden;
-  -webkit-mask-image: linear-gradient(to right, transparent, #000 8%, #000 92%, transparent);
-  mask-image: linear-gradient(to right, transparent, #000 8%, #000 92%, transparent);
+  touch-action: pan-y;            /* il trascinamento orizzontale è del carosello, quello verticale resta alla pagina */
+  cursor: grab;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 6%, #000 94%, transparent);
+  mask-image: linear-gradient(to right, transparent, #000 6%, #000 94%, transparent);
 }
+.login-carousel.is-dragging { cursor: grabbing; }
 .login-carousel-track {
   display: flex;
   width: max-content;
-  animation: login-carousel-scroll var(--carousel-duration, 40s) linear infinite;
-  will-change: transform;
+  will-change: transform;          /* il movimento è pilotato da login-carousel.js */
 }
 .login-carousel-tile {
   flex: 0 0 auto;
-  width: 168px;
-  height: 112px;
+  width: 240px;
+  height: 160px;
   margin-right: 12px;
-  border-radius: 14px;
+  border-radius: 18px;
   overflow: hidden;
   background: #fff;
   border: 1px solid #e3e6ea;
-  box-shadow: 0 1px 3px rgba(20, 30, 50, 0.08);
+  box-shadow: 0 1px 3px rgba(20, 30, 50, 0.08), 0 8px 18px -10px rgba(20, 30, 50, 0.25);
 }
 .login-carousel-tile img {
   width: 100%;
@@ -1758,14 +1762,7 @@ button.custom-select-option:not(:disabled):active {
   object-fit: cover;
   display: block;
   pointer-events: none;
-}
-@keyframes login-carousel-scroll {
-  from { transform: translateX(0); }
-  to   { transform: translateX(calc(-1 * var(--carousel-shift, 50%))); }
-}
-@media (prefers-reduced-motion: reduce) {
-  .login-carousel-track { animation: none; }
-  .login-carousel { overflow-x: auto; }
+  -webkit-user-drag: none;
 }
 
 
