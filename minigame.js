@@ -20,8 +20,9 @@
 // alba e tramonto) oppure si forza dal menu di pausa (Giorno / Notte / Auto),
 // dove si trovano anche gli interruttori di vibrazione e suono.
 //
-// Nella schermata iniziale cammina avanti e indietro un personaggio che ogni
-// tanto controlla l'orologio (toccandolo lo fa subito, con tic-tac).
+// Nella schermata iniziale cammina avanti e indietro un personaggio (4 pose
+// disegnate dall'utente) che ogni tanto controlla l'orologio (toccandolo lo
+// fa subito, con tic-tac).
 // All'apertura compare la schermata iniziale: Nuova partita, High score
 // (le 5 migliori classifiche, con nome di chi le ha fatte), Impostazioni.
 // A fine partita, se il punteggio entra in classifica, si inserisce il nome.
@@ -1157,192 +1158,301 @@ function mkSwitch(label) {
   return b;
 }
 
-// ---------- Personaggio della home (sprite 51×99 disegnato dall'utente) ----------
-// Camminata e controllo dell'orologio si ottengono rimontando le parti dello
-// sprite (gambe, avambraccio, testa): nessuna immagine esterna.
-const CHAR_ROWS = [
-  '.....................abbabaabb.....................',
-  '...................bbcccccccccdd...................',
-  '.................adcccccccccccccda.................',
-  '................bcceccffcffccccccca................',
-  '...............dccghhhgggffgggggcccd...............',
-  '..............dccgiijjjjiiiijjjjhgcca..............',
-  '..............dcgiijjjkkkkkkkkjjjigca..............',
-  '.............bceiijjjkkkkkkkkkkjjjigcb.............',
-  '.............bcfiijjjkkkkkkkkkkjjjihcb.............',
-  '.............acfiijjjkkkkkkkkkkjjjihca.............',
-  '.............dffhijjjjjkkkkkkkkjjjigga.............',
-  '.............dffgijjkkkkkkkkkkkjjjhggd.............',
-  '.............dfggijkkkkkkkkkkkkkjjhcfd.............',
-  '.............degiihgclmkkkjkkhclgjihcd.............',
-  '.............dchhglclldgijjjgdddddhhcd.............',
-  '.............bchhiihgghhhjjhiggmmihhcd.............',
-  '............hlnkkhgmcoghihhjgmlmghkjglm............',
-  '............highkiihijihhkjkiiiihijigih............',
-  '............hhghijjjjjikhkjhjiiiijkhggh............',
-  '............ljghikkjjjjiikiiijjjkkjighg............',
-  '............lighijiiiijhjkjhjiiiijjhgjg............',
-  '.............hhgijkkkkjijkkiikkkkkihhh.............',
-  '.............djgijjkkkjgikigjkkkkjihjd.............',
-  '.............ajghijkkjjihhhijjkkkjihjd.............',
-  '..............aghijkkiiiihiiiikkkjild..............',
-  '...............ahijkjiiijhjjijikkjhd...............',
-  '...............ahiikiiiggigggjjkjjhd...............',
-  '...............dfijkjjihiiihijjkijhd...............',
-  '................dhjjjjjihhhijjijiilp...............',
-  '...............dagijijjjjjjjjjiiigdd...............',
-  '.............ddbmdfihijjkkkjkjihglqbdd.............',
-  '...........ddmqnoqlfgijkkkkkjihhdmqmqqdb...........',
-  '..........dqqpnqpqqaggijjkkjiggdmopqnpqmd..........',
-  '........ddmrrrnprpmdbdffhhhhgdadmpppnsppqdb........',
-  '.......dmqrtttnprppmdgddaaaadgdqpprpnsrrromb.......',
-  '......dmpqrttrnruppqchgggggghglqrpprnprrpopma......',
-  '......dqtqtuurnmnnnpolghhhhhhlopnnnmnstrrorqb......',
-  '.....aqrttqrtrqqqqmnuqlgggggcornmqqqqsrrqprpmd.....',
-  '.....aorttqrtrrtppqqnunooppmm.nqqpppprrpqprrpd.....',
-  '.....aptutqputrrrrsqqn.nooofunqqpprsrtrpqsrrrd.....',
-  '....ampttttqrtrrrrttqqn.nof.nqqppppsrtrqprrrrqd....',
-  '....aprttrrmqrpprspp.tqmnnpmqp.ukjk.prompprrrpd....',
-  '....artrqpqmqpqqqqqqqtpoqnnqprqhjjjimromqpqrrrb....',
-  '...bqrtrrqqfqmrppprruqpoqnmprqnnnnnnmqonqqrrtrqb...',
-  '...bqrrrrqqfqmossrrtoqprnnqurqnfffffnqonqqtrrrqb...',
-  '...bptrrrqmdqmmmmmmmqqppnoqurqqmhjkiqmqdmqtrrrrb...',
-  '...drsrrrqmdompppppppqrrntqurqt.ojjppmqbmqrtrrrb...',
-  '..dqrrrrrqmdompprrrrrqrrnpqurqrooooopmqbmortrrrmd..',
-  '..aouttrrqmdqmpprrrrrqrrnpqttqtooooopmqbmqrrrrrod..',
-  '..bptrrroqmdqmprprrrrqrrnrqutqroooooumqbmqosrttpd..',
-  '..bptqqoomdmqmoprrrroqrrnpqtrqouttttqmqmbmqqqorud..',
-  '.aaptrpmmmdoopqqqqqqqprrnpqtrrqqqqqqqsoobmmmtrrudb.',
-  '.dqrtqooomdqotttrrppprtrnsqrrrppppppsrqqbmooqqrpqb.',
-  '.dqrtttqqmdoouttrrrrrrrrnpqtrrrrrrprttqobmmmprtpqb.',
-  '.aqrrrrpqmdootqrrrrrttrpnsqrtrrtrrrtqtqqbmqptttpqb.',
-  '.a.rrrrrqbboouqrrrrrttrrnsqtttttrrrtqtqodbqrtttttb.',
-  '.burrrrrqbbooqpqprrrrrrpnsqrtrrrrrrorqqoabqrtrrrrb.',
-  '.brrrrrpqbbdmmppqprsrrrpnpqrrrrrrroprqndbbqrrtrtrd.',
-  'amrrrrrpqbbbqqmmmqorppppmpqpppppqqqmmmqabbqrprrrrqb',
-  'bqrpprpqqb.dqqpppmmmmmmmmmqqqqqqqmmttoqb.aqqpprprqd',
-  'dmmmmmmnnb.adqopppppppprmtqpppstprptqqda.dnnmmmmmmb',
-  'dmppr.oqma.dcldddrprppprmpopprrrrpdddllb.dqqqppppqb',
-  'dppddaddbabceclceldddllldllllddllleclcccbadadaalppb',
-  'dqdhikkigabeelcvveeeeeeeleeceeeeeevveleebahikkjhcmd',
-  '.dhkkkkkiabcelvvvvvvvvvvcvvevvvvvvvvvlceaaikkkkkhb.',
-  '.akkkkijjhbllvvvvvevvvvvcvvevvvvevvvvvllahkkikkkka.',
-  '.akkkkigjhblvvvvvvccevvvceeevveeevvvvvvlaikgikkkka.',
-  '.aikkkidghaeevvvvvvveleeclleelevvvvvvveeaihdikkkia.',
-  '.agihkjhaabeevvvvvvvvelllllllevvvvvvvveebaagkkhjga.',
-  '..aahhihhabeevvvvvvelllddbbbllccvvvvvveebahhighaa..',
-  '....abaab.aeevvvvvvvveclbbbllevvvvvvvveeb.aaabb....',
-  '..........aeevvvvvvvvvelbbblcvvvvvvvvveeb..........',
-  '..........bevvvvvvvvvvelbablevvvvvvvvvveb..........',
-  '..........bevvvvvvvvvvelb.blevvvvvvvvvveb..........',
-  '..........bevvvvvvvvveelb.bleevvvvvvvvveb..........',
-  '..........aevvvvvvvvveelb.bleevvvvvvvvveb..........',
-  '..........bevvvvvvvvveelb.bleevvvvvvvvvcb..........',
-  '..........aeevvvvvvveeelb.bleeevvvvvvveed..........',
-  '..........alcvvvvvveeella.blleeevvvvvveld..........',
-  '...........alevvvveeeelb...bleeeevvvvelb...........',
-  '...........alleeeeeeellb...alleeeeeeellb...........',
-  '...........dcllleeeeellb...bleeeeeelllea...........',
-  '...........dceeeeevvcclb...bllevveeeeeeb...........',
-  '...........deeeeevvveclb...bleevvveeeeeb...........',
-  '...........deevvvveeellb...bleeeevvvveeb...........',
-  '...........devvvvveeellb...aleeeevvvvveb...........',
-  '..........ddeeeeevveeelb...bleeevveeeeedb..........',
-  '..........adlllllleeeelb...bleeecllllclda..........',
-  '..........aeevvvvecllelb...blelllevvvveed..........',
-  '..........bevvvvvvvecllb...bllcvvvvvvvved..........',
-  '..........bcdddddvveeelb...bleeevvdddddcd..........',
-  '...........dgggggdbdeelb...blccdddgggggd...........',
-  '..........ddgghgigggdab.....daagggighggda..........',
-  '........ddahhhgighhhhgb.....dgghhhgjghhhadd........',
-  '.......aajjjjiighhhhhgb.....aggghhhgijjjjjda.......',
-  '.......ahhjjjjhhhhggggb.....agggghhhhjjjjiha.......',
-  '.......dghhhhhhggggcgab.....aagcgggghhhhhhha.......',
-  '.......aggggggggggaab.........aaagggggggggga.......',
-  '.......abaaaaaaaaa...............aaaaaaaaaaa.......',
-];
-const CHAR_PAL = { a: '#060305', b: '#020205', c: '#1f2137', d: '#08070b', e: '#222742', f: '#454056', g: '#533030', h: '#9a5d48', i: '#b17a65', j: '#e19771', k: '#f6b189', l: '#111427', m: '#a1938d', n: '#465067', o: '#c1c8cc', p: '#e8f1f4', q: '#acb5bb', r: '#e9f3f5', s: '#e8f3f5', t: '#e9f4f5', u: '#edf5f7', v: '#344366', W: '#fff6c8', G: '#f4cf55', D: '#2b2f3a', Y: '#ffffff' };
-const CHAR_W = 51;
-const CHAR_H = 99;
+// ---------- Personaggio della home (4 pose disegnate dall'utente, ~48 px) ----------
+// Camminata a 8 fotogrammi per passo: busto e gambe dalla posa di profilo,
+// gambe intermedie ricavate spostando le due gambe dello sprite.
+const CHAR_POSES = {
+  front: [
+    '.........ppppo.........',
+    '.......wxuuussyx.......',
+    '......xsppsspnsvA......',
+    '......sjiiiigggmw......',
+    '.....AnjiggggggipB.....',
+    '.....vnjigggggijpw.....',
+    '.....vpjgggggggjpx.....',
+    '.....xnmqnigiqqmmx.....',
+    '.....simpmjimppjmw.....',
+    '....wqjnnijgjijmnqk....',
+    '....snnjjjmgmiijmmf....',
+    '.....nsjiijimggjms.....',
+    '.....hsjgjjmjigjq......',
+    '......smijjjjjims......',
+    '......knjijjjiimp......',
+    '.....xuonjiiijnpzB.....',
+    '...AsekeppjimnvekfyA...',
+    '..BffafaepwwwsebhaffA..',
+    '..Aadafllfpnpfllhaeav..',
+    '.vkacdbdekkclkfdcdeahB.',
+    '.AeaehddcckokfefafeacB.',
+    '.vaaflhfefclfhppolhcal.',
+    '.obafrhhfhdkdekkdohabe.',
+    'zfcchrfbaddhdefhdrkeadA',
+    'AdbfolfeefdhdeeefovfabB',
+    'AbaeAlccbbchdcbcdoAfaax',
+    'paaeBkdbabchdcbaeoBfabk',
+    'oaaepvffdabhdbbffxofaak',
+    'ohkksBkfhffkhefefBolkhk',
+    'AmiqAzyuvxxvvvvuxzBsiiA',
+    'BgggwxvrrrrvtrrruyBiggs',
+    'Bggnpvrrtttvvurrrxqmigs',
+    'BjinAvrrrtzAzurrruAsiiw',
+    '.BBBlvrrruxAvrrrrvABBA.',
+    '....ovrrrrvAurrrrvA....',
+    '....ourrrrvAurrrrvA....',
+    '....ovrrrtvAurrrrxA....',
+    '....oyrrrvxAuurrtzA....',
+    '.....yvvxvxAutuvuz.....',
+    '.....zvvvvxAutrruA.....',
+    '.....ozxvvyAurrrrA.....',
+    '.....ozzzyxAvzyyxA.....',
+    '......AyyxwAxtuuuA.....',
+    '......BpppqBzyqqAB.....',
+    '.....BnjjnqBynnnnBh....',
+    '.....BqmmqB.AnjjjnA....',
+    '......BBBBB.BqqqqqB....',
+    '............BBBBBBB....',
+  ],
+  stepA: [
+    '...........ppppp.........',
+    '.........yxvssssso.......',
+    '........vvsqnpssswl......',
+    '........xvnigggjjjs......',
+    '.......BvpjgggggggmB.....',
+    '.......zsnjjggggggjB.....',
+    '.......yspnjggggggjB.....',
+    '.......yssmjnqniijqB.....',
+    '.......wwpjjlnqiisll.....',
+    '.......nmqjjjjjjiqqA.....',
+    '.......mqqjigggjijmp.....',
+    '.......ljpjiigijjjjw.....',
+    '........wqmjgiijnjm......',
+    '........Bwmjgjjmnmn......',
+    '........Bkpjjjijmjn......',
+    '.......solenmjigimf......',
+    '.......ldekhksljmk.......',
+    '......Ahhbafkeouyl.......',
+    '......Aldcabfklokl.......',
+    '......BracbafabkkB.......',
+    '......BobbbdldddkB.......',
+    '......BhbbbeoeabhB.......',
+    '......Becaakledaekf......',
+    '......BebchrfebachA......',
+    '......Bfbdkufbffdhz......',
+    '......Bfaackkaaabhz......',
+    '......BlaaafofabbhzB.....',
+    '......BvhbadzhfdahwB.....',
+    '......BzkefelkeeekqmB....',
+    '......BzveesmwyvuznmB....',
+    '......BzAAjggjArtwnmB....',
+    '.......zxqgggnwrrzpB.....',
+    '.......Bvwigjnorrzl......',
+    '......ByzvzAAuoortl......',
+    '......Axvzvuttrrrrz......',
+    '......AvvxAutrtrrrz......',
+    '.....vzuvxxzutrtrrts.....',
+    '....lAvxxxxAyuttrruu.....',
+    '...lAuuvvxyzfzvttrrz.....',
+    '...AuuvvvvAh.Avrtrrzh....',
+    '..AvuxvvxAh..Byttrrvo....',
+    '.Bxuxxxxz.....zuorrvA....',
+    'AppyvvxA......AuruutzAAA.',
+    'Bpnszvyz......AyxttznqjmB',
+    '.BqnpBB.......yxuysnjjmpz',
+    '..Aqmmqy.......BBnmnnnsB.',
+    '..BpqqqB........BssABy...',
+    '...BBBAB........BBB......',
+  ],
+  stepB: [
+    '...........moopp.........',
+    '.........wywvsssxv.......',
+    '........xvssqpnpssw......',
+    '.......fvrpnigggjjmm.....',
+    '.......zvppjiggggggw.....',
+    '.......zuppjiggggggq.....',
+    '.......zvppnjggggggj.....',
+    '.......Avusmjqqqigmw.....',
+    '.......Bwspjjlwsmisq.....',
+    '.......Bqnqjmjnmmgss.....',
+    '.......Binqjijggmgnm.....',
+    '........piqjiggimmnw.....',
+    '........Bqqmiggiinnw.....',
+    '........wzpnjijjnnnA.....',
+    '........Bhfsmmjijnn......',
+    '.......ulkkesnmjiis......',
+    '.......yfeflefspqq.......',
+    '......ykdbahkdhhA........',
+    '......zhaaaafkklo........',
+    '......AfaabehaaekB.......',
+    '......vdaaafocffkx.......',
+    '.....wkaaadkhdffhv.......',
+    '.....xhaachohccafh.......',
+    '.....xhahkrkhdhhahA......',
+    '.....AkbaeokhabbbhA......',
+    '......yaabhukdaabhA......',
+    '......BfaaetkfbachA......',
+    '......BkaabhlhfhhhB......',
+    '......Bxcdfhvytfekpw.....',
+    '......BAkdenwyuruznB.....',
+    '......BzAqjgjsrruznB.....',
+    '.......AwiggnyrrrAsn.....',
+    '......BAwmgijyrrryA......',
+    '......ByzzBAAtrrrrA......',
+    '......BxxAyutrtrrrz......',
+    '......AvxxAutrrrrry......',
+    '.....vyxvxxzvtrtrrrz.....',
+    '....vzvvxxxzAvttrrrA.....',
+    '...ozvuxxxxAlzvrtrrz.....',
+    '..pAvvxxxxAk.Avttrrz.....',
+    '.sByvxxxxAk..Axttrrx.....',
+    '.wpxvxxyAf....ztorrrA....',
+    '.qnszxyA......zurtrvB....',
+    '.wqnwBAv......AyxrrvBzAB.',
+    '.BsnqwB.......BxvyyqqmjjB',
+    '..Apmmql.......AwnnmmjmnB',
+    '..BwqqpB.......BsqqqqssBp',
+    '...BBBBB........BBBppm...',
+  ],
+  back: [
+    '..........psssp.........',
+    '........wzuuuuxAw.......',
+    '.......wvputvvuvvz......',
+    '......osppppspppsx......',
+    '......xpppppppppppA.....',
+    '.....pvpppppppppppB.....',
+    '.....pvppppppppppvB.....',
+    '.....pvppppppppppvB.....',
+    '.....ovuspppppppsvA.....',
+    '.....wsussppppsvuul.....',
+    '.....wmvuuuuuuuuusm.....',
+    '.....hwssuuuuuuuvmw.....',
+    '......zssuvsssuspw......',
+    '.......wnwwssswps.......',
+    '.......BweccdddpA.......',
+    '.....oBolkkkkkkkoBv.....',
+    '....wohccbbcccbaaeoA....',
+    '...Afecccccccccbcbbdy...',
+    '..wkcecbcccccccbccdabB..',
+    '..AdafcbccccccccccfaaA..',
+    '..tachbbccccccbbbbhaak..',
+    '.Ahaekbbccccccccbalfadz.',
+    '.Aeaetacccccccccccofaby.',
+    '.oaafucccccccccccbufaals',
+    '.kachvdbcccccccccaufaahy',
+    'kkeckzkacccccccccfxhddhy',
+    'khhhhzkdbcccccccehyhffhz',
+    'khhhhylkfdcddcdfklyhffhy',
+    '.khhlAkddddddddafhAofflx',
+    '.vkhkAxutuuuuuuutuApffrz',
+    '.pjnnAuorrroooooouAnnml.',
+    '.qjnnAutrrroooooruAqqml.',
+    '.wmnsAuuuuuutttttvAwmjw.',
+    '..ABwvuuvxyzzxvvvvA.BB..',
+    '.....wuuuuvxBxxvvvB.....',
+    '.....wuuuuvxBxvvvvB.....',
+    '.....wuuuuvxBxvvvvB.....',
+    '.....vvuvvxxBzxxvvB.....',
+    '.....syvutuxBxrrrvB.....',
+    '......zrrorxAxyxux......',
+    '......zrrrrxAvrrvy......',
+    '......zurrtyBwsswx......',
+    '......zvvvvxApqqnA......',
+    '......yvvvvxAsqqqw......',
+    '.......wwwwABsqqqw......',
+    '......snmmnwAwqqqw......',
+    '......sqqqqw.zsssA......',
+    '......oBBBBB............',
+  ],
+};
+const CHAR_PAL = { a: '#ecf6f8', b: '#eaf4f6', c: '#e9f2f5', d: '#e5f0f3', e: '#d7e0e3', f: '#bec6cb', g: '#f2b18a', h: '#acb5bb', i: '#dd9d7d', j: '#c38266', k: '#969da3', l: '#8f7d76', m: '#946859', n: '#7e5044', o: '#454b5e', p: '#543f40', q: '#55332f', r: '#384059', s: '#3c2c2f', t: '#2a344f', u: '#27293c', v: '#212233', w: '#22161c', x: '#181522', y: '#13131f', z: '#0c0e1a', A: '#08080f', B: '#070408', G: '#f4cf55', W: '#fff6c8', D: '#2b2f3a', Y: '#ffffff' };
+const CHAR_W = 28;
+const CHAR_H = 48;
+const CHAR_STEP = 15; // pixel percorsi dal corpo in un passo: tiene il piede d'appoggio fermo a terra
+const CHAR_FRAMES = 8; // fotogrammi per passo
+const LEG_TOP = 39;
 
-const charGrid = () => CHAR_ROWS.map((r) => r.split(''));
 const charBlank = () => Array.from({ length: CHAR_H }, () => Array(CHAR_W).fill('.'));
+const charPut = (out, x, y, c) => {
+  if (c && c !== '.' && x >= 0 && x < CHAR_W && y >= 0 && y < CHAR_H) out[y][x] = c;
+};
+function charRuns(str) {
+  const r = [];
+  let s = -1;
+  for (let x = 0; x <= str.length; x++) {
+    const on = x < str.length && str[x] !== '.';
+    if (on && s < 0) s = x;
+    if (!on && s >= 0) {
+      r.push([s, x - 1]);
+      s = -1;
+    }
+  }
+  return r;
+}
+// Per ogni riga delle gambe: la gamba dietro (prima sequenza) e quella davanti (ultima)
+const charLegs = (rows) =>
+  rows.slice(LEG_TOP).map((row, i) => {
+    const r = charRuns(row);
+    return { y: LEG_TOP + i, row, back: r[0], front: r[r.length - 1] };
+  });
+const LEGS_A = charLegs(CHAR_POSES.stepA);
+const LEGS_B = charLegs(CHAR_POSES.stepB);
 
-// Costruisce un fotogramma. p: lift (-1/0/1 gamba alzata), armL/armR (-1/0/1 oscillazione mano), watch (0/1 avambraccio alzato), head (0/1 testa inclinata)
-function buildCharFrame(p) {
-  const S = charGrid();
+function charLeg(out, legs, which, shift, lift) {
+  for (const it of legs) {
+    const [l, r] = it[which];
+    for (let x = l; x <= r; x++) charPut(out, x + shift + 1, it.y - lift, it.row[x]);
+  }
+}
+const charStamp = (out, rows, offX, y0, y1, dy) => {
+  for (let y = y0; y <= y1; y++) for (let x = 0; x < rows[y].length; x++) charPut(out, x + offX, y + dy, rows[y][x]);
+};
+
+// k = 0..7: 0 = contatto (posa A), 4 = gambe vicine (gamba che oscilla alzata e busto più in alto)
+function buildWalkFrame(k) {
+  const t = k / CHAR_FRAMES;
   const out = charBlank();
-  const put = (x, y, c) => {
-    if (c !== '.' && x >= 0 && x < CHAR_W && y >= 0 && y < CHAR_H) out[y][x] = c;
-  };
+  // Gamba d'appoggio: scorre all'indietro da +1 a -1; gamba che oscilla: va avanti da -1 a +1, alzata a metà
+  const uX = 1 - 2 * t;
+  const uY = -1 + 2 * t;
+  const lift = t < 0.15 ? 0 : Math.round(2 * Math.sin((Math.PI * (t - 0.15)) / 0.85));
+  if (uX >= 0) charLeg(out, LEGS_A, 'front', Math.round(-8 * (1 - uX)), 0);
+  else charLeg(out, LEGS_A, 'back', Math.round(7.5 * (1 + uX)), 0);
+  if (uY >= 0) charLeg(out, LEGS_A, 'front', Math.round(-8 * (1 - uY)), lift);
+  else charLeg(out, uY > -0.9 && uY < -0.1 ? LEGS_B : LEGS_A, 'back', Math.round(7.5 * (1 + uY)), lift); // tallone alzato in spinta
+  const bob = k === 3 || k === 4 || k === 5 ? 1 : 0; // al passaggio il corpo è un pixel più in alto
+  const S = CHAR_POSES.stepA;
+  charStamp(out, S, 1, 0, LEG_TOP - 1, -bob);
+  if (bob) charStamp(out, S, 1, LEG_TOP - 1, LEG_TOP - 1, 0); // riempie il vuoto all'anca
+  return out;
+}
 
-  // Gambe (righe 72–98): la gamba \"alzata\" perde due righe a metà polpaccio e il piede sale
-  const LEG_TOP = 72;
-  for (const side of [-1, 1]) {
-    const x0 = side < 0 ? 0 : 26;
-    const x1 = side < 0 ? 25 : CHAR_W - 1;
-    const lifted = p.lift === side;
-    for (let y = LEG_TOP; y < CHAR_H; y++) {
-      const dy = lifted && y >= 82 ? -2 : 0;
-      for (let x = x0; x <= x1; x++) put(x, y + dy, S[y][x]);
+// Posa frontale (p.watch: avambraccio destro alzato a guardare l'orologio; p.glint: luccichio del quadrante)
+function buildFrontFrame(p) {
+  const S = CHAR_POSES.front;
+  const out = charBlank();
+  const X = 2;
+  for (let y = 0; y < CHAR_H; y++) {
+    for (let x = 0; x < S[y].length; x++) {
+      if (p.watch && y >= 25 && x >= 18) continue; // l'avambraccio viene ridisegnato sotto
+      charPut(out, x + X, y, S[y][x]);
     }
   }
-
-  // Busto: righe 0–71. Testa (righe 0–31) più in basso di un pixel quando guarda l'orologio
-  const ARM_Y = 58;
-  const inArm = (x, y) => y >= ARM_Y && (x <= 9 || x >= 41);
-  for (let y = 0; y < LEG_TOP; y++) {
-    for (let x = 0; x < CHAR_W; x++) {
-      if (inArm(x, y)) continue;
-      if (p.watch && y >= 52 && x >= 41) continue; // l'avambraccio destro viene ridisegnato sotto
-      if (p.head && y < 32) continue;
-      put(x, y, S[y][x]);
-    }
-  }
-  if (p.head) {
-    for (let y = 1; y < 33; y++) for (let x = 0; x < CHAR_W; x++) put(x, y, S[y - 1][x]); // la testa scende di un pixel
-    for (let x = 0; x < CHAR_W; x++) if (out[32][x] === '.') put(x, 32, S[32][x]); // il collo resta unito al busto
-  }
-
-  // Braccia che oscillano (la sinistra dello sprite è sempre libera; la destra solo se non guarda l'orologio)
-  const swing = (x0, x1, dy) => {
-    for (let y = ARM_Y; y <= 72; y++) {
-      const sy = Math.min(71, Math.max(ARM_Y, y - dy));
-      for (let x = x0; x <= x1; x++) put(x, y, S[sy][x]);
-    }
-  };
-  swing(0, 9, p.armL || 0);
-  if (!p.watch) swing(41, 50, p.armR || 0);
-
-  // Avambraccio destro alzato: la porzione righe 52–71, colonne 41–50 ruota di 90° e va in orizzontale sul petto
   if (p.watch) {
-    const w = 10;
-    const h = 20;
-    const X1 = 50; // bordo destro (gomito)
-    const Y0 = 46; // bordo alto
-    for (let v = 0; v < h; v++) {
-      for (let u = 0; u < w; u++) {
-        const c = S[52 + v][41 + u];
-        put(X1 - (h - 1) + (h - 1 - v), Y0 + u, c);
-      }
+    const Y0 = 24;
+    for (let v = 0; v < 10; v++) for (let u = 0; u < 5; u++) charPut(out, 22 - v + X, Y0 + u, S[24 + v][18 + u]);
+    for (let j = 0; j < 5; j++) charPut(out, 20 + X, Y0 + j, 'D'); // cinturino
+    for (let j = 1; j <= 3; j++) {
+      charPut(out, 18 + X, Y0 + j, 'G');
+      charPut(out, 19 + X, Y0 + j, 'G');
     }
-    for (let y = Y0; y < Y0 + w; y++) put(X1, y, 'a'); // contorno del gomito
-    // Orologio sul polso: cassa dorata, quadrante chiaro, lancette scure
-    const wx = 40;
-    const wy = Y0 + 2;
-    for (let j = 0; j < 5; j++) for (let i = 0; i < 5; i++) out[wy + j][wx + i] = 'G';
-    for (let j = 1; j < 4; j++) for (let i = 1; i < 4; i++) out[wy + j][wx + i] = 'W';
-    out[wy + 2][wx + 2] = 'D';
-    out[wy + 1][wx + 2] = 'D';
-    out[wy + 2][wx + 3] = 'D';
-    for (let j = 0; j < 5; j++) {
-      out[wy + j][wx - 1] = 'D';
-      out[wy + j][wx + 5] = 'D';
-    }
-    if (p.glint) out[wy + 1][wx + 1] = 'Y';
+    charPut(out, 19 + X, Y0 + 2, p.glint ? 'Y' : 'W');
   }
   return out;
 }
+const buildBackFrame = () => {
+  const out = charBlank();
+  charStamp(out, CHAR_POSES.back, 2, 0, CHAR_H - 1, 0);
+  return out;
+};
 
 // ---------- Audio del gioco: musica + effetti ----------
 function createAudio() {
@@ -2907,18 +3017,17 @@ function launchGame({ fx = null } = {}) {
   let afterOver = false; // la classifica è stata aperta subito dopo una partita
   let lockUntil = 0; // dopo un game over ignora i tocchi per un attimo (il dito è ancora sul gioco)
 
-  // ---------- Personaggio: cammina e ogni tanto guarda l'orologio ----------
+  // ---------- Personaggio: cammina di profilo, si ferma di fronte, guarda l'orologio ----------
   const reduceMotion = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
   const frameCache = new Map();
-  const charFrame = (p) => {
-    const key = `${p.lift || 0}|${p.armL || 0}|${p.armR || 0}|${p.watch || 0}|${p.head || 0}|${p.glint || 0}`;
+  const charFrame = (key, build) => {
     let cv = frameCache.get(key);
     if (!cv) {
       cv = document.createElement('canvas');
       cv.width = CHAR_W;
       cv.height = CHAR_H;
       const c = cv.getContext('2d');
-      buildCharFrame(p).forEach((row, y) =>
+      build().forEach((row, y) =>
         row.forEach((ch, x) => {
           if (ch === '.') return;
           c.fillStyle = CHAR_PAL[ch];
@@ -2929,8 +3038,8 @@ function launchGame({ fx = null } = {}) {
     }
     return cv;
   };
-  const WALK = [{ lift: -1, armL: -1, armR: 1 }, {}, { lift: 1, armL: 1, armR: -1 }, {}];
-  const cs = { x: 8, dir: 1, mode: 'walk', t: 0, step: 0, until: 3, watchIn: 4, z: 2, shown: '' };
+  // mode: idle (di fronte) | walk (di profilo) | turn (di schiena, al bordo) | watch (di fronte, guarda l'orologio)
+  const cs = { x: 8, dir: 1, mode: 'idle', t: 0, until: 0.8, walked: 0, watchIn: 4, z: 2, maxX: 0, shown: '', tic: 0 };
 
   function layoutChar() {
     if (screen !== 'home') return;
@@ -2938,7 +3047,7 @@ function launchGame({ fx = null } = {}) {
     const ir = homeScr.inner.getBoundingClientRect();
     const groundTop = wr.height - GROUND_H * scale;
     const avail = groundTop - (ir.bottom - wr.top) - 6;
-    cs.z = clamp(Math.floor(avail / CHAR_H), 1, scale);
+    cs.z = clamp(Math.floor(avail / CHAR_H), 1, Math.min(scale, 3)); // al massimo ~144 px di altezza
     charCv.style.width = `${CHAR_W * cs.z}px`;
     charCv.style.height = `${CHAR_H * cs.z}px`;
     charCv.style.bottom = `${GROUND_H * scale - scale}px`; // i piedi poggiano sul bordo del suolo
@@ -2954,9 +3063,9 @@ function launchGame({ fx = null } = {}) {
   }
   function charWatch(byTap) {
     if (cs.mode === 'watch') return;
-    charSet('watch', 2.4);
+    charSet('watch', 2.6);
     cs.tic = 0;
-    cs.watchIn = 7 + Math.random() * 6;
+    cs.watchIn = 8 + Math.random() * 6;
     if (audio) audio.auto(); // tic-tac d'orologio: lo stesso dell'opzione Auto dello sfondo
     if (byTap) vib(HAP.auto, 2);
   }
@@ -2966,44 +3075,72 @@ function launchGame({ fx = null } = {}) {
     if (screen !== 'home') return;
     cs.t += dt;
     cs.watchIn -= dt;
-    let p;
+    let key;
+    let build;
+    let flip = false;
     if (cs.mode === 'walk') {
-      if (!reduceMotion) cs.x += cs.dir * 16 * dt;
-      if (cs.x <= 0 || cs.x >= cs.maxX) {
+      cs.x += cs.dir * (CHAR_STEP / 0.6) * dt; // un passo ogni 0,6 s
+      cs.walked += (CHAR_STEP / 0.6) * dt;
+      const atEdge = (cs.dir < 0 && cs.x <= 0) || (cs.dir > 0 && cs.x >= cs.maxX);
+      if (atEdge) {
         cs.x = clamp(cs.x, 0, cs.maxX);
+        charSet('turn', 0.7); // al bordo si gira di schiena prima di tornare indietro
+      } else if (cs.t >= cs.until) charSet('idle', 0.7 + Math.random() * 0.9);
+    }
+    if (cs.mode === 'walk') {
+      const k = Math.floor(((cs.walked % CHAR_STEP) / CHAR_STEP) * CHAR_FRAMES) % CHAR_FRAMES;
+      key = `w${k}`;
+      build = () => buildWalkFrame(k);
+      flip = cs.dir < 0;
+    } else if (cs.mode === 'turn') {
+      if (cs.t >= cs.until) {
         cs.dir = cs.x <= 0 ? 1 : -1;
-        charSet('idle', 0.7);
-      } else if (cs.t >= cs.until) {
-        if (Math.random() < 0.4) cs.dir = -cs.dir;
-        charSet('idle', 0.5 + Math.random() * 0.7);
+        charSet('walk', 3 + Math.random() * 3);
       }
-      p = reduceMotion ? {} : WALK[Math.floor(cs.t / 0.2) % 4];
+      key = 'back';
+      build = buildBackFrame;
     } else if (cs.mode === 'idle') {
       if (cs.t >= cs.until) {
         if (cs.watchIn <= 0) charWatch(false);
-        else charSet('walk', 3 + Math.random() * 3);
+        else if (reduceMotion) charSet('idle', 1.5);
+        else {
+          cs.dir = cs.x < cs.maxX * 0.25 ? 1 : cs.x > cs.maxX * 0.75 ? -1 : Math.random() < 0.5 ? 1 : -1;
+          charSet('walk', 3 + Math.random() * 3);
+        }
       }
-      p = {};
-    } else {
+      key = 'front';
+      build = () => buildFrontFrame({});
+    }
+    if (cs.mode === 'watch') {
       // alza il braccio (0,3 s), guarda l'orologio con un luccichio, poi riabbassa
       if (cs.t >= cs.until) {
-        charSet('walk', 3 + Math.random() * 3);
-        p = {};
-      } else if (cs.t < 0.3 || cs.t > cs.until - 0.3) p = { watch: 1 };
-      else {
-        p = { watch: 1, head: 1, glint: Math.floor(cs.t * 4) % 2 };
+        charSet('idle', 0.6);
+        key = 'front';
+        build = () => buildFrontFrame({});
+      } else {
+        const up = cs.t < 0.3 || cs.t > cs.until - 0.3;
+        const glint = !up && Math.floor(cs.t * 4) % 2 ? 1 : 0;
+        key = `watch${glint}`;
+        build = () => buildFrontFrame({ watch: 1, glint });
         if (audio && cs.t > 1.3 && cs.tic === 0) {
           cs.tic = 1;
           audio.auto(); // secondo tic a metà occhiata
         }
       }
     }
+    if (!key) return;
     const left = Math.round(cs.x);
-    const key = `${left}|${cs.z}|${JSON.stringify(p)}`;
-    if (key === cs.shown) return;
-    cs.shown = key;
+    const sig = `${left}|${cs.z}|${key}|${flip}`;
+    if (sig === cs.shown) return;
+    cs.shown = sig;
     charCtx.clearRect(0, 0, CHAR_W, CHAR_H);
-    charCtx.drawImage(charFrame(p), 0, 0);
+    charCtx.save();
+    if (flip) {
+      charCtx.translate(CHAR_W, 0);
+      charCtx.scale(-1, 1);
+    }
+    charCtx.drawImage(charFrame(key, build), 0, 0);
+    charCtx.restore();
     charCv.style.transform = `translateX(${left * cs.z}px)`;
   }
 
