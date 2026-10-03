@@ -20,6 +20,8 @@
 // alba e tramonto) oppure si forza dal menu di pausa (Giorno / Notte / Auto),
 // dove si trovano anche gli interruttori di vibrazione e suono.
 //
+// Nella schermata iniziale cammina avanti e indietro un personaggio che ogni
+// tanto controlla l'orologio (toccandolo lo fa subito, con tic-tac).
 // All'apertura compare la schermata iniziale: Nuova partita, High score
 // (le 5 migliori classifiche, con nome di chi le ha fatte), Impostazioni.
 // A fine partita, se il punteggio entra in classifica, si inserisce il nome.
@@ -1155,6 +1157,193 @@ function mkSwitch(label) {
   return b;
 }
 
+// ---------- Personaggio della home (sprite 51×99 disegnato dall'utente) ----------
+// Camminata e controllo dell'orologio si ottengono rimontando le parti dello
+// sprite (gambe, avambraccio, testa): nessuna immagine esterna.
+const CHAR_ROWS = [
+  '.....................abbabaabb.....................',
+  '...................bbcccccccccdd...................',
+  '.................adcccccccccccccda.................',
+  '................bcceccffcffccccccca................',
+  '...............dccghhhgggffgggggcccd...............',
+  '..............dccgiijjjjiiiijjjjhgcca..............',
+  '..............dcgiijjjkkkkkkkkjjjigca..............',
+  '.............bceiijjjkkkkkkkkkkjjjigcb.............',
+  '.............bcfiijjjkkkkkkkkkkjjjihcb.............',
+  '.............acfiijjjkkkkkkkkkkjjjihca.............',
+  '.............dffhijjjjjkkkkkkkkjjjigga.............',
+  '.............dffgijjkkkkkkkkkkkjjjhggd.............',
+  '.............dfggijkkkkkkkkkkkkkjjhcfd.............',
+  '.............degiihgclmkkkjkkhclgjihcd.............',
+  '.............dchhglclldgijjjgdddddhhcd.............',
+  '.............bchhiihgghhhjjhiggmmihhcd.............',
+  '............hlnkkhgmcoghihhjgmlmghkjglm............',
+  '............highkiihijihhkjkiiiihijigih............',
+  '............hhghijjjjjikhkjhjiiiijkhggh............',
+  '............ljghikkjjjjiikiiijjjkkjighg............',
+  '............lighijiiiijhjkjhjiiiijjhgjg............',
+  '.............hhgijkkkkjijkkiikkkkkihhh.............',
+  '.............djgijjkkkjgikigjkkkkjihjd.............',
+  '.............ajghijkkjjihhhijjkkkjihjd.............',
+  '..............aghijkkiiiihiiiikkkjild..............',
+  '...............ahijkjiiijhjjijikkjhd...............',
+  '...............ahiikiiiggigggjjkjjhd...............',
+  '...............dfijkjjihiiihijjkijhd...............',
+  '................dhjjjjjihhhijjijiilp...............',
+  '...............dagijijjjjjjjjjiiigdd...............',
+  '.............ddbmdfihijjkkkjkjihglqbdd.............',
+  '...........ddmqnoqlfgijkkkkkjihhdmqmqqdb...........',
+  '..........dqqpnqpqqaggijjkkjiggdmopqnpqmd..........',
+  '........ddmrrrnprpmdbdffhhhhgdadmpppnsppqdb........',
+  '.......dmqrtttnprppmdgddaaaadgdqpprpnsrrromb.......',
+  '......dmpqrttrnruppqchgggggghglqrpprnprrpopma......',
+  '......dqtqtuurnmnnnpolghhhhhhlopnnnmnstrrorqb......',
+  '.....aqrttqrtrqqqqmnuqlgggggcornmqqqqsrrqprpmd.....',
+  '.....aorttqrtrrtppqqnunooppmm.nqqpppprrpqprrpd.....',
+  '.....aptutqputrrrrsqqn.nooofunqqpprsrtrpqsrrrd.....',
+  '....ampttttqrtrrrrttqqn.nof.nqqppppsrtrqprrrrqd....',
+  '....aprttrrmqrpprspp.tqmnnpmqp.ukjk.prompprrrpd....',
+  '....artrqpqmqpqqqqqqqtpoqnnqprqhjjjimromqpqrrrb....',
+  '...bqrtrrqqfqmrppprruqpoqnmprqnnnnnnmqonqqrrtrqb...',
+  '...bqrrrrqqfqmossrrtoqprnnqurqnfffffnqonqqtrrrqb...',
+  '...bptrrrqmdqmmmmmmmqqppnoqurqqmhjkiqmqdmqtrrrrb...',
+  '...drsrrrqmdompppppppqrrntqurqt.ojjppmqbmqrtrrrb...',
+  '..dqrrrrrqmdompprrrrrqrrnpqurqrooooopmqbmortrrrmd..',
+  '..aouttrrqmdqmpprrrrrqrrnpqttqtooooopmqbmqrrrrrod..',
+  '..bptrrroqmdqmprprrrrqrrnrqutqroooooumqbmqosrttpd..',
+  '..bptqqoomdmqmoprrrroqrrnpqtrqouttttqmqmbmqqqorud..',
+  '.aaptrpmmmdoopqqqqqqqprrnpqtrrqqqqqqqsoobmmmtrrudb.',
+  '.dqrtqooomdqotttrrppprtrnsqrrrppppppsrqqbmooqqrpqb.',
+  '.dqrtttqqmdoouttrrrrrrrrnpqtrrrrrrprttqobmmmprtpqb.',
+  '.aqrrrrpqmdootqrrrrrttrpnsqrtrrtrrrtqtqqbmqptttpqb.',
+  '.a.rrrrrqbboouqrrrrrttrrnsqtttttrrrtqtqodbqrtttttb.',
+  '.burrrrrqbbooqpqprrrrrrpnsqrtrrrrrrorqqoabqrtrrrrb.',
+  '.brrrrrpqbbdmmppqprsrrrpnpqrrrrrrroprqndbbqrrtrtrd.',
+  'amrrrrrpqbbbqqmmmqorppppmpqpppppqqqmmmqabbqrprrrrqb',
+  'bqrpprpqqb.dqqpppmmmmmmmmmqqqqqqqmmttoqb.aqqpprprqd',
+  'dmmmmmmnnb.adqopppppppprmtqpppstprptqqda.dnnmmmmmmb',
+  'dmppr.oqma.dcldddrprppprmpopprrrrpdddllb.dqqqppppqb',
+  'dppddaddbabceclceldddllldllllddllleclcccbadadaalppb',
+  'dqdhikkigabeelcvveeeeeeeleeceeeeeevveleebahikkjhcmd',
+  '.dhkkkkkiabcelvvvvvvvvvvcvvevvvvvvvvvlceaaikkkkkhb.',
+  '.akkkkijjhbllvvvvvevvvvvcvvevvvvevvvvvllahkkikkkka.',
+  '.akkkkigjhblvvvvvvccevvvceeevveeevvvvvvlaikgikkkka.',
+  '.aikkkidghaeevvvvvvveleeclleelevvvvvvveeaihdikkkia.',
+  '.agihkjhaabeevvvvvvvvelllllllevvvvvvvveebaagkkhjga.',
+  '..aahhihhabeevvvvvvelllddbbbllccvvvvvveebahhighaa..',
+  '....abaab.aeevvvvvvvveclbbbllevvvvvvvveeb.aaabb....',
+  '..........aeevvvvvvvvvelbbblcvvvvvvvvveeb..........',
+  '..........bevvvvvvvvvvelbablevvvvvvvvvveb..........',
+  '..........bevvvvvvvvvvelb.blevvvvvvvvvveb..........',
+  '..........bevvvvvvvvveelb.bleevvvvvvvvveb..........',
+  '..........aevvvvvvvvveelb.bleevvvvvvvvveb..........',
+  '..........bevvvvvvvvveelb.bleevvvvvvvvvcb..........',
+  '..........aeevvvvvvveeelb.bleeevvvvvvveed..........',
+  '..........alcvvvvvveeella.blleeevvvvvveld..........',
+  '...........alevvvveeeelb...bleeeevvvvelb...........',
+  '...........alleeeeeeellb...alleeeeeeellb...........',
+  '...........dcllleeeeellb...bleeeeeelllea...........',
+  '...........dceeeeevvcclb...bllevveeeeeeb...........',
+  '...........deeeeevvveclb...bleevvveeeeeb...........',
+  '...........deevvvveeellb...bleeeevvvveeb...........',
+  '...........devvvvveeellb...aleeeevvvvveb...........',
+  '..........ddeeeeevveeelb...bleeevveeeeedb..........',
+  '..........adlllllleeeelb...bleeecllllclda..........',
+  '..........aeevvvvecllelb...blelllevvvveed..........',
+  '..........bevvvvvvvecllb...bllcvvvvvvvved..........',
+  '..........bcdddddvveeelb...bleeevvdddddcd..........',
+  '...........dgggggdbdeelb...blccdddgggggd...........',
+  '..........ddgghgigggdab.....daagggighggda..........',
+  '........ddahhhgighhhhgb.....dgghhhgjghhhadd........',
+  '.......aajjjjiighhhhhgb.....aggghhhgijjjjjda.......',
+  '.......ahhjjjjhhhhggggb.....agggghhhhjjjjiha.......',
+  '.......dghhhhhhggggcgab.....aagcgggghhhhhhha.......',
+  '.......aggggggggggaab.........aaagggggggggga.......',
+  '.......abaaaaaaaaa...............aaaaaaaaaaa.......',
+];
+const CHAR_PAL = { a: '#060305', b: '#020205', c: '#1f2137', d: '#08070b', e: '#222742', f: '#454056', g: '#533030', h: '#9a5d48', i: '#b17a65', j: '#e19771', k: '#f6b189', l: '#111427', m: '#a1938d', n: '#465067', o: '#c1c8cc', p: '#e8f1f4', q: '#acb5bb', r: '#e9f3f5', s: '#e8f3f5', t: '#e9f4f5', u: '#edf5f7', v: '#344366', W: '#fff6c8', G: '#f4cf55', D: '#2b2f3a', Y: '#ffffff' };
+const CHAR_W = 51;
+const CHAR_H = 99;
+
+const charGrid = () => CHAR_ROWS.map((r) => r.split(''));
+const charBlank = () => Array.from({ length: CHAR_H }, () => Array(CHAR_W).fill('.'));
+
+// Costruisce un fotogramma. p: lift (-1/0/1 gamba alzata), armL/armR (-1/0/1 oscillazione mano), watch (0/1 avambraccio alzato), head (0/1 testa inclinata)
+function buildCharFrame(p) {
+  const S = charGrid();
+  const out = charBlank();
+  const put = (x, y, c) => {
+    if (c !== '.' && x >= 0 && x < CHAR_W && y >= 0 && y < CHAR_H) out[y][x] = c;
+  };
+
+  // Gambe (righe 72–98): la gamba \"alzata\" perde due righe a metà polpaccio e il piede sale
+  const LEG_TOP = 72;
+  for (const side of [-1, 1]) {
+    const x0 = side < 0 ? 0 : 26;
+    const x1 = side < 0 ? 25 : CHAR_W - 1;
+    const lifted = p.lift === side;
+    for (let y = LEG_TOP; y < CHAR_H; y++) {
+      const dy = lifted && y >= 82 ? -2 : 0;
+      for (let x = x0; x <= x1; x++) put(x, y + dy, S[y][x]);
+    }
+  }
+
+  // Busto: righe 0–71. Testa (righe 0–31) più in basso di un pixel quando guarda l'orologio
+  const ARM_Y = 58;
+  const inArm = (x, y) => y >= ARM_Y && (x <= 9 || x >= 41);
+  for (let y = 0; y < LEG_TOP; y++) {
+    for (let x = 0; x < CHAR_W; x++) {
+      if (inArm(x, y)) continue;
+      if (p.watch && y >= 52 && x >= 41) continue; // l'avambraccio destro viene ridisegnato sotto
+      if (p.head && y < 32) continue;
+      put(x, y, S[y][x]);
+    }
+  }
+  if (p.head) {
+    for (let y = 1; y < 33; y++) for (let x = 0; x < CHAR_W; x++) put(x, y, S[y - 1][x]); // la testa scende di un pixel
+    for (let x = 0; x < CHAR_W; x++) if (out[32][x] === '.') put(x, 32, S[32][x]); // il collo resta unito al busto
+  }
+
+  // Braccia che oscillano (la sinistra dello sprite è sempre libera; la destra solo se non guarda l'orologio)
+  const swing = (x0, x1, dy) => {
+    for (let y = ARM_Y; y <= 72; y++) {
+      const sy = Math.min(71, Math.max(ARM_Y, y - dy));
+      for (let x = x0; x <= x1; x++) put(x, y, S[sy][x]);
+    }
+  };
+  swing(0, 9, p.armL || 0);
+  if (!p.watch) swing(41, 50, p.armR || 0);
+
+  // Avambraccio destro alzato: la porzione righe 52–71, colonne 41–50 ruota di 90° e va in orizzontale sul petto
+  if (p.watch) {
+    const w = 10;
+    const h = 20;
+    const X1 = 50; // bordo destro (gomito)
+    const Y0 = 46; // bordo alto
+    for (let v = 0; v < h; v++) {
+      for (let u = 0; u < w; u++) {
+        const c = S[52 + v][41 + u];
+        put(X1 - (h - 1) + (h - 1 - v), Y0 + u, c);
+      }
+    }
+    for (let y = Y0; y < Y0 + w; y++) put(X1, y, 'a'); // contorno del gomito
+    // Orologio sul polso: cassa dorata, quadrante chiaro, lancette scure
+    const wx = 40;
+    const wy = Y0 + 2;
+    for (let j = 0; j < 5; j++) for (let i = 0; i < 5; i++) out[wy + j][wx + i] = 'G';
+    for (let j = 1; j < 4; j++) for (let i = 1; i < 4; i++) out[wy + j][wx + i] = 'W';
+    out[wy + 2][wx + 2] = 'D';
+    out[wy + 1][wx + 2] = 'D';
+    out[wy + 2][wx + 3] = 'D';
+    for (let j = 0; j < 5; j++) {
+      out[wy + j][wx - 1] = 'D';
+      out[wy + j][wx + 5] = 'D';
+    }
+    if (p.glint) out[wy + 1][wx + 1] = 'Y';
+  }
+  return out;
+}
+
 // ---------- Audio del gioco: musica + effetti ----------
 function createAudio() {
   const G = getGraph();
@@ -1633,8 +1822,6 @@ function launchGame({ fx = null } = {}) {
 
   // Home
   const homeScr = mkScreen('rgba(5,8,20,.32)');
-  const homeIcon = mk('div', { display: 'flex', filter: 'drop-shadow(0 3px 0 rgba(0,0,0,.45))' });
-  homeIcon.append(svgIcon(ITEMS.can.rows, ITEMS.can.pal, 6));
   const homeTitle = mk('div', { fontSize: '56px', lineHeight: '.95', fontWeight: '700', letterSpacing: '.05em', color: '#f4cf55', textShadow: '0 4px 0 rgba(0,0,0,.6)' });
   homeTitle.append(mk('div', null, 'Pesca'), mk('div', { fontSize: '34px', color: '#fff' }, 'i barattoli'));
   const homeBest = mk('div', { fontSize: '18px', fontWeight: '600', letterSpacing: '.08em', color: '#cbd5e8', minHeight: '22px', textShadow: '0 2px 0 rgba(0,0,0,.6)' }, '');
@@ -1647,7 +1834,19 @@ function launchGame({ fx = null } = {}) {
   homeExitBtn.style.color = '#cbd5e8';
   const homeBtns = mk('div', { display: 'flex', flexDirection: 'column', gap: '10px', width: '100%', marginTop: '8px' });
   homeBtns.append(newGameBtn, scoresBtn, settingsBtn, homeExitBtn);
-  homeScr.inner.append(homeIcon, homeTitle, homeBest, homeBtns);
+  homeScr.inner.append(homeTitle, homeBest, homeBtns);
+  // Titolo e tasti in alto: sotto resta lo spazio per il personaggio che cammina sul suolo
+  homeScr.inner.style.margin = '0 auto auto';
+  homeScr.inner.style.position = 'relative';
+  homeScr.inner.style.zIndex = '1';
+  homeScr.scr.style.paddingTop = 'calc(env(safe-area-inset-top, 0px) + 5vh)';
+  const charCv = mk('canvas', { position: 'absolute', left: '0', bottom: '0', imageRendering: 'pixelated', cursor: 'pointer', touchAction: 'manipulation', zIndex: '0' });
+  charCv.width = CHAR_W;
+  charCv.height = CHAR_H;
+  charCv.setAttribute('role', 'img');
+  charCv.setAttribute('aria-label', 'Il custode del magazzino');
+  const charCtx = charCv.getContext('2d');
+  homeScr.scr.append(charCv);
 
   // Classifica
   const scoresScr = mkScreen('rgba(5,8,20,.82)');
@@ -2646,6 +2845,7 @@ function launchGame({ fx = null } = {}) {
     amb += dt;
     updateEnv(dt, false);
     if (g.state === 'play' || g.state === 'intro') update(dt);
+    else if (g.state === 'home') charTick(dt);
     draw();
   }
 
@@ -2707,6 +2907,106 @@ function launchGame({ fx = null } = {}) {
   let afterOver = false; // la classifica è stata aperta subito dopo una partita
   let lockUntil = 0; // dopo un game over ignora i tocchi per un attimo (il dito è ancora sul gioco)
 
+  // ---------- Personaggio: cammina e ogni tanto guarda l'orologio ----------
+  const reduceMotion = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  const frameCache = new Map();
+  const charFrame = (p) => {
+    const key = `${p.lift || 0}|${p.armL || 0}|${p.armR || 0}|${p.watch || 0}|${p.head || 0}|${p.glint || 0}`;
+    let cv = frameCache.get(key);
+    if (!cv) {
+      cv = document.createElement('canvas');
+      cv.width = CHAR_W;
+      cv.height = CHAR_H;
+      const c = cv.getContext('2d');
+      buildCharFrame(p).forEach((row, y) =>
+        row.forEach((ch, x) => {
+          if (ch === '.') return;
+          c.fillStyle = CHAR_PAL[ch];
+          c.fillRect(x, y, 1, 1);
+        })
+      );
+      frameCache.set(key, cv);
+    }
+    return cv;
+  };
+  const WALK = [{ lift: -1, armL: -1, armR: 1 }, {}, { lift: 1, armL: 1, armR: -1 }, {}];
+  const cs = { x: 8, dir: 1, mode: 'walk', t: 0, step: 0, until: 3, watchIn: 4, z: 2, shown: '' };
+
+  function layoutChar() {
+    if (screen !== 'home') return;
+    const wr = wrap.getBoundingClientRect();
+    const ir = homeScr.inner.getBoundingClientRect();
+    const groundTop = wr.height - GROUND_H * scale;
+    const avail = groundTop - (ir.bottom - wr.top) - 6;
+    cs.z = clamp(Math.floor(avail / CHAR_H), 1, scale);
+    charCv.style.width = `${CHAR_W * cs.z}px`;
+    charCv.style.height = `${CHAR_H * cs.z}px`;
+    charCv.style.bottom = `${GROUND_H * scale - scale}px`; // i piedi poggiano sul bordo del suolo
+    cs.maxX = Math.max(0, Math.floor(wr.width / cs.z) - CHAR_W);
+    cs.x = clamp(cs.x, 0, cs.maxX);
+    cs.shown = '';
+  }
+
+  function charSet(mode, dur) {
+    cs.mode = mode;
+    cs.t = 0;
+    cs.until = dur;
+  }
+  function charWatch(byTap) {
+    if (cs.mode === 'watch') return;
+    charSet('watch', 2.4);
+    cs.tic = 0;
+    cs.watchIn = 7 + Math.random() * 6;
+    if (audio) audio.auto(); // tic-tac d'orologio: lo stesso dell'opzione Auto dello sfondo
+    if (byTap) vib(HAP.auto, 2);
+  }
+  charCv.addEventListener('click', () => charWatch(true));
+
+  function charTick(dt) {
+    if (screen !== 'home') return;
+    cs.t += dt;
+    cs.watchIn -= dt;
+    let p;
+    if (cs.mode === 'walk') {
+      if (!reduceMotion) cs.x += cs.dir * 16 * dt;
+      if (cs.x <= 0 || cs.x >= cs.maxX) {
+        cs.x = clamp(cs.x, 0, cs.maxX);
+        cs.dir = cs.x <= 0 ? 1 : -1;
+        charSet('idle', 0.7);
+      } else if (cs.t >= cs.until) {
+        if (Math.random() < 0.4) cs.dir = -cs.dir;
+        charSet('idle', 0.5 + Math.random() * 0.7);
+      }
+      p = reduceMotion ? {} : WALK[Math.floor(cs.t / 0.2) % 4];
+    } else if (cs.mode === 'idle') {
+      if (cs.t >= cs.until) {
+        if (cs.watchIn <= 0) charWatch(false);
+        else charSet('walk', 3 + Math.random() * 3);
+      }
+      p = {};
+    } else {
+      // alza il braccio (0,3 s), guarda l'orologio con un luccichio, poi riabbassa
+      if (cs.t >= cs.until) {
+        charSet('walk', 3 + Math.random() * 3);
+        p = {};
+      } else if (cs.t < 0.3 || cs.t > cs.until - 0.3) p = { watch: 1 };
+      else {
+        p = { watch: 1, head: 1, glint: Math.floor(cs.t * 4) % 2 };
+        if (audio && cs.t > 1.3 && cs.tic === 0) {
+          cs.tic = 1;
+          audio.auto(); // secondo tic a metà occhiata
+        }
+      }
+    }
+    const left = Math.round(cs.x);
+    const key = `${left}|${cs.z}|${JSON.stringify(p)}`;
+    if (key === cs.shown) return;
+    cs.shown = key;
+    charCtx.clearRect(0, 0, CHAR_W, CHAR_H);
+    charCtx.drawImage(charFrame(p), 0, 0);
+    charCv.style.transform = `translateX(${left * cs.z}px)`;
+  }
+
   function showScreen(name) {
     screen = name;
     homeScr.scr.style.display = name === 'home' ? 'flex' : 'none';
@@ -2714,6 +3014,7 @@ function launchGame({ fx = null } = {}) {
     panel.style.display = name === 'over' ? 'flex' : 'none';
     pauseBtn.style.display = name === null ? 'flex' : 'none';
     if (name !== 'settings') menu.style.display = 'none';
+    if (name === 'home') layoutChar();
   }
   const locked = () => performance.now() < lockUntil;
   const feel = (soundName, pattern, prio = 2) => {
@@ -3002,7 +3303,10 @@ function launchGame({ fx = null } = {}) {
     if (e.key === 'ArrowLeft' || e.key === 'a') keys.left = false;
     else if (e.key === 'ArrowRight' || e.key === 'd') keys.right = false;
   };
-  const onResize = () => layout();
+  const onResize = () => {
+    layout();
+    layoutChar();
+  };
   const onVisibility = () => {
     last = 0; // evita un salto di tempo al ritorno sulla pagina
     if (document.hidden) {
