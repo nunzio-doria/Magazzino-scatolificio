@@ -15,7 +15,7 @@ const ITEMS = [
   { src: './carousel/macchina.jpg', alt: 'Macchina' },
 ];
 
-const TILE_W = 300;       // larghezza scheda (px) — deve coincidere con style.css
+const TILE_W = 240;       // larghezza scheda (px) — deve coincidere con style.css
 const TILE_GAP = 12;      // spazio tra le schede (px)
 const SPEED = 36;         // velocità di scorrimento automatico (px al secondo)
 const SETTLE_MS = 700;    // dopo un lancio, tempo con cui la velocità rientra a quella automatica
