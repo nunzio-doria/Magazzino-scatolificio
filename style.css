@@ -1727,6 +1727,18 @@ button.custom-select-option:not(:disabled):active {
 }
 
 
+/* ---- Schermata di accesso: contenuto ancorato in alto (titolo vicino al bordo) invece che centrato in
+   verticale; così le foto del carosello possono crescere senza spostare il titolo. Per alzare/abbassare
+   il titolo cambia il padding-top qui sotto. Su schermi larghi (desktop) resta centrato. ---- */
+#auth-view {
+  justify-content: flex-start;
+  padding-top: calc(1.75rem + env(safe-area-inset-top, 0px));
+  padding-bottom: 1.5rem;
+}
+@media (min-width: 768px) {
+  #auth-view { justify-content: center; padding-top: 0; padding-bottom: 0; }
+}
+
 /* ---- Carosello schermata di accesso ---- */
 .login-carousel {
   align-self: stretch;
@@ -1747,10 +1759,10 @@ button.custom-select-option:not(:disabled):active {
 }
 .login-carousel-tile {
   flex: 0 0 auto;
-  width: 240px;
-  height: 160px;
+  width: 300px;
+  height: 252px;
   margin-right: 12px;
-  border-radius: 18px;
+  border-radius: 20px;
   overflow: hidden;
   background: #fff;
   border: 1px solid #e3e6ea;
