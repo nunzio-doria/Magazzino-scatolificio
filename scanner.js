@@ -62,6 +62,8 @@ export function initScanner() {
   els.prelievoFields = document.getElementById('scan-prelievo-fields');
   els.lineaGroup = document.getElementById('scan-linea-group');
   els.lineaInput = document.getElementById('scan-linea-input');
+  els.lineaFixed = document.getElementById('scan-linea-fixed');
+  els.lineaFixedName = document.getElementById('scan-linea-fixed-name');
   els.macchinarioWrap = document.getElementById('scan-macchinario-wrap');
   els.macchinarioSelect = document.getElementById('scan-macchinario-input');
   els.confirmBtn = document.getElementById('scan-confirm-btn');
@@ -623,8 +625,13 @@ function setupPrelievoFields(product) {
   els.puntoWrap.classList.toggle('hidden', isPrelievo && !isBearing);
   els.puntoLabel.textContent = isPrelievo && isBearing ? 'Punto di utilizzo' : 'Punto utilizzo';
   els.puntoInput.placeholder = isPrelievo && isBearing ? 'Dove viene montato' : 'es. Linea 1';
-  // La linea si preseleziona solo se l'articolo ne ha una sola; con L1-L2 o vuota va scelta
-  setLinea(product.linea === 'L1' || product.linea === 'L2' ? product.linea : '');
+  // Articolo usato su una sola linea (L1 o L2): la linea è automatica e non si sceglie, si vede solo quale è.
+  // Con L1-L2 o senza linea, invece, va scelta.
+  const fixedLinea = product.linea === 'L1' || product.linea === 'L2' ? product.linea : '';
+  setLinea(fixedLinea);
+  els.lineaGroup.classList.toggle('hidden', !!fixedLinea);
+  els.lineaFixed.classList.toggle('hidden', !fixedLinea);
+  els.lineaFixedName.textContent = fixedLinea === 'L1' ? 'Linea 1' : fixedLinea === 'L2' ? 'Linea 2' : '';
   if (isPrelievo && isBearing) fillMacchinari(product.macchina);
 }
 

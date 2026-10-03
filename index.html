@@ -343,6 +343,11 @@
                   <button type="button" data-linea="L2" aria-pressed="false"
                     class="scan-linea-btn press-spring min-h-[44px] rounded-lg border px-3 font-display font-semibold uppercase tracking-wide text-sm bg-graphite-900 text-graphite-200 border-graphite-700">Linea 2</button>
                 </div>
+                <!-- Articolo usato su una sola linea: la linea è fissa, non si sceglie -->
+                <div id="scan-linea-fixed" class="hidden min-h-[44px] rounded-lg border border-amber-400 bg-amber-400/10 px-3 flex items-center justify-between font-display font-semibold uppercase tracking-wide text-sm text-graphite-100">
+                  <span id="scan-linea-fixed-name"></span>
+                  <span class="ui-note normal-case font-normal text-graphite-500">impostata dall'articolo</span>
+                </div>
                 <input id="scan-linea-input" type="hidden" value="">
               </div>
               <div id="scan-macchinario-wrap" class="hidden">
