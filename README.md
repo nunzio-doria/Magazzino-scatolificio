@@ -39,6 +39,16 @@ Lo stesso codice (cuscinetto, cinghia o ricambio) può stare su **più scaffali,
 - **Rimozione di uno scaffale** (Impostazioni): le quantità restano all'articolo, senza scaffale.
 - Migrazione: `sql/product_locations_multi_scaffale.sql` (già applicata su Supabase).
 
+## Più codici a barre per lo stesso articolo
+
+Ogni articolo può avere **più codici a barre**, ciascuno con il **produttore** (facoltativo). `products.codice_barre` resta il codice **principale** (quello delle etichette e della generazione per le cinghie) e `products.produttore_barcode` è il suo produttore; gli altri codici stanno nella tabella `product_barcodes` (una riga per codice, RLS: lettura a tutti, scrittura solo admin). Un codice identifica un solo articolo: il database rifiuta i duplicati, anche tra principale e secondari.
+
+- **Modifica articolo (Admin)**: sotto il codice principale c'è il campo "Produttore" e il pulsante "Aggiungi codice a barre"; ogni codice aggiuntivo ha scansione da fotocamera, produttore e cestino.
+- **Scheda articolo**: elenca tutti i codici con il produttore sotto e una stampante per ognuno.
+- **Scanner e ricerca**: l'articolo si trova da qualsiasi suo codice (anche offline, dalla cache).
+- **Salvataggio**: avviene con la funzione `set_product_barcodes` (atomica), così scambiare principale e secondario non genera conflitti.
+- Migrazione: `sql/product_barcodes_multipli.sql` (già applicata su Supabase).
+
 ## Novità di questa sessione
 
 **Magazzino senza vista a elenco + scheda articolo in sola lettura** — la vista "Elenco" è stata eliminata. I **Cuscinetti** mostrano sempre la scaffalatura (nessun selettore; la ricerca resta per codice o scaffale); **Cinghie** e **Ricambi tecnici** hanno il selettore Scaffalatura / Macchina, con la scaffalatura di default. Toccando un articolo non si apre più il modulo di modifica ma una **scheda di sola lettura** (categoria, codice, locazione, quantità disponibile, linea, macchina, punto di utilizzo, codice a barre; la scorta minima non compare). Per i Ricambi tecnici con manuale caricato c'è un pulsante con sola icona per aprirlo. Solo l'Admin vede in basso il **pulsante tondo a matita** che apre il modulo di modifica completo; annullando si torna alla scheda.

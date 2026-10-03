@@ -1207,7 +1207,7 @@
         <p class="ui-note text-graphite-500 mt-1">Vale sul totale di tutti gli scaffali dell'articolo.</p>
       </div>
       <div>
-        <label class="block text-xs font-display font-semibold uppercase tracking-wide text-graphite-400 mb-1.5">Codice a barre</label>
+        <label class="block text-xs font-display font-semibold uppercase tracking-wide text-graphite-400 mb-1.5">Codici a barre</label>
         <div class="flex gap-2">
           <input id="product-codice-barre" type="text" placeholder="Scansiona o genera" class="flex-1 rounded-lg bg-graphite-800 border border-graphite-700 px-3.5 py-2.5 font-mono text-sm focus:border-amber-400 outline-none transition-colors">
           <button id="product-scan-barcode-btn" type="button" aria-label="Scansiona codice a barre" title="Scansiona (cuscinetti)" class="camera-only shrink-0 w-11 rounded-lg bg-graphite-800 border border-graphite-700 hover:border-amber-400 text-graphite-300 hover:text-amber-400 flex items-center justify-center transition-colors min-h-[44px]">
@@ -1217,7 +1217,13 @@
             <i data-lucide="plus" class="w-5 h-5" stroke-width="1.8"></i>
           </button>
         </div>
-        <p class="ui-note text-graphite-500 mt-1">Cuscinetti: scansiona il codice già stampato sulla confezione. Cinghie: generane uno con l'apposito pulsante — resta fisso per l'articolo.</p>
+        <input id="product-barcode-produttore" type="text" maxlength="80" autocomplete="off" placeholder="Produttore di questo codice (facoltativo)" class="mt-2 w-full rounded-lg bg-graphite-800 border border-graphite-700 px-3.5 py-2.5 text-sm focus:border-amber-400 outline-none transition-colors min-h-[44px]">
+        <p class="ui-note text-graphite-500 mt-1">Cuscinetti: scansiona il codice già stampato sulla confezione. Cinghie: generane uno con l'apposito pulsante — resta fisso per l'articolo. Il primo è il codice principale (quello delle etichette).</p>
+        <div id="product-barcodes-extra-rows" class="space-y-2 mt-2.5"></div>
+        <button type="button" id="product-barcode-add-btn" class="mt-2 w-full flex items-center justify-center gap-2 rounded-lg border border-dashed border-graphite-600 hover:border-amber-400 px-3.5 py-2.5 text-sm font-display font-semibold uppercase tracking-wide text-graphite-300 hover:text-amber-400 transition-colors min-h-[44px]">
+          <i data-lucide="plus" class="w-4 h-4" stroke-width="2.2"></i>
+          Aggiungi codice a barre
+        </button>
       </div>
 
       <div id="product-barcode-scanner-wrap" class="hidden">

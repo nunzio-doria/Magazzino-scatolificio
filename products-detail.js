@@ -5,7 +5,7 @@
 // in un file più piccolo.
 // =============================================================
 
-import { createProduct, updateProduct, deleteProduct, listDistinctMacchine, createMachine, listDistinctLocazioni, createShelf, getProductLocations } from './supabase.js';
+import { createProduct, updateProduct, deleteProduct, listDistinctMacchine, createMachine, listDistinctLocazioni, createShelf, getProductBarcodes, getProductLocations } from './supabase.js';
 import { getManualForMachineName, openManualForMachineName, refreshManualsCache } from './manuals.js';
 import { toastSuccess, toastError } from './toast.js';
 import { isAdmin } from './auth.js';
@@ -52,7 +52,8 @@ export function initProductsDetail() {
     openManualForMachineName(detailProduct.macchina, detailProduct.linea || '', detailProduct.codice_articolo);
   });
   els.detailRows.addEventListener('click', (e) => {
-    if (e.target.closest('[data-action="print"]')) printLabelFor(detailProduct?.codice_barre);
+    const btn = e.target.closest('[data-action="print"]');
+    if (btn) printLabelFor(btn.dataset.code || detailProduct?.codice_barre);
   });
 
   // Modale form
@@ -79,6 +80,9 @@ export function initProductsDetail() {
   els.barcodeSvg = document.getElementById('product-barcode-svg');
   els.printLabelBtn = document.getElementById('product-print-label-btn');
   els.generateBarcodeBtn = document.getElementById('product-generate-barcode-btn');
+  els.barcodeMakerInput = document.getElementById('product-barcode-produttore');
+  els.barcodesExtraRows = document.getElementById('product-barcodes-extra-rows');
+  els.barcodeAddBtn = document.getElementById('product-barcode-add-btn');
   els.scanBarcodeBtn = document.getElementById('product-scan-barcode-btn');
   els.scanBarcodeStopBtn = document.getElementById('product-scan-barcode-stop');
   els.barcodeScannerWrap = document.getElementById('product-barcode-scanner-wrap');
@@ -101,7 +105,8 @@ export function initProductsDetail() {
     if (!macchina) return;
     openManualForMachineName(macchina, linea, codice);
   });
-  els.scanBarcodeBtn.addEventListener('click', startBarcodeScan);
+  els.scanBarcodeBtn.addEventListener('click', () => startBarcodeScan(document.getElementById('product-codice-barre')));
+  els.barcodeAddBtn.addEventListener('click', () => addBarcodeRow({}, { focus: true }));
   els.scanBarcodeStopBtn.addEventListener('click', stopBarcodeScan);
   els.scanSwitchBtn?.addEventListener('click', () =>
     switchCameraShared(handleBarcodeScanDetected, { switchBtnEl: els.scanSwitchBtn, torchBtnEl: els.scanTorchBtn })
@@ -171,6 +176,11 @@ function applyModalPermissions() {
     el.disabled = readOnly;
   });
   els.scanBarcodeBtn.disabled = readOnly;
+  els.barcodeMakerInput.disabled = readOnly;
+  els.barcodeAddBtn.classList.toggle('hidden', readOnly);
+  els.barcodesExtraRows.querySelectorAll('button, input').forEach((el) => {
+    el.disabled = readOnly;
+  });
   if (readOnly) {
     els.deleteBtn.classList.add('hidden');
     els.generateBarcodeBtn.classList.add('hidden');
@@ -203,6 +213,9 @@ function openModal(product = null, { fromDetail = false } = {}) {
   renderShelfRows(product ? getProductLocations(product) : []);
   document.getElementById('product-scorta-minima').value = product?.scorta_minima ?? (state.currentCategory === 'cuscinetti' ? 5 : 0);
   document.getElementById('product-codice-barre').value = product?.codice_barre || '';
+  els.barcodeMakerInput.value = product?.produttore_barcode || '';
+  els.barcodesExtraRows.innerHTML = '';
+  (product?.barcodes_extra || []).forEach((b) => addBarcodeRow({ codice: b.codice_barre, produttore: b.produttore || '' }));
 
   updateLineaMacchinaVisibility();
   updateBarcodePreview();
@@ -345,6 +358,60 @@ function collectShelfRows() {
     locations.push({ locazione, quantita });
   }
   return { locations };
+}
+
+/** Riga di un codice a barre aggiuntivo: codice, scansione, rimozione e produttore (facoltativo) */
+function addBarcodeRow({ codice = '', produttore = '' } = {}, { focus = false } = {}) {
+  const row = document.createElement('div');
+  row.className = 'barcode-edit-row rounded-lg border border-graphite-700 p-2 space-y-2';
+  row.innerHTML = `
+    <div class="flex gap-2">
+      <input type="text" data-role="code" autocomplete="off" placeholder="Altro codice a barre" aria-label="Altro codice a barre"
+        class="flex-1 min-w-0 rounded-lg bg-graphite-800 border border-graphite-700 px-3.5 py-2.5 font-mono text-sm focus:border-amber-400 outline-none transition-colors min-h-[44px]">
+      <button type="button" data-role="scan" aria-label="Scansiona codice a barre" title="Scansiona"
+        class="camera-only shrink-0 w-11 h-11 rounded-lg bg-graphite-800 border border-graphite-700 hover:border-amber-400 text-graphite-300 hover:text-amber-400 flex items-center justify-center transition-colors">
+        <i data-lucide="scan-barcode" class="w-5 h-5" stroke-width="1.6"></i>
+      </button>
+      <button type="button" data-role="remove" aria-label="Togli questo codice a barre" title="Togli questo codice a barre"
+        class="shrink-0 w-11 h-11 rounded-lg flex items-center justify-center text-rose-700 hover:bg-rose-50 transition-colors">
+        <i data-lucide="trash-2" class="w-5 h-5" stroke-width="2"></i>
+      </button>
+    </div>
+    <input type="text" data-role="maker" maxlength="80" autocomplete="off" placeholder="Produttore (facoltativo)" aria-label="Produttore di questo codice"
+      class="w-full rounded-lg bg-graphite-800 border border-graphite-700 px-3.5 py-2.5 text-sm focus:border-amber-400 outline-none transition-colors min-h-[44px]">`;
+  els.barcodesExtraRows.appendChild(row);
+  const codeInput = row.querySelector('[data-role="code"]');
+  codeInput.value = codice;
+  row.querySelector('[data-role="maker"]').value = produttore;
+  row.querySelector('[data-role="scan"]').addEventListener('click', () => startBarcodeScan(codeInput));
+  row.querySelector('[data-role="remove"]').addEventListener('click', () => row.remove());
+  window.lucide?.createIcons();
+  if (focus) codeInput.focus();
+  return row;
+}
+
+/**
+ * Codici a barre inseriti nel modulo: il principale (con il suo produttore) e gli altri. Le righe senza
+ * codice si ignorano; un codice ripetuto si segnala. Restituisce { error } oppure { barcodes }.
+ */
+function collectBarcodes() {
+  const primary = document.getElementById('product-codice-barre').value.trim();
+  const primaryMaker = els.barcodeMakerInput.value.trim();
+  const seen = new Set(primary ? [primary.toLowerCase()] : []);
+  const extras = [];
+  for (const r of els.barcodesExtraRows.querySelectorAll('.barcode-edit-row')) {
+    const codice = r.querySelector('[data-role="code"]').value.trim();
+    if (!codice) continue;
+    if (seen.has(codice.toLowerCase())) return { error: `Il codice a barre "${codice}" è inserito due volte.` };
+    seen.add(codice.toLowerCase());
+    extras.push({ codice_barre: codice, produttore: r.querySelector('[data-role="maker"]').value.trim() || null });
+  }
+  if (!primary && extras.length) {
+    // Il primo dei codici aggiuntivi diventa il principale, se quello principale è vuoto
+    const [first, ...rest] = extras;
+    return { barcodes: { primary: first.codice_barre, primaryMaker: first.produttore, extras: rest } };
+  }
+  return { barcodes: { primary: primary || null, primaryMaker: primaryMaker || null, extras } };
 }
 
 function updateLineaMacchinaVisibility() {
@@ -518,7 +585,14 @@ function renderDetail(p) {
   if (!isRicambi && (hasMachine || (p.punto_utilizzo_standard || '').trim())) {
     rows.push({ label: 'Punto utilizzo standard', value: p.punto_utilizzo_standard });
   }
-  rows.push({ label: 'Codice a barre', value: p.codice_barre, mono: true, print: !!(p.codice_barre || '').trim() });
+  const codes = getProductBarcodes(p);
+  if (codes.length) {
+    codes.forEach((b, i) =>
+      rows.push({ label: i === 0 ? 'Codice a barre' : 'Altro codice', value: b.codice_barre, maker: b.produttore, mono: true, print: true, code: b.codice_barre })
+    );
+  } else {
+    rows.push({ label: 'Codice a barre', value: '', mono: true });
+  }
 
   els.detailRows.innerHTML = rows
     .map(
@@ -526,10 +600,14 @@ function renderDetail(p) {
       <div class="detail-row${r.print ? ' detail-row--center' : ''}">
         <dt class="detail-row-label">${escapeHtml(r.label)}</dt>
         <dd class="m-0 min-w-0 flex items-center justify-end gap-2">
-          ${detailValueHtml(r.value, { mono: r.mono })}
+          ${
+            r.maker
+              ? `<div class="min-w-0 text-right">${detailValueHtml(r.value, { mono: r.mono })}<span class="ui-note text-graphite-500 block truncate">${escapeHtml(r.maker)}</span></div>`
+              : detailValueHtml(r.value, { mono: r.mono })
+          }
           ${
             r.print
-              ? `<button type="button" data-action="print" aria-label="Stampa etichetta PDF" title="Stampa etichetta PDF"
+              ? `<button type="button" data-action="print" data-code="${escapeHtml(r.code || '')}" aria-label="Stampa etichetta PDF" title="Stampa etichetta PDF"
                   class="shrink-0 w-11 h-11 rounded-lg bg-graphite-800 border border-graphite-700 hover:border-amber-400 text-graphite-300 hover:text-amber-400 flex items-center justify-center transition-colors">
                   <i data-lucide="printer" class="w-5 h-5" stroke-width="1.6"></i>
                 </button>`
@@ -578,17 +656,22 @@ function updateBarcodePreview() {
   }
 }
 
+let scanTargetInput = null; // campo del codice a barre in cui finisce la lettura (principale o una riga aggiuntiva)
+
 function handleBarcodeScanDetected(code) {
-  document.getElementById('product-codice-barre').value = code;
-  updateBarcodePreview();
+  const target = scanTargetInput || document.getElementById('product-codice-barre');
+  target.value = code;
+  if (target.id === 'product-codice-barre') updateBarcodePreview();
   stopBarcodeScan();
   feedback.scanFound();
   toastSuccess(`Codice a barre acquisito: ${code}`);
 }
 
 /** Apre la fotocamera per acquisire il barcode già stampato sulla confezione (cuscinetti) */
-async function startBarcodeScan() {
+async function startBarcodeScan(targetInput = null) {
+  scanTargetInput = targetInput instanceof HTMLElement ? targetInput : null;
   els.barcodeScannerWrap.classList.remove('hidden');
+  els.barcodeScannerWrap.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
   const started = await startCamera('product-barcode-scanner-reader', handleBarcodeScanDetected, {
     switchBtnEl: els.scanSwitchBtn,
     torchBtnEl: els.scanTorchBtn,
@@ -598,6 +681,7 @@ async function startBarcodeScan() {
 }
 
 export function stopBarcodeScan() {
+  scanTargetInput = null;
   stopCamera();
   els.barcodeScannerWrap.classList.add('hidden');
   els.scanSwitchBtn?.classList.add('hidden');
@@ -633,6 +717,12 @@ async function handleSubmit(e) {
     toastError(shelves.error);
     return;
   }
+  const codes = collectBarcodes();
+  if (codes.error) {
+    feedback.errorAction();
+    toastError(codes.error);
+    return;
+  }
   const payload = {
     categoria: els.categoriaSelect.value,
     codice_articolo: document.getElementById('product-codice-articolo').value.trim(),
@@ -640,7 +730,6 @@ async function handleSubmit(e) {
     macchina: els.macchinaHidden.value || null,
     punto_utilizzo_standard: document.getElementById('product-punto-standard').value.trim() || null,
     scorta_minima: parseInt(document.getElementById('product-scorta-minima').value, 10) || 0,
-    codice_barre: document.getElementById('product-codice-barre').value.trim() || null,
   };
 
   const submitBtn = els.form.querySelector('button[type="submit"]');
@@ -648,12 +737,12 @@ async function handleSubmit(e) {
   try {
     if (editingId) {
       const before = editingSnapshot;
-      const after = await updateProduct(editingId, payload, shelves.locations);
+      const after = await updateProduct(editingId, payload, shelves.locations, codes.barcodes);
       pushHistory({ type: 'update', before, after });
       feedback.confirmAction();
       toastSuccess('Articolo aggiornato.');
     } else {
-      const after = await createProduct(payload, shelves.locations);
+      const after = await createProduct(payload, shelves.locations, codes.barcodes);
       pushHistory({ type: 'create', before: null, after });
       feedback.confirmAction();
       toastSuccess('Articolo creato.');
@@ -663,7 +752,14 @@ async function handleSubmit(e) {
   } catch (err) {
     console.error(err);
     feedback.errorAction();
-    toastError(err.message?.includes('duplicate') ? 'Codice articolo già esistente in questa categoria, oppure barcode già usato.' : 'Errore nel salvataggio.');
+    const msg = err.message || '';
+    toastError(
+      msg.includes('già assegnato') || msg.includes('inserito due volte')
+        ? msg
+        : msg.includes('duplicate')
+          ? 'Codice articolo già esistente in questa categoria, oppure barcode già usato.'
+          : 'Errore nel salvataggio.'
+    );
   } finally {
     setButtonBusy(submitBtn, false);
   }

@@ -35,6 +35,8 @@ function toWritableRow(row) {
     codice_articolo: row.codice_articolo,
     scorta_minima: row.scorta_minima,
     codice_barre: row.codice_barre,
+    produttore_barcode: row.produttore_barcode ?? null,
+    barcodes_extra: (row.barcodes_extra || []).map((b) => ({ codice_barre: b.codice_barre, produttore: b.produttore || null })),
     linea: row.linea,
     macchina: row.macchina,
   };
