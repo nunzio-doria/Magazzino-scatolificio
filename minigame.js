@@ -2,22 +2,58 @@
 // minigame.js — Easter egg: minigioco "Pesca i barattoli".
 //
 // Si avvia tenendo premuto per 5 secondi il tasto "Magazzino" della barra
-// di navigazione in basso. Piovono barattoli: si sposta il secchio (dito o
-// mouse, oppure frecce ← → da tastiera) per farli entrare dentro. Ogni
-// barattolo mancato costa un cuore (3 in alto a sinistra); il punteggio è
-// in alto a destra. Più si segna, più la difficoltà sale.
+// di navigazione in basso. Negli ultimi 1,3 secondi lo schermo trema sempre
+// più forte, si crepa e si frantuma lasciando comparire il gioco (con
+// vibrazione e suono sincronizzati a ogni fase).
+//
+// Piovono barattoli: si sposta il secchio (dito, mouse o frecce ← →) per
+// farli entrare dentro. Ogni barattolo mancato costa un cuore (3 in alto a
+// sinistra); il punteggio è in alto a destra. Più si segna, più sale la
+// difficoltà. Dal livello 1 in poi, insieme ai barattoli cadono oggetti
+// del reparto scatolificio:
+//   BONUS  bobina di banda stagnata (+5), calamita (attira i barattoli),
+//          chiave inglese (+1 cuore), arresto di emergenza (rallenta tutto)
+//   MALUS  scarto arrugginito (-1 cuore), macchia d'olio (secchio scivoloso),
+//          scintilla di saldatura (secchio bloccato per un attimo)
+//
+// Lo sfondo segue l'ora reale (sole di giorno, luna e stelle di notte, con
+// alba e tramonto) oppure si forza dal menu di pausa (Giorno / Notte / Auto),
+// dove si trovano anche gli interruttori di vibrazione e suono.
 //
 // Solo illustrativo: vive interamente nel browser. Non legge né scrive nulla
-// su Supabase, né su localStorage, né altrove.
+// su Supabase, né su localStorage, né altrove. Le scelte fatte nel menu di
+// pausa restano solo finché l'app non viene ricaricata.
 // =============================================================
 
 import { pushLayer, releaseLayer } from './nav-history.js';
-import { isSoundEnabled, isHapticsEnabled } from './feedback.js'; // rispetta le impostazioni suoni/vibrazione dell'app
+import { isSoundEnabled, isHapticsEnabled } from './feedback.js'; // valori di partenza = impostazioni suoni/vibrazione dell'app
 
 const HOLD_MS = 5000; // pressione prolungata necessaria
 const MOVE_TOLERANCE = 24; // px di spostamento del dito oltre i quali la pressione è annullata
 const MAX_LIVES = 3;
-const POINTS_PER_LEVEL = 5; // ogni 5 barattoli presi sale il livello
+const POINTS_PER_LEVEL = 5; // ogni 5 punti sale il livello
+
+// Sequenza "lo schermo si rompe" (ms dall'inizio della pressione)
+const FX_TREMOR_MS = 3700; // inizia a tremare
+const FX_CRACK1_MS = 4250; // prima crepa
+const FX_CRACK2_MS = 4650; // seconda crepa, più estesa
+const SHARD_NODE_BUDGET = 14000; // nodi DOM totali (nodi dell'istantanea × frammenti) oltre cui si riducono i frammenti
+const SHARD_NODE_LIMIT = 24000; // oltre questo limite niente istantanea: frammenti di vetro semplici
+
+const FONT_UI = "'Barlow Condensed', sans-serif";
+
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const smooth = (x) => {
+  const k = clamp(x, 0, 1);
+  return k * k * (3 - 2 * k);
+};
+
+// ---------- Preferenze di sessione (nessun salvataggio su disco) ----------
+// sound / haptics null = segue le impostazioni dell'app; true/false = scelta fatta nel menu di pausa
+const prefs = { sound: null, haptics: null, bg: 'auto' };
+const effSound = () => (prefs.sound === null ? isSoundEnabled() : prefs.sound);
+const effHaptics = () => (prefs.haptics === null ? isHapticsEnabled() : prefs.haptics);
+const hapticsSupported = () => typeof navigator.vibrate === 'function';
 
 // ---------- Sprite pixel-art ----------
 // Barattolo metallico: nessuna scritta né colore, solo acciaio con la
@@ -37,8 +73,137 @@ const CAN = [
   'MSSSSMDKK',
   '.MSSMMDK.',
 ];
-const CW = 9;
-const CH = 12;
+
+// --- Bonus ---
+// Bobina di banda stagnata (rotolo di lamiera visto di fronte): dorata per distinguersi
+const COIL = [
+  '...KKKKK...',
+  '..KGGGYYK..',
+  '.KGYYYYYYK.',
+  'KGYYKKKYYYK',
+  'KGYKKKKKYYK',
+  'KYYKKKKKYOK',
+  'KYYKKKKKYOK',
+  'KYYYKKKYOOK',
+  '.KYYYYYOOK.',
+  '..KYYOOOK..',
+  '...KKKKK...',
+];
+const PAL_COIL = { G: '#fff2a8', Y: '#f4cf55', O: '#c58d1f', K: '#5a3a0a' };
+// Calamita a ferro di cavallo (i reparti la usano per sollevare le lamiere)
+const MAGNET = [
+  '...RRRRR...',
+  '.RRRRRRRRR.',
+  'RRHRRRRRRRR',
+  'RRRR...RRRR',
+  'RHRR...RRRD',
+  'RRRR...RRRD',
+  'RRRR...RRRD',
+  'RRRR...RRRD',
+  'WWWW...WWWW',
+  'WSSW...WSSW',
+  'KKKK...KKKK',
+];
+const PAL_MAGNET = { R: '#e5383b', H: '#ff9aa0', D: '#a31d27', W: '#f4f7fb', S: '#a0abbd', K: '#4b5469' };
+// Chiave inglese (manutenzione)
+const WRENCH = [
+  '.HS...DD.',
+  'HSS...SDD',
+  'HSSS.SSDD',
+  '.HSSSSSD.',
+  '..HSSSD..',
+  '...HSD...',
+  '...HSD...',
+  '...HSD...',
+  '...HSD...',
+  '..HSSSD..',
+  '..HSSSD..',
+  '...KKK...',
+];
+const PAL_WRENCH = { H: '#d6ecff', S: '#6fb4ff', D: '#2f6db5', K: '#17365e' };
+// Fungo di arresto di emergenza
+const STOPBTN = [
+  '...KKKKK...',
+  '..KRRRRRK..',
+  '.KRHHRRRRK.',
+  'KRHHRRRRRRK',
+  'KRRRRRRRRDK',
+  'KRRRRRRRDDK',
+  '.KDDDDDDDK.',
+  '..KKYYYKK..',
+  '...KYYYK...',
+  '..KYYYYYK..',
+  '..KKKKKKK..',
+];
+const PAL_STOP = { R: '#e5383b', H: '#ff8c90', D: '#9d1a22', Y: '#f4cf55', K: '#2a0a10' };
+
+// --- Malus ---
+// Scarto arrugginito (barattolo ammaccato con ruggine)
+const RUST = [
+  '..SHSSM..',
+  '.SHHSMDK.',
+  '.MHSSMKD.',
+  '.SHKHSMD.',
+  '.DMDDKKK.',
+  '.MHSKMDK.',
+  '.MKSSMDK.',
+  '.DMDDKKK.',
+  '.SHHKSMD.',
+  '.MHSSMKK.',
+  'MSKSSMDKK',
+  '.MSSMMDK.',
+];
+const PAL_RUST = { H: '#d9a066', S: '#b8733a', M: '#8e4f26', D: '#6a381b', K: '#47250f' };
+// Goccia d'olio lubrificante
+const OIL = [
+  '....K....',
+  '....K....',
+  '...KDK...',
+  '...KDK...',
+  '..KDDDK..',
+  '..KDDDK..',
+  '.KDDHDDK.',
+  '.KDHHDDK.',
+  'KDDHDDDDK',
+  'KDDDDDDDK',
+  '.KDDDDDK.',
+  '..KKKKK..',
+];
+const PAL_OIL = { K: '#120c04', D: '#3b2a12', H: '#c98a2b' };
+// Scintilla dell'arco di saldatura
+const SPARK = [
+  '.....Y.....',
+  '..Y..W..Y..',
+  '...Y.W.Y...',
+  '....YWY....',
+  '.YYYWBWYYY.',
+  'YWWWBBBWWWY',
+  '.YYYWBWYYY.',
+  '....YWY....',
+  '...Y.W.Y...',
+  '..Y..W..Y..',
+  '.....Y.....',
+];
+const PAL_SPARK = { Y: '#ffd23f', W: '#ffffff', B: '#4cc9f0' };
+
+// kind: good = barattolo (se manca costa un cuore), bonus = da prendere, malus = da evitare
+const ITEMS = {
+  can: { kind: 'good', rows: CAN, pal: PAL },
+  coil: { kind: 'bonus', rows: COIL, pal: PAL_COIL, glow: '#ffe27a' },
+  magnet: { kind: 'bonus', rows: MAGNET, pal: PAL_MAGNET, glow: '#ff9aa0' },
+  wrench: { kind: 'bonus', rows: WRENCH, pal: PAL_WRENCH, glow: '#8fd0ff' },
+  stop: { kind: 'bonus', rows: STOPBTN, pal: PAL_STOP, glow: '#ffd0d2' },
+  rust: { kind: 'malus', rows: RUST, pal: PAL_RUST },
+  oil: { kind: 'malus', rows: OIL, pal: PAL_OIL },
+  spark: { kind: 'malus', rows: SPARK, pal: PAL_SPARK },
+};
+for (const it of Object.values(ITEMS)) {
+  it.w = it.rows[0].length;
+  it.h = it.rows.length;
+}
+
+// Durata degli effetti (secondi)
+const FX_DUR = { magnet: 8, stop: 6, oil: 6, freeze: 1.3 };
 
 const HEART = [
   '..XX.XX..',
@@ -53,7 +218,15 @@ const HEART = [
 const HW = 9;
 const HH = 8;
 
-// Font 3x5 per punteggio e livello
+const CLOUD = [
+  '....XXXX......',
+  '..XXXXXXXX.XX.',
+  '.XXXXXXXXXXXXX',
+  'XXXXXXXXXXXXXX',
+  '.XXXXXXXXXXXX.',
+];
+
+// Font 3x5 per punteggio, livello e scritte che compaiono sul gioco
 const FONT = {
   0: ['111', '101', '101', '101', '111'],
   1: ['010', '110', '010', '010', '111'],
@@ -65,130 +238,169 @@ const FONT = {
   7: ['111', '001', '010', '010', '010'],
   8: ['111', '101', '111', '101', '111'],
   9: ['111', '101', '111', '001', '111'],
+  A: ['010', '101', '111', '101', '101'],
+  C: ['011', '100', '100', '100', '011'],
+  E: ['111', '100', '111', '100', '111'],
+  G: ['011', '100', '101', '101', '011'],
+  I: ['111', '010', '010', '010', '111'],
   L: ['100', '100', '100', '100', '111'],
+  M: ['101', '111', '111', '101', '101'],
+  N: ['110', '101', '101', '101', '101'],
+  O: ['010', '101', '101', '101', '010'],
+  P: ['110', '101', '110', '100', '100'],
+  R: ['110', '101', '110', '101', '101'],
+  S: ['011', '100', '010', '001', '110'],
+  T: ['111', '010', '010', '010', '010'],
+  U: ['101', '101', '101', '101', '111'],
   V: ['101', '101', '101', '101', '010'],
+  '+': ['000', '010', '111', '010', '000'],
+  '-': ['000', '000', '111', '000', '000'],
   ' ': ['000', '000', '000', '000', '000'],
+};
+
+// Icone dell'interfaccia (disegnate a pixel, nessuna emoji). X = colore del testo.
+const ICONS = {
+  pause: ['.........', '.XXX.XXX.', '.XXX.XXX.', '.XXX.XXX.', '.XXX.XXX.', '.XXX.XXX.', '.XXX.XXX.', '.XXX.XXX.', '.........'],
+  play: ['..X......', '..XX.....', '..XXX....', '..XXXX...', '..XXXXX..', '..XXXX...', '..XXX....', '..XX.....', '..X......'],
+  soundOn: ['...X.......', '..XX...X...', 'XXXX.X..X..', 'XXXX..X..X.', 'XXXX..X..X.', 'XXXX..X..X.', 'XXXX.X..X..', '..XX...X...', '...X.......'],
+  soundOff: ['...X.......', '..XX.......', 'XXXX.X...X.', 'XXXX..X.X..', 'XXXX...X...', 'XXXX..X.X..', 'XXXX.X...X.', '..XX.......', '...X.......'],
+  vibrate: ['...XXXXX...', '...X...X...', '.X.X...X.X.', 'X..X...X..X', 'X..X...X..X', 'X..X...X..X', '.X.X...X.X.', '...X...X...', '...XXXXX...'],
+  sun: ['.....X.....', '.X...X...X.', '..X.....X..', '....XXX....', '...XXXXX...', 'XX.XXXXX.XX', '...XXXXX...', '....XXX....', '..X.....X..', '.X...X...X.', '.....X.....'],
+  moon: ['...XXXXX...', '..XXX......', '.XXX.......', '.XXX.......', 'XXXX.......', 'XXXX.......', 'XXXX.......', '.XXX.......', '.XXXX......', '..XXXXXX...', '...XXXXX...'],
+  clock: ['...XXXXX...', '..X.....X..', '.X...X...X.', 'X....X....X', 'X....X....X', 'X....XXX..X', 'X.........X', 'X.........X', '.X.......X.', '..X.....X..', '...XXXXX...'],
 };
 
 const GROUND_H = 6;
 const BUCKET_H = 14;
 
-// Cielo a fasce (effetto pixel-art): dal blu notte al blu più chiaro vicino al suolo
-const SKY = (() => {
-  const from = [11, 16, 32];
-  const to = [40, 70, 128];
-  const n = 14;
-  return Array.from({ length: n }, (_, i) => {
-    const k = i / (n - 1);
-    return `rgb(${from.map((f, j) => Math.round(f + (to[j] - f) * k)).join(',')})`;
+// ---------- Cielo: colori e posizione di sole/luna in base all'ora ----------
+const SKY_N = 14;
+const SKY_NIGHT = { top: [11, 16, 32], bot: [40, 70, 128] };
+const SKY_DAY = { top: [72, 148, 232], bot: [192, 228, 252] };
+const SKY_TWI = { top: [74, 54, 122], bot: [255, 153, 92] };
+const mixC = (a, b, k) => a.map((v, i) => v + (b[i] - v) * k);
+const rgbStr = (c) => `rgb(${c.map((v) => Math.round(v)).join(',')})`;
+
+function skyBands(d, twi) {
+  return Array.from({ length: SKY_N }, (_, i) => {
+    const k = i / (SKY_N - 1);
+    const night = mixC(SKY_NIGHT.top, SKY_NIGHT.bot, k);
+    const day = mixC(SKY_DAY.top, SKY_DAY.bot, k);
+    const tw = mixC(SKY_TWI.top, SKY_TWI.bot, k);
+    return rgbStr(mixC(mixC(night, day, d), tw, twi * 0.75));
   });
-})();
-
-let active = false;
-
-// ---------- Aggancio al tasto Magazzino ----------
-export function initMinigame() {
-  const btn = document.querySelector('[data-nav-target="products"]');
-  const nav = btn && btn.closest('nav');
-  if (!btn || !nav) return;
-
-  let timer = null;
-  let startX = 0;
-  let startY = 0;
-  let swallowClick = false;
-  let swallowTimer = null;
-
-  const cancelHold = () => {
-    if (timer) {
-      clearTimeout(timer);
-      timer = null;
-    }
-  };
-
-  // Niente menu contestuale / selezione / callout durante la pressione lunga
-  btn.style.webkitTouchCallout = 'none';
-  btn.style.webkitUserSelect = 'none';
-  btn.style.userSelect = 'none';
-  btn.addEventListener('contextmenu', (e) => e.preventDefault());
-
-  btn.addEventListener('pointerdown', (e) => {
-    if (e.pointerType === 'mouse' && e.button !== 0) return;
-    cancelHold();
-    startX = e.clientX;
-    startY = e.clientY;
-    timer = setTimeout(() => {
-      timer = null;
-      swallowClick = true; // al rilascio il tocco NON deve cambiare sezione
-      launchGame();
-    }, HOLD_MS);
-  });
-  btn.addEventListener('pointermove', (e) => {
-    if (timer && Math.hypot(e.clientX - startX, e.clientY - startY) > MOVE_TOLERANCE) cancelHold();
-  });
-  ['pointerup', 'pointercancel', 'pointerleave'].forEach((t) => btn.addEventListener(t, cancelHold));
-
-  // In fase di cattura sulla nav: intercetta il click di rilascio prima del gestore di navigazione
-  nav.addEventListener(
-    'click',
-    (e) => {
-      if (!swallowClick) return;
-      swallowClick = false;
-      e.stopPropagation();
-      e.preventDefault();
-    },
-    true
-  );
-  window.addEventListener(
-    'pointerup',
-    () => {
-      if (!swallowClick) return;
-      clearTimeout(swallowTimer);
-      swallowTimer = setTimeout(() => {
-        swallowClick = false;
-      }, 400);
-    },
-    true
-  );
 }
 
-// ---------- Utilità DOM ----------
-function mk(tag, style, text) {
-  const el = document.createElement(tag);
-  if (style) Object.assign(el.style, style);
-  if (text != null) el.textContent = text;
-  return el;
+// Alba e tramonto calcolati per Sarno (SA) a partire dalla data e dal fuso del dispositivo
+function sunTimes(date) {
+  const rad = Math.PI / 180;
+  const lat = 40.8 * rad;
+  const lon = 14.6;
+  const start = new Date(date.getFullYear(), 0, 0);
+  const n = Math.floor((date - start) / 86400000);
+  const decl = 23.44 * rad * Math.sin((2 * Math.PI * (284 + n)) / 365);
+  const cosH = (Math.sin(-0.833 * rad) - Math.sin(lat) * Math.sin(decl)) / (Math.cos(lat) * Math.cos(decl));
+  const H = Math.acos(clamp(cosH, -1, 1)) / rad / 15; // ore tra mezzogiorno solare e tramonto
+  const B = (2 * Math.PI * (n - 81)) / 364;
+  const eot = 9.87 * Math.sin(2 * B) - 7.53 * Math.cos(B) - 1.5 * Math.sin(B); // equazione del tempo (minuti)
+  const noon = 12 - lon / 15 - eot / 60 - date.getTimezoneOffset() / 60;
+  return { rise: noon - H, set: noon + H };
 }
 
-function pixelButton(label, primary) {
-  return mk(
-    'button',
-    {
-      minHeight: '48px',
-      minWidth: '140px',
-      padding: '0 20px',
-      borderRadius: '10px',
-      border: '2px solid ' + (primary ? '#f4cf55' : 'rgba(255,255,255,.35)'),
-      background: primary ? '#f4cf55' : 'rgba(255,255,255,.08)',
-      color: primary ? '#1a1a2e' : '#fff',
-      fontFamily: "'Barlow Condensed', sans-serif",
-      fontWeight: '700',
-      fontSize: '18px',
-      textTransform: 'uppercase',
-      letterSpacing: '.06em',
-      cursor: 'pointer',
-    },
-    label
-  );
+// d: 0 notte … 1 giorno; twi: 1 ad alba/tramonto; sunP: 0 alba … 1 tramonto; moonQ: 0 tramonto … 1 alba
+function skyAt(date) {
+  const h = date.getHours() + date.getMinutes() / 60 + date.getSeconds() / 3600;
+  const { rise, set } = sunTimes(date);
+  const w = 0.4; // circa mezz'ora di crepuscolo attorno ad alba e tramonto
+  const d = Math.min(smooth((h - (rise - w)) / (2 * w)), smooth((set + w - h) / (2 * w)));
+  const twi = 1 - Math.abs(2 * d - 1);
+  const dayLen = set - rise;
+  const sunP = clamp((h - rise) / dayLen, -0.06, 1.06);
+  const hs = h >= set ? h - set : h + 24 - set;
+  const moonQ = clamp(hs / (24 - dayLen), 0, 1);
+  return { d, twi, sunP, moonQ };
 }
+const SKY_FIXED_DAY = { d: 1, twi: 0, sunP: 0.62, moonQ: 0.4 };
+const SKY_FIXED_NIGHT = { d: 0, twi: 0, sunP: 0.62, moonQ: 0.4 };
 
 // ---------- Vibrazione ----------
-function vib(ms) {
+// Priorità: 1 = segnali di contorno, 2 = eventi di gioco, 3 = eventi forti. Un segnale
+// di priorità minore non interrompe uno più forte ancora in corso.
+let hapUntil = 0;
+let hapPrio = 0;
+function vib(pattern, prio = 2) {
+  if (!effHaptics() || !hapticsSupported()) return;
+  const now = performance.now();
+  if (prio < hapPrio && now < hapUntil) return;
+  const arr = Array.isArray(pattern) ? pattern : [pattern];
+  const norm = arr.map((ms, i) => (i % 2 === 0 && ms > 0 ? Math.max(ms, 15) : ms)); // sotto ~15 ms il motorino non parte
   try {
-    if (isHapticsEnabled() && navigator.vibrate) navigator.vibrate(ms);
+    navigator.vibrate(norm);
   } catch (_) {
     /* vibrazione non disponibile: nessun problema */
   }
+  hapUntil = now + norm.reduce((a, b) => a + b, 0);
+  hapPrio = prio;
 }
+function vibStop() {
+  try {
+    if (hapticsSupported()) navigator.vibrate(0);
+  } catch (_) {
+    /* niente da fermare */
+  }
+  hapUntil = 0;
+  hapPrio = 0;
+}
+// Rampa: impulsi sempre più lunghi e pause sempre più corte per `total` ms
+function rampPattern(total, p0, p1, g0, g1) {
+  const out = [];
+  let t = 0;
+  for (let i = 0; t < total; i++) {
+    const k = clamp(t / total, 0, 1);
+    const p = Math.round(p0 + (p1 - p0) * k);
+    const gp = Math.round(g0 + (g1 - g0) * k);
+    out.push(p, gp);
+    t += p + gp;
+  }
+  return out;
+}
+
+// Vocabolario aptico del minigioco
+const HAP = {
+  tremor: rampPattern(550, 15, 24, 95, 55), // fa "tremare" il telefono insieme allo schermo
+  crack1: [45, 25, 20, 40, ...rampPattern(280, 24, 32, 45, 25)], // colpo secco + tremore più fitto
+  crack2: [70, 25, 40, 25, ...rampPattern(270, 32, 40, 22, 12)], // colpo più forte + tremore quasi continuo
+  shatter: [160, 35, 100, 35, 70, 35, 40], // esplosione di vetri
+  abort: [15], // pressione rilasciata prima del tempo: la tensione scende
+  launch: [20, 40, 20, 40, 30], // il gioco "si accende"
+  pause: [18],
+  resume: [18],
+  on: [15, 40, 26],
+  off: [26],
+  day: [15, 45, 22, 45, 30], // impulsi che crescono: sale il sole
+  night: [30, 45, 22, 45, 15], // impulsi che calano: scende la sera
+  auto: [15, 70, 15], // tic-tac dell'orologio
+  coil: [18, 30, 18, 30, 40],
+  magnet: [15, 25, 20, 25, 28, 25, 36],
+  magnetPull: [15],
+  wrench: [20, 40, 20, 40, 35], // tre giri di cricchetto
+  stop: [60, 45, 30],
+  stopEnd: [20],
+  magnetEnd: [15],
+  rust: [70, 40, 70],
+  oil: [18, 30, 18, 30, 18, 30, 18, 30, 18], // onda viscida
+  oilEnd: [15],
+  spark: [15, 10, 15, 10, 15, 10, 15, 10, 15, 10, 15, 10, 40], // crepitio dell'arco
+  sparkEnd: [15],
+  dodge: [15],
+  bonusMiss: [15],
+  spawnBonus: [15],
+  spawnMalus: [15, 50, 15],
+  level: [20, 40, 20, 40, 35],
+  miss: 35,
+  over: 120,
+  tap: [15],
+};
 
 // ---------- Audio ----------
 // Tutto sintetizzato al volo con Web Audio (nessun file audio): musichetta
@@ -215,7 +427,15 @@ const CHORDS = [
 const PENTA = [72, 74, 76, 79, 81, 84, 86, 88]; // scala dei "catch" consecutivi
 const BASE_BPM = 128;
 
-function createAudio(startMuted) {
+// Un solo AudioContext condiviso: lo usano sia la sequenza di rottura sia il gioco.
+// Va creato/ripreso dentro un gesto dell'utente (la pressione sul tasto) per le policy autoplay.
+let graph = null;
+function getGraph() {
+  if (graph) {
+    if (graph.ctx.state !== 'running') graph.ctx.resume().catch(() => {});
+    graph.syncMaster();
+    return graph;
+  }
   const AC = window.AudioContext || window.webkitAudioContext;
   if (!AC) return null;
   let ctx;
@@ -224,9 +444,8 @@ function createAudio(startMuted) {
   } catch (_) {
     return null;
   }
-
   const master = ctx.createGain();
-  master.gain.value = startMuted ? 0 : 0.7;
+  master.gain.value = effSound() ? 0.7 : 0;
   const comp = ctx.createDynamicsCompressor();
   master.connect(comp);
   comp.connect(ctx.destination);
@@ -237,7 +456,7 @@ function createAudio(startMuted) {
   sfxBus.gain.value = 0.9;
   sfxBus.connect(master);
 
-  // Rumore bianco (per hi-hat, rullante, clangore)
+  // Rumore bianco (per hi-hat, rullante, clangore, vetri)
   const nbuf = ctx.createBuffer(1, ctx.sampleRate, ctx.sampleRate);
   const nd = nbuf.getChannelData(0);
   for (let i = 0; i < nd.length; i++) nd[i] = Math.random() * 2 - 1;
@@ -265,12 +484,13 @@ function createAudio(startMuted) {
     o.stop(t + dur + 0.03);
   }
 
-  function noise(bus, t, { dur = 0.05, vol = 0.1, kind = 'highpass', freq = 6000 }) {
+  function noise(bus, t, { dur = 0.05, vol = 0.1, kind = 'highpass', freq = 6000, freq2 = null }) {
     const s = ctx.createBufferSource();
     s.buffer = nbuf;
     const fl = ctx.createBiquadFilter();
     fl.type = kind;
-    fl.frequency.value = freq;
+    fl.frequency.setValueAtTime(freq, t);
+    if (freq2) fl.frequency.exponentialRampToValueAtTime(freq2, t + dur);
     const g = ctx.createGain();
     g.gain.setValueAtTime(vol, t);
     g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
@@ -280,6 +500,601 @@ function createAudio(startMuted) {
     s.start(t, Math.random() * 0.5);
     s.stop(t + dur + 0.03);
   }
+
+  graph = {
+    ctx,
+    master,
+    musicBus,
+    sfxBus,
+    nbuf,
+    pulse,
+    tone,
+    noise,
+    syncMaster() {
+      master.gain.setTargetAtTime(effSound() ? 0.7 : 0, ctx.currentTime, 0.015);
+    },
+    // Mette in pausa il motore audio quando non serve (risparmia batteria)
+    idle() {
+      if (ctx.state === 'running') ctx.suspend().catch(() => {});
+    },
+  };
+  if (ctx.state !== 'running') ctx.resume().catch(() => {});
+  return graph;
+}
+
+// ---------- Suoni della sequenza "lo schermo si rompe" ----------
+const fxSound = {
+  // Rombo sordo che sale mentre lo schermo trema. Restituisce { stop() }.
+  rumble() {
+    const G = getGraph();
+    if (!G || !effSound()) return null;
+    const { ctx } = G;
+    const t = ctx.currentTime;
+    const src = ctx.createBufferSource();
+    src.buffer = G.nbuf;
+    src.loop = true;
+    const lp = ctx.createBiquadFilter();
+    lp.type = 'lowpass';
+    lp.frequency.setValueAtTime(80, t);
+    lp.frequency.exponentialRampToValueAtTime(340, t + 1.3);
+    const ng = ctx.createGain();
+    ng.gain.setValueAtTime(0.0001, t);
+    ng.gain.exponentialRampToValueAtTime(0.55, t + 1.3);
+    src.connect(lp);
+    lp.connect(ng);
+    ng.connect(G.sfxBus);
+    const sub = ctx.createOscillator();
+    sub.type = 'sine';
+    sub.frequency.setValueAtTime(34, t);
+    sub.frequency.exponentialRampToValueAtTime(74, t + 1.3);
+    const sg = ctx.createGain();
+    sg.gain.setValueAtTime(0.0001, t);
+    sg.gain.exponentialRampToValueAtTime(0.35, t + 1.3);
+    sub.connect(sg);
+    sg.connect(G.sfxBus);
+    src.start(t, Math.random() * 0.5);
+    sub.start(t);
+    return {
+      stop(fade = 0.06) {
+        const n = ctx.currentTime;
+        try {
+          ng.gain.cancelScheduledValues(n);
+          sg.gain.cancelScheduledValues(n);
+          ng.gain.setTargetAtTime(0.0001, n, fade / 3);
+          sg.gain.setTargetAtTime(0.0001, n, fade / 3);
+          src.stop(n + fade + 0.1);
+          sub.stop(n + fade + 0.1);
+        } catch (_) {
+          /* già fermato */
+        }
+      },
+    };
+  },
+  // Crepa nel vetro: schiocco secco; la seconda è più grave e più forte
+  crack(n) {
+    const G = getGraph();
+    if (!G || !effSound()) return;
+    const t = G.ctx.currentTime;
+    G.noise(G.sfxBus, t, { dur: 0.05, vol: 0.34, kind: 'highpass', freq: 2400 + n * 1300 });
+    G.noise(G.sfxBus, t + 0.03, { dur: 0.03, vol: 0.2, kind: 'bandpass', freq: 5200 });
+    G.tone(G.sfxBus, t, { type: 'triangle', f: 1100, f2: 180, dur: 0.09, vol: 0.2 });
+    if (n >= 2) G.tone(G.sfxBus, t, { type: 'sine', f: 120, f2: 50, dur: 0.18, vol: 0.32 });
+  },
+  // Vetro che esplode: colpo grave + sventagliata di rumore + tintinnii
+  shatter() {
+    const G = getGraph();
+    if (!G || !effSound()) return;
+    const t = G.ctx.currentTime;
+    G.tone(G.sfxBus, t, { type: 'sine', f: 130, f2: 38, dur: 0.34, vol: 0.45 });
+    G.noise(G.sfxBus, t, { dur: 0.28, vol: 0.36, kind: 'highpass', freq: 3000 });
+    G.noise(G.sfxBus, t, { dur: 0.55, vol: 0.2, kind: 'bandpass', freq: 3200, freq2: 600 });
+    for (let i = 0; i < 16; i++) {
+      const at = t + 0.02 + Math.random() * 0.65;
+      G.tone(G.sfxBus, at, { type: 'sine', f: 2000 + Math.random() * 4800, dur: 0.06 + Math.random() * 0.09, vol: 0.03 + Math.random() * 0.045 });
+    }
+  },
+  // Il gioco si accende: arpeggio chiptune ascendente
+  boot() {
+    const G = getGraph();
+    if (!G || !effSound()) return;
+    const t = G.ctx.currentTime + 0.3;
+    [60, 64, 67, 72, 76, 79].forEach((n, k) => G.tone(G.sfxBus, t + k * 0.06, { type: 'square', f: mtof(n), dur: 0.09, vol: 0.12 }));
+    G.tone(G.sfxBus, t + 0.4, { type: 'square', f: mtof(84), dur: 0.22, vol: 0.12 });
+    G.tone(G.sfxBus, t + 0.4, { wave: G.pulse, f: mtof(72), dur: 0.22, vol: 0.09 });
+  },
+  // Pressione rilasciata prima del tempo: la tensione si scarica
+  abort() {
+    const G = getGraph();
+    if (!G || !effSound()) return;
+    const t = G.ctx.currentTime;
+    G.tone(G.sfxBus, t, { type: 'sine', f: 260, f2: 90, dur: 0.18, vol: 0.12 });
+    G.noise(G.sfxBus, t, { dur: 0.06, vol: 0.08, kind: 'bandpass', freq: 3600 });
+  },
+};
+
+// ---------- Geometria dei frammenti ----------
+function clipRect(poly, x0, y0, x1, y1) {
+  const run = (pts, inside, cross) => {
+    const out = [];
+    for (let i = 0; i < pts.length; i++) {
+      const a = pts[i];
+      const b = pts[(i + 1) % pts.length];
+      const ia = inside(a);
+      const ib = inside(b);
+      if (ia) out.push(a);
+      if (ia !== ib) out.push(cross(a, b));
+    }
+    return out;
+  };
+  let p = poly;
+  p = run(p, (q) => q[0] >= x0, (a, b) => [x0, a[1] + ((x0 - a[0]) / (b[0] - a[0])) * (b[1] - a[1])]);
+  if (!p.length) return p;
+  p = run(p, (q) => q[0] <= x1, (a, b) => [x1, a[1] + ((x1 - a[0]) / (b[0] - a[0])) * (b[1] - a[1])]);
+  if (!p.length) return p;
+  p = run(p, (q) => q[1] >= y0, (a, b) => [a[0] + ((y0 - a[1]) / (b[1] - a[1])) * (b[0] - a[0]), y0]);
+  if (!p.length) return p;
+  p = run(p, (q) => q[1] <= y1, (a, b) => [a[0] + ((y1 - a[1]) / (b[1] - a[1])) * (b[0] - a[0]), y1]);
+  return p;
+}
+
+function polyArea(p) {
+  let a = 0;
+  for (let i = 0; i < p.length; i++) {
+    const q = p[(i + 1) % p.length];
+    a += p[i][0] * q[1] - q[0] * p[i][1];
+  }
+  return Math.abs(a) / 2;
+}
+
+function exitDist(ox, oy, a, vw, vh) {
+  const dx = Math.cos(a);
+  const dy = Math.sin(a);
+  const tx = dx > 1e-6 ? (vw - ox) / dx : dx < -1e-6 ? -ox / dx : Infinity;
+  const ty = dy > 1e-6 ? (vh - oy) / dy : dy < -1e-6 ? -oy / dy : Infinity;
+  return Math.max(0, Math.min(tx, ty));
+}
+
+// Raggiera di crepe attorno al punto d'impatto (ox, oy): settori divisi da anelli irregolari
+function makeGeometry(ox, oy, vw, vh, bands) {
+  const diag = Math.hypot(vw, vh);
+  const S = 9;
+  const a0 = Math.random() * Math.PI * 2;
+  const angles = Array.from({ length: S }, (_, j) => a0 + ((j + (Math.random() - 0.5) * 0.55) / S) * Math.PI * 2);
+  const radii = [0.13, 0.3, 0.55].slice(0, bands - 1).map((r) => r * diag);
+  radii.push(diag * 2.2);
+  const V = radii.map((r, i) =>
+    angles.map((a) => {
+      const k = i === radii.length - 1 ? 1 : 0.85 + Math.random() * 0.3;
+      return [ox + Math.cos(a) * r * k, oy + Math.sin(a) * r * k];
+    })
+  );
+  const cells = [];
+  for (let j = 0; j < S; j++) {
+    const j2 = (j + 1) % S;
+    const raw = [[[ox, oy], V[0][j], V[0][j2]]];
+    for (let i = 0; i < radii.length - 1; i++) raw.push([V[i][j], V[i][j2], V[i + 1][j2], V[i + 1][j]]);
+    for (const poly of raw) {
+      const c = clipRect(poly, 0, 0, vw, vh);
+      if (c.length >= 3 && polyArea(c) > 120) cells.push(c);
+    }
+  }
+  return { cells, V, angles, radii, S };
+}
+
+// Copia "leggera" della pagina per i frammenti: via script e simili, svuotato ciò che è fuori
+// schermo o nascosto (stesso ingombro, nessun contenuto) così il numero di nodi resta basso.
+function prune(orig, copy, vw, vh) {
+  let o = orig.firstElementChild;
+  let c = copy.firstElementChild;
+  while (o && c) {
+    const nextO = o.nextElementSibling;
+    const nextC = c.nextElementSibling;
+    const tag = o.tagName;
+    if (tag === 'SCRIPT' || tag === 'NOSCRIPT' || tag === 'IFRAME' || tag === 'VIDEO' || tag === 'AUDIO' || tag === 'TEMPLATE' || o.classList.contains('mg-fx')) {
+      c.remove();
+    } else if (getComputedStyle(o).display === 'none') {
+      c.textContent = '';
+    } else {
+      const r = o.getBoundingClientRect();
+      const off = r.width > 0 && r.height > 0 && (r.bottom < -40 || r.top > vh + 40 || r.right < -40 || r.left > vw + 40);
+      if (off && o.firstElementChild) {
+        c.textContent = '';
+        c.style.width = `${r.width}px`;
+        c.style.height = `${r.height}px`;
+        c.style.boxSizing = 'border-box';
+        c.style.overflow = 'hidden';
+      } else {
+        prune(o, c, vw, vh);
+      }
+    }
+    o = nextO;
+    c = nextC;
+  }
+}
+
+// ---------- Sequenza: tremolio → crepe → frantumazione ----------
+// Una copia della pagina corrente (divisa in frammenti ritagliati) copre lo schermo, trema
+// sempre più forte e si crepa; allo scadere dei 5 secondi i frammenti cadono e lasciano
+// vedere il gioco che compare sotto. Se la pagina è troppo pesante per essere copiata,
+// i frammenti sono semplici lastre di vetro semitrasparente sopra la pagina.
+function createBreakFx(ox, oy, holdStart) {
+  const reduce = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  let box = null;
+  let cv = null;
+  let cx = null;
+  let raf = 0;
+  let alive = true;
+  let built = false;
+  let broken = false;
+  let vw = 0;
+  let vh = 0;
+  let rumble = null;
+  let dirty = false;
+  const shards = [];
+  const segs = [];
+  const stageT = [null, null, null];
+  const stageP = [0, 0, 0];
+  const stageMax = [1, 1, 1];
+
+  function build() {
+    if (built) return;
+    built = true;
+    vw = document.documentElement.clientWidth || window.innerWidth;
+    vh = window.innerHeight;
+    const scrollY = window.scrollY || window.pageYOffset || 0;
+
+    // Istantanea della pagina
+    let snap = null;
+    let nodes = 0;
+    try {
+      snap = document.body.cloneNode(true);
+      prune(document.body, snap, vw, vh);
+      nodes = snap.getElementsByTagName('*').length;
+    } catch (_) {
+      snap = null;
+    }
+
+    // Quanti frammenti: meno se la pagina è pesante
+    let geo = null;
+    for (let bands = 4; bands >= 2; bands--) {
+      geo = makeGeometry(ox, oy, vw, vh, bands);
+      if (!snap || nodes * geo.cells.length <= SHARD_NODE_BUDGET || bands === 2) break;
+    }
+    if (snap && nodes * geo.cells.length > SHARD_NODE_LIMIT) snap = null;
+
+    let pageBg = getComputedStyle(document.body).backgroundColor;
+    if (!pageBg || pageBg === 'transparent' || pageBg === 'rgba(0, 0, 0, 0)') pageBg = getComputedStyle(document.documentElement).backgroundColor;
+    if (!pageBg || pageBg === 'transparent' || pageBg === 'rgba(0, 0, 0, 0)') pageBg = '#ffffff';
+
+    box = mk('div', { position: 'fixed', inset: '0', zIndex: '210', pointerEvents: 'none', overflow: 'hidden', willChange: 'transform', userSelect: 'none', webkitUserSelect: 'none' });
+    box.className = 'mg-fx';
+    box.setAttribute('aria-hidden', 'true');
+    box.setAttribute('inert', '');
+
+    for (const poly of geo.cells) {
+      const xs = poly.map((p) => p[0]);
+      const ys = poly.map((p) => p[1]);
+      const bx = Math.floor(Math.min(...xs));
+      const by = Math.floor(Math.min(...ys));
+      const bw = Math.ceil(Math.max(...xs)) - bx + 1;
+      const bh = Math.ceil(Math.max(...ys)) - by + 1;
+      const el = mk('div', { position: 'absolute', left: `${bx}px`, top: `${by}px`, width: `${bw}px`, height: `${bh}px` });
+      const inner = mk('div', { position: 'absolute', inset: '0', overflow: 'hidden' });
+      const clip = `polygon(${poly.map((p) => `${(p[0] - bx).toFixed(1)}px ${(p[1] - by).toFixed(1)}px`).join(',')})`;
+      inner.style.clipPath = clip;
+      inner.style.webkitClipPath = clip;
+      if (snap) {
+        const page = mk('div', { position: 'absolute', left: `${-bx}px`, top: `${-by}px`, width: `${vw}px`, height: `${vh}px`, overflow: 'hidden', background: pageBg });
+        page.style.contain = 'layout paint'; // fa da riferimento anche per gli elementi position:fixed della copia
+        const scroller = mk('div', { position: 'absolute', left: '0', top: `${-scrollY}px`, width: `${vw}px` });
+        scroller.append(snap.cloneNode(true));
+        page.append(scroller);
+        inner.append(page);
+      } else {
+        inner.style.background = 'linear-gradient(135deg, rgba(255,255,255,.34), rgba(160,200,255,.10) 55%, rgba(255,255,255,.24))';
+      }
+      el.append(inner);
+      box.append(el);
+      const cxm = poly.reduce((s, p) => s + p[0], 0) / poly.length;
+      const cym = poly.reduce((s, p) => s + p[1], 0) / poly.length;
+      shards.push({ el, cx: cxm, cy: cym, lx: cxm - bx, ly: cym - by });
+    }
+
+    // Tela delle crepe
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    cv = mk('canvas', { position: 'absolute', left: '0', top: '0', width: `${vw}px`, height: `${vh}px` });
+    cv.width = Math.round(vw * dpr);
+    cv.height = Math.round(vh * dpr);
+    cx = cv.getContext('2d');
+    cx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    box.append(cv);
+    document.body.append(box);
+
+    // Segmenti delle crepe (raggi, cerchi irregolari e piccole ramificazioni)
+    const diag = Math.hypot(vw, vh);
+    const last = geo.radii.length - 1;
+    const stageOf = (i) => (i < Math.ceil((last + 1) / 2) ? 1 : 2);
+    const addSeg = (A, B, s) => {
+      let d0 = Math.hypot(A[0] - ox, A[1] - oy);
+      let d1 = Math.hypot(B[0] - ox, B[1] - oy);
+      let a = A;
+      let b = B;
+      if (d1 < d0) {
+        [a, b] = [b, a];
+        [d0, d1] = [d1, d0];
+      }
+      segs.push({ a, b, d0, d1, s });
+      stageMax[s] = Math.max(stageMax[s], d1);
+    };
+    for (let j = 0; j < geo.S; j++) {
+      const ang = geo.angles[j];
+      const j2 = (j + 1) % geo.S;
+      for (let i = 0; i <= last; i++) {
+        const A = i === 0 ? [ox, oy] : geo.V[i - 1][j];
+        let B = geo.V[i][j];
+        if (i === last) {
+          const e = exitDist(ox, oy, ang, vw, vh);
+          if (e <= Math.hypot(A[0] - ox, A[1] - oy)) continue;
+          B = [ox + Math.cos(ang) * e, oy + Math.sin(ang) * e];
+        }
+        addSeg(A, B, stageOf(i));
+        if (Math.random() < 0.75) {
+          const t = 0.3 + Math.random() * 0.5;
+          const q = [A[0] + (B[0] - A[0]) * t, A[1] + (B[1] - A[1]) * t];
+          const ba = ang + (Math.random() < 0.5 ? -1 : 1) * (0.5 + Math.random() * 0.4);
+          const len = diag * (0.03 + Math.random() * 0.04);
+          addSeg(q, [q[0] + Math.cos(ba) * len, q[1] + Math.sin(ba) * len], stageOf(i));
+        }
+        if (i < last) addSeg(geo.V[i][j], geo.V[i][j2], stageOf(i));
+      }
+    }
+    dirty = true;
+  }
+
+  function drawCracks() {
+    cx.clearRect(0, 0, vw, vh);
+    const lines = [];
+    for (const s of [1, 2]) {
+      const p = stageP[s];
+      if (p <= 0) continue;
+      const front = (1 - Math.pow(1 - p, 2)) * stageMax[s];
+      for (const sg of segs) {
+        if (sg.s !== s) continue;
+        const f = clamp((front - sg.d0) / Math.max(1, sg.d1 - sg.d0), 0, 1);
+        if (f <= 0) continue;
+        lines.push([sg.a[0], sg.a[1], sg.a[0] + (sg.b[0] - sg.a[0]) * f, sg.a[1] + (sg.b[1] - sg.a[1]) * f]);
+      }
+    }
+    const stroke = (w, color, off) => {
+      cx.lineWidth = w;
+      cx.strokeStyle = color;
+      cx.lineCap = 'round';
+      cx.beginPath();
+      for (const l of lines) {
+        cx.moveTo(l[0] + off, l[1] + off);
+        cx.lineTo(l[2] + off, l[3] + off);
+      }
+      cx.stroke();
+    };
+    stroke(3.2, 'rgba(0,0,0,.35)', 0.8); // ombra: fa risaltare la crepa su qualsiasi sfondo
+    stroke(1.5, 'rgba(255,255,255,.95)', 0);
+    stroke(0.7, 'rgba(150,210,255,.9)', -0.8); // riflesso azzurrino del vetro
+    if (stageP[1] > 0) {
+      // punto d'impatto
+      const g = cx.createRadialGradient(ox, oy, 0, ox, oy, 26);
+      g.addColorStop(0, 'rgba(255,255,255,.95)');
+      g.addColorStop(1, 'rgba(255,255,255,0)');
+      cx.fillStyle = g;
+      cx.beginPath();
+      cx.arc(ox, oy, 26, 0, Math.PI * 2);
+      cx.fill();
+    }
+  }
+
+  function loop() {
+    if (!alive || broken) return;
+    raf = requestAnimationFrame(loop);
+    const now = performance.now();
+    const e = clamp((now - holdStart - FX_TREMOR_MS) / (HOLD_MS - FX_TREMOR_MS), 0, 1);
+    const amp = (0.8 + 6.7 * e * e) * (reduce ? 0.3 : 1);
+    const dx = (Math.random() * 2 - 1) * amp;
+    const dy = (Math.random() * 2 - 1) * amp;
+    const rot = reduce ? 0 : (Math.random() * 2 - 1) * amp * 0.045;
+    box.style.transform = `translate3d(${dx.toFixed(2)}px,${dy.toFixed(2)}px,0) rotate(${rot.toFixed(3)}deg) scale(${(1 + amp * 0.0032).toFixed(4)})`;
+    for (const s of [1, 2]) {
+      if (stageT[s] == null) continue;
+      const p = clamp((now - stageT[s]) / 260, 0, 1);
+      if (p !== stageP[s]) {
+        stageP[s] = p;
+        dirty = true;
+      }
+    }
+    if (dirty) {
+      drawCracks();
+      dirty = (stageT[1] != null && stageP[1] < 1) || (stageT[2] != null && stageP[2] < 1);
+    }
+  }
+
+  function dispose() {
+    alive = false;
+    cancelAnimationFrame(raf);
+    if (box) box.remove();
+    box = null;
+  }
+
+  return {
+    // Inizia a tremare: rombo sordo + vibrazione a impulsi crescenti
+    tremor() {
+      if (!alive) return;
+      build();
+      rumble = fxSound.rumble();
+      vib(HAP.tremor, 3);
+      raf = requestAnimationFrame(loop);
+    },
+    // n = 1 prima crepa, n = 2 seconda crepa (più estesa): schiocco + colpo di vibrazione
+    crack(n) {
+      if (!alive || !built) return;
+      stageT[n] = performance.now();
+      dirty = true;
+      fxSound.crack(n);
+      vib(n === 1 ? HAP.crack1 : HAP.crack2, 3);
+    },
+    // Rottura: i frammenti volano via dal punto d'impatto e cadono
+    shatter() {
+      if (!alive) return;
+      build();
+      broken = true;
+      cancelAnimationFrame(raf);
+      if (rumble) rumble.stop(0.05);
+      rumble = null;
+      box.style.transform = 'none';
+      const flash = mk('div', { position: 'absolute', inset: '0', background: '#fff', opacity: '0', pointerEvents: 'none' });
+      box.append(flash);
+      flash.animate([{ opacity: reduce ? 0.3 : 0.75 }, { opacity: 0 }], { duration: 240, easing: 'ease-out' });
+      cv.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 260, fill: 'forwards' });
+      let maxEnd = 0;
+      for (const s of shards) {
+        const ddx = s.cx - ox;
+        const ddy = s.cy - oy;
+        const dist = Math.hypot(ddx, ddy) || 1;
+        const ux = ddx / dist;
+        const uy = ddy / dist;
+        const push = 40 + Math.random() * 120;
+        const rot = (Math.random() * 2 - 1) * 70;
+        const fall = vh * (0.9 + Math.random() * 0.5);
+        const delay = Math.min(160, (dist / Math.hypot(vw, vh)) * 260);
+        const dur = 700 + Math.random() * 260;
+        s.el.style.transformOrigin = `${s.lx}px ${s.ly}px`;
+        s.el.animate(
+          [
+            { transform: 'translate(0px,0px) rotate(0deg)', opacity: 1 },
+            { transform: `translate(${(ux * push * 0.4).toFixed(1)}px,${(uy * push * 0.4 - 12).toFixed(1)}px) rotate(${(rot * 0.3).toFixed(1)}deg)`, opacity: 1, offset: 0.3 },
+            { transform: `translate(${(ux * push).toFixed(1)}px,${(uy * push + fall).toFixed(1)}px) rotate(${rot.toFixed(1)}deg)`, opacity: 0.6 },
+          ],
+          { duration: dur, delay, easing: 'cubic-bezier(.4,0,.9,.55)', fill: 'forwards' }
+        );
+        maxEnd = Math.max(maxEnd, delay + dur);
+      }
+      fxSound.shatter();
+      vib(HAP.shatter, 3);
+      setTimeout(dispose, maxEnd + 120);
+      return maxEnd;
+    },
+    // Pressione rilasciata in anticipo: la crepa svanisce e lo schermo torna normale
+    cancel() {
+      if (!alive || broken) return;
+      alive = false;
+      cancelAnimationFrame(raf);
+      if (rumble) rumble.stop(0.08);
+      rumble = null;
+      if (built) {
+        vibStop();
+        fxSound.abort();
+        vib(HAP.abort, 3);
+        const b = box;
+        if (b) {
+          b.style.transform = 'none';
+          b.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 180, fill: 'forwards' });
+          setTimeout(() => b.remove(), 260);
+        }
+      }
+    },
+  };
+}
+
+// ---------- Utilità DOM ----------
+function mk(tag, style, text) {
+  const el = document.createElement(tag);
+  if (style) Object.assign(el.style, style);
+  if (text != null) el.textContent = text;
+  return el;
+}
+
+// Icona a pixel (SVG con quadratini nitidi). Con pal = null i pixel "X" usano il colore del testo.
+function svgIcon(rows, pal, px) {
+  const ns = 'http://www.w3.org/2000/svg';
+  const w = rows[0].length;
+  const h = rows.length;
+  const svg = document.createElementNS(ns, 'svg');
+  svg.setAttribute('viewBox', `0 0 ${w} ${h}`);
+  svg.setAttribute('width', String(w * px));
+  svg.setAttribute('height', String(h * px));
+  svg.setAttribute('shape-rendering', 'crispEdges');
+  svg.setAttribute('aria-hidden', 'true');
+  svg.style.display = 'block';
+  svg.style.flex = 'none';
+  const byColor = {};
+  rows.forEach((row, y) => {
+    [...row].forEach((ch, x) => {
+      if (ch === '.') return;
+      const col = pal ? pal[ch] : 'currentColor';
+      (byColor[col] = byColor[col] || []).push(`M${x} ${y}h1v1h-1z`);
+    });
+  });
+  for (const [col, d] of Object.entries(byColor)) {
+    const p = document.createElementNS(ns, 'path');
+    p.setAttribute('d', d.join(''));
+    p.setAttribute('fill', col);
+    svg.append(p);
+  }
+  return svg;
+}
+
+function pixelButton(label, primary) {
+  return mk(
+    'button',
+    {
+      minHeight: '48px',
+      minWidth: '140px',
+      padding: '0 20px',
+      borderRadius: '10px',
+      border: '2px solid ' + (primary ? '#f4cf55' : 'rgba(255,255,255,.35)'),
+      background: primary ? '#f4cf55' : 'rgba(255,255,255,.08)',
+      color: primary ? '#1a1a2e' : '#fff',
+      fontFamily: FONT_UI,
+      fontWeight: '700',
+      fontSize: '18px',
+      textTransform: 'uppercase',
+      letterSpacing: '.06em',
+      cursor: 'pointer',
+    },
+    label
+  );
+}
+
+function mkSwitch(label) {
+  const b = mk('button', {
+    position: 'relative',
+    width: '54px',
+    height: '30px',
+    borderRadius: '6px',
+    border: '2px solid rgba(255,255,255,.4)',
+    background: 'transparent',
+    cursor: 'pointer',
+    padding: '0',
+    flex: 'none',
+    transition: 'background .15s, border-color .15s',
+  });
+  b.type = 'button';
+  b.setAttribute('role', 'switch');
+  b.setAttribute('aria-label', label);
+  const knob = mk('span', { position: 'absolute', top: '3px', left: '3px', width: '20px', height: '20px', borderRadius: '3px', background: '#fff', transition: 'transform .15s, background .15s' });
+  b.append(knob);
+  b.set = (on) => {
+    b.setAttribute('aria-checked', String(on));
+    b.style.background = on ? '#f4cf55' : 'transparent';
+    b.style.borderColor = on ? '#f4cf55' : 'rgba(255,255,255,.4)';
+    knob.style.transform = on ? 'translateX(24px)' : 'none';
+    knob.style.background = on ? '#1a1a2e' : '#fff';
+  };
+  return b;
+}
+
+// ---------- Audio del gioco: musica + effetti ----------
+function createAudio() {
+  const G = getGraph();
+  if (!G) return null;
+  const { ctx, musicBus, sfxBus, tone, noise, pulse } = G;
 
   // ----- Musica -----
   let bpm = BASE_BPM;
@@ -315,38 +1130,171 @@ function createAudio(startMuted) {
     }
   }
 
-  // ----- Effetti -----
+  // ----- Effetti: ogni evento del gioco ha il suo suono (e la sua vibrazione, vedi HAP) -----
+  const at = () => ctx.currentTime;
   const sfx = {
     catch(combo) {
-      const t = ctx.currentTime;
+      const t = at();
       const n = PENTA[Math.min(combo, PENTA.length - 1)];
       tone(sfxBus, t, { type: 'square', f: mtof(n), dur: 0.09, vol: 0.15 });
       tone(sfxBus, t + 0.05, { type: 'square', f: mtof(n + 7), dur: 0.1, vol: 0.12 });
       tone(sfxBus, t, { type: 'sine', f: mtof(n + 24), dur: 0.16, vol: 0.05 }); // tintinnio metallico
     },
     miss() {
-      const t = ctx.currentTime;
+      const t = at();
       tone(sfxBus, t, { type: 'sawtooth', f: 220, f2: 80, dur: 0.3, vol: 0.16 });
       noise(sfxBus, t, { dur: 0.12, vol: 0.14, kind: 'lowpass', freq: 600 });
     },
     clank() {
-      const t = ctx.currentTime;
+      const t = at();
       noise(sfxBus, t, { dur: 0.07, vol: 0.12, kind: 'bandpass', freq: 3200 });
       tone(sfxBus, t, { type: 'sine', f: 1760, dur: 0.18, vol: 0.05 });
       tone(sfxBus, t, { type: 'sine', f: 2637, dur: 0.14, vol: 0.04 });
     },
     levelUp() {
-      const t = ctx.currentTime + 0.05;
+      const t = at() + 0.05;
       [72, 76, 79, 84].forEach((n, k) => tone(sfxBus, t + k * 0.07, { type: 'square', f: mtof(n), dur: 0.1, vol: 0.13 }));
     },
     gameOver() {
-      const t = ctx.currentTime + 0.3;
-      [67, 64, 60, 55].forEach((n, k) =>
-        tone(sfxBus, t + k * 0.22, { type: 'square', f: mtof(n), dur: k === 3 ? 0.6 : 0.24, vol: 0.14 })
-      );
+      const t = at() + 0.3;
+      [67, 64, 60, 55].forEach((n, k) => tone(sfxBus, t + k * 0.22, { type: 'square', f: mtof(n), dur: k === 3 ? 0.6 : 0.24, vol: 0.14 }));
     },
     click() {
-      tone(sfxBus, ctx.currentTime, { type: 'square', f: 660, dur: 0.05, vol: 0.1 });
+      tone(sfxBus, at(), { type: 'square', f: 660, dur: 0.05, vol: 0.1 });
+    },
+
+    // --- Bonus ---
+    // Bobina: monetina metallica + scintillio di lamiera
+    coil() {
+      const t = at();
+      [84, 88, 91, 96].forEach((n, k) => tone(sfxBus, t + k * 0.055, { type: 'square', f: mtof(n), dur: 0.09, vol: 0.11 }));
+      tone(sfxBus, t, { type: 'sine', f: mtof(108), dur: 0.35, vol: 0.05 });
+      noise(sfxBus, t, { dur: 0.12, vol: 0.06, kind: 'highpass', freq: 8000 });
+    },
+    // Calamita: ronzio elettromagnetico che sale e "clack" di aggancio
+    magnet() {
+      const t = at();
+      tone(sfxBus, t, { type: 'sawtooth', f: 90, f2: 260, dur: 0.38, vol: 0.09 });
+      tone(sfxBus, t + 0.05, { type: 'sine', f: 180, f2: 520, dur: 0.33, vol: 0.12 });
+      tone(sfxBus, t + 0.34, { type: 'square', f: 1568, dur: 0.07, vol: 0.09 });
+      noise(sfxBus, t + 0.34, { dur: 0.04, vol: 0.14, kind: 'bandpass', freq: 2400 });
+    },
+    magnetPull() {
+      tone(sfxBus, at(), { type: 'sine', f: 2200, f2: 2800, dur: 0.05, vol: 0.05 });
+    },
+    magnetEnd() {
+      tone(sfxBus, at(), { type: 'sawtooth', f: 260, f2: 80, dur: 0.25, vol: 0.07 });
+    },
+    // Chiave inglese: tre scatti di cricchetto e campanello di "riparato"
+    wrench() {
+      const t = at();
+      [0, 0.07, 0.14].forEach((d) => {
+        noise(sfxBus, t + d, { dur: 0.025, vol: 0.14, kind: 'bandpass', freq: 2200 });
+        tone(sfxBus, t + d, { type: 'square', f: 900, dur: 0.02, vol: 0.08 });
+      });
+      tone(sfxBus, t + 0.24, { type: 'sine', f: 784, dur: 0.16, vol: 0.13 });
+      tone(sfxBus, t + 0.32, { type: 'sine', f: 1046, dur: 0.24, vol: 0.13 });
+    },
+    // Arresto di emergenza: la linea si ferma (discesa lunga + tonfo)…
+    stopOn() {
+      const t = at();
+      tone(sfxBus, t, { type: 'sawtooth', f: 440, f2: 60, dur: 0.7, vol: 0.13 });
+      tone(sfxBus, t, { type: 'sine', f: 110, f2: 40, dur: 0.25, vol: 0.3 });
+      noise(sfxBus, t, { dur: 0.45, vol: 0.1, kind: 'lowpass', freq: 900, freq2: 120 });
+    },
+    // …e riparte (salita rapida)
+    stopEnd() {
+      const t = at();
+      tone(sfxBus, t, { type: 'square', f: 120, f2: 520, dur: 0.3, vol: 0.1 });
+      noise(sfxBus, t, { dur: 0.1, vol: 0.06, kind: 'bandpass', freq: 1500 });
+    },
+
+    // --- Malus ---
+    // Scarto arrugginito: raschio stridulo e cupo
+    rust() {
+      const t = at();
+      tone(sfxBus, t, { type: 'sawtooth', f: 150, f2: 70, dur: 0.35, vol: 0.2 });
+      tone(sfxBus, t, { type: 'square', f: 95, dur: 0.25, vol: 0.12 });
+      noise(sfxBus, t, { dur: 0.22, vol: 0.18, kind: 'bandpass', freq: 900 });
+    },
+    // Olio: "splat" viscido con bollicine
+    oil() {
+      const t = at();
+      [0, 0.09, 0.18].forEach((d, k) => tone(sfxBus, t + d, { type: 'sine', f: 420 - k * 60, f2: 170 - k * 25, dur: 0.22, vol: 0.15 }));
+      noise(sfxBus, t, { dur: 0.3, vol: 0.09, kind: 'lowpass', freq: 700 });
+    },
+    oilEnd() {
+      tone(sfxBus, at(), { type: 'sine', f: 200, f2: 900, dur: 0.07, vol: 0.12 });
+    },
+    // Scintilla di saldatura: scarica elettrica
+    spark() {
+      const t = at();
+      noise(sfxBus, t, { dur: 0.18, vol: 0.2, kind: 'highpass', freq: 5000 });
+      tone(sfxBus, t, { type: 'square', f: 1800, f2: 300, dur: 0.15, vol: 0.12 });
+      for (let k = 0; k < 4; k++) tone(sfxBus, t + 0.04 + k * 0.035, { type: 'square', f: 900 + Math.random() * 1500, dur: 0.03, vol: 0.08 });
+    },
+    sparkEnd() {
+      const t = at();
+      tone(sfxBus, t, { type: 'square', f: 1200, dur: 0.03, vol: 0.08 });
+      tone(sfxBus, t + 0.05, { type: 'square', f: 1600, dur: 0.03, vol: 0.08 });
+    },
+
+    // --- Segnali di contorno (molto leggeri) ---
+    bonusSpawn() {
+      const t = at();
+      tone(sfxBus, t, { type: 'sine', f: 2093, dur: 0.07, vol: 0.035 });
+      tone(sfxBus, t + 0.06, { type: 'sine', f: 2637, dur: 0.08, vol: 0.035 });
+    },
+    malusSpawn() {
+      tone(sfxBus, at(), { type: 'triangle', f: 196, f2: 165, dur: 0.1, vol: 0.06 });
+    },
+    dodge() {
+      const t = at();
+      noise(sfxBus, t, { dur: 0.05, vol: 0.05, kind: 'bandpass', freq: 1400 });
+      tone(sfxBus, t, { type: 'sine', f: 520, f2: 700, dur: 0.05, vol: 0.04 });
+    },
+    bonusMiss() {
+      tone(sfxBus, at(), { type: 'triangle', f: 440, f2: 330, dur: 0.12, vol: 0.05 });
+    },
+
+    // --- Menu di pausa ---
+    pauseOpen() {
+      const t = at();
+      tone(sfxBus, t, { type: 'square', f: 660, dur: 0.05, vol: 0.09 });
+      tone(sfxBus, t + 0.06, { type: 'square', f: 440, dur: 0.07, vol: 0.09 });
+    },
+    pauseClose() {
+      const t = at();
+      tone(sfxBus, t, { type: 'square', f: 440, dur: 0.05, vol: 0.09 });
+      tone(sfxBus, t + 0.06, { type: 'square', f: 660, dur: 0.07, vol: 0.09 });
+    },
+    toggleOn() {
+      const t = at();
+      tone(sfxBus, t, { type: 'square', f: 660, dur: 0.05, vol: 0.1 });
+      tone(sfxBus, t + 0.06, { type: 'square', f: 990, dur: 0.08, vol: 0.1 });
+    },
+    toggleOff() {
+      const t = at();
+      tone(sfxBus, t, { type: 'square', f: 660, dur: 0.05, vol: 0.1 });
+      tone(sfxBus, t + 0.06, { type: 'square', f: 440, dur: 0.08, vol: 0.1 });
+    },
+    // Giorno: scintillio che sale; Notte: note morbide che scendono; Auto: tic-tac d'orologio
+    day() {
+      const t = at();
+      [784, 988, 1175, 1568].forEach((f, k) => tone(sfxBus, t + k * 0.07, { type: 'sine', f, dur: 0.18, vol: 0.12 }));
+      noise(sfxBus, t + 0.2, { dur: 0.15, vol: 0.04, kind: 'highpass', freq: 8000 });
+    },
+    night() {
+      const t = at();
+      [988, 784, 587, 392].forEach((f, k) => tone(sfxBus, t + k * 0.08, { type: 'sine', f, dur: 0.22, vol: 0.12 }));
+      tone(sfxBus, t + 0.05, { type: 'triangle', f: 98, dur: 0.4, vol: 0.12 });
+    },
+    auto() {
+      const t = at();
+      noise(sfxBus, t, { dur: 0.03, vol: 0.12, kind: 'bandpass', freq: 3400 });
+      tone(sfxBus, t, { type: 'square', f: 1400, dur: 0.02, vol: 0.06 });
+      noise(sfxBus, t + 0.09, { dur: 0.03, vol: 0.1, kind: 'bandpass', freq: 2400 });
+      tone(sfxBus, t + 0.09, { type: 'square', f: 1000, dur: 0.02, vol: 0.06 });
     },
   };
 
@@ -359,6 +1307,13 @@ function createAudio(startMuted) {
       timer = setInterval(tick, 30);
       tick();
     },
+    // Riprende da dove si era fermata (dopo la pausa)
+    resumeMusic() {
+      if (timer) return;
+      nextTime = ctx.currentTime + 0.08;
+      timer = setInterval(tick, 30);
+      tick();
+    },
     stopMusic() {
       clearInterval(timer);
       timer = null;
@@ -366,30 +1321,106 @@ function createAudio(startMuted) {
     setTempo(v) {
       bpm = v;
     },
-    setMuted(m) {
-      master.gain.setTargetAtTime(m ? 0 : 0.7, ctx.currentTime, 0.02);
-    },
-    resume() {
-      if (ctx.state !== 'running') ctx.resume().catch(() => {});
-    },
-    suspend() {
-      if (ctx.state === 'running') ctx.suspend().catch(() => {});
-    },
     dispose() {
       clearInterval(timer);
       timer = null;
-      ctx.close().catch(() => {});
     },
   };
 }
 
+// ---------- Aggancio al tasto Magazzino ----------
+export function initMinigame() {
+  const btn = document.querySelector('[data-nav-target="products"]');
+  const nav = btn && btn.closest('nav');
+  if (!btn || !nav) return;
+
+  let timers = [];
+  let fx = null;
+  let startX = 0;
+  let startY = 0;
+  let swallowClick = false;
+  let swallowTimer = null;
+
+  // Annulla la pressione (rilascio, spostamento del dito, ecc.): se la sequenza di rottura era
+  // già iniziata, lo schermo si "ricompone" con un suono e un colpetto di vibrazione.
+  const cancelHold = () => {
+    timers.forEach(clearTimeout);
+    timers = [];
+    if (fx) {
+      fx.cancel();
+      fx = null;
+      setTimeout(() => {
+        if (!active && !fx && graph) graph.idle(); // niente gioco in corso: si spegne il motore audio
+      }, 450);
+    }
+  };
+
+  // Niente menu contestuale / selezione / callout durante la pressione lunga
+  btn.style.webkitTouchCallout = 'none';
+  btn.style.webkitUserSelect = 'none';
+  btn.style.userSelect = 'none';
+  btn.addEventListener('contextmenu', (e) => e.preventDefault());
+
+  btn.addEventListener('pointerdown', (e) => {
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    cancelHold();
+    startX = e.clientX;
+    startY = e.clientY;
+    const holdStart = performance.now();
+    getGraph(); // dentro il gesto dell'utente: sblocca l'audio per la sequenza che seguirà
+    const f = createBreakFx(e.clientX, e.clientY, holdStart);
+    fx = f;
+    timers = [
+      setTimeout(() => f.tremor(), FX_TREMOR_MS),
+      setTimeout(() => f.crack(1), FX_CRACK1_MS),
+      setTimeout(() => f.crack(2), FX_CRACK2_MS),
+      setTimeout(() => {
+        timers = [];
+        fx = null;
+        swallowClick = true; // al rilascio il tocco NON deve cambiare sezione
+        f.shatter();
+        launchGame({ fx: f });
+      }, HOLD_MS),
+    ];
+  });
+  btn.addEventListener('pointermove', (e) => {
+    if (timers.length && Math.hypot(e.clientX - startX, e.clientY - startY) > MOVE_TOLERANCE) cancelHold();
+  });
+  ['pointerup', 'pointercancel', 'pointerleave'].forEach((t) => btn.addEventListener(t, cancelHold));
+
+  // In fase di cattura sulla nav: intercetta il click di rilascio prima del gestore di navigazione
+  nav.addEventListener(
+    'click',
+    (e) => {
+      if (!swallowClick) return;
+      swallowClick = false;
+      e.stopPropagation();
+      e.preventDefault();
+    },
+    true
+  );
+  window.addEventListener(
+    'pointerup',
+    () => {
+      if (!swallowClick) return;
+      clearTimeout(swallowTimer);
+      swallowTimer = setTimeout(() => {
+        swallowClick = false;
+      }, 400);
+    },
+    true
+  );
+}
+
+let active = false;
+
 // ---------- Gioco ----------
-function launchGame() {
+function launchGame({ fx = null } = {}) {
   if (active) return;
   active = true;
-  vib(40);
-  let muted = !isSoundEnabled(); // parte silenzioso se l'app ha i suoni disattivati
-  const audio = createAudio(muted);
+  if (!fx) vib(40, 2);
+  const audio = createAudio();
+  if (fx && audio) fxSound.boot();
 
   // --- DOM ---
   const overlay = mk('div', {
@@ -409,55 +1440,33 @@ function launchGame() {
   overlay.id = 'minigame-overlay';
   overlay.setAttribute('role', 'dialog');
   overlay.setAttribute('aria-label', 'Minigioco: pesca i barattoli');
+  overlay.setAttribute('data-no-haptic', ''); // il minigioco ha la sua vibrazione: niente tocco generico dell'app
 
   const wrap = mk('div', { position: 'relative', overflow: 'hidden' });
   const canvas = mk('canvas', { display: 'block', imageRendering: 'pixelated' });
   const ctx = canvas.getContext('2d');
   ctx.imageSmoothingEnabled = false;
 
-  const closeBtn = mk(
-    'button',
-    {
-      position: 'absolute',
-      top: 'calc(env(safe-area-inset-top, 0px) + 8px)',
-      left: '50%',
-      transform: 'translateX(-50%)',
-      width: '40px',
-      height: '40px',
-      borderRadius: '8px',
-      border: '2px solid rgba(255,255,255,.3)',
-      background: 'rgba(255,255,255,.1)',
-      color: '#fff',
-      fontSize: '18px',
-      lineHeight: '1',
-      cursor: 'pointer',
-    },
-    '✕'
-  );
-  closeBtn.type = 'button';
-  closeBtn.setAttribute('aria-label', 'Chiudi minigioco');
-
-  const muteBtn = mk(
-    'button',
-    {
-      position: 'absolute',
-      top: 'calc(env(safe-area-inset-top, 0px) + 8px)',
-      left: 'calc(50% + 28px)',
-      width: '40px',
-      height: '40px',
-      borderRadius: '8px',
-      border: '2px solid rgba(255,255,255,.3)',
-      background: 'rgba(255,255,255,.1)',
-      color: '#fff',
-      fontSize: '16px',
-      lineHeight: '1',
-      cursor: 'pointer',
-      display: audio ? 'block' : 'none',
-    },
-    muted ? '🔇' : '🔊'
-  );
-  muteBtn.type = 'button';
-  muteBtn.setAttribute('aria-label', 'Attiva o disattiva l\'audio');
+  const pauseBtn = mk('button', {
+    position: 'absolute',
+    top: 'calc(env(safe-area-inset-top, 0px) + 8px)',
+    left: '50%',
+    transform: 'translateX(-50%)',
+    width: '40px',
+    height: '40px',
+    borderRadius: '8px',
+    border: '2px solid rgba(255,255,255,.35)',
+    background: 'rgba(8,12,28,.35)',
+    color: '#fff',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: '0',
+    cursor: 'pointer',
+  });
+  pauseBtn.type = 'button';
+  pauseBtn.setAttribute('aria-label', 'Pausa e impostazioni');
+  pauseBtn.append(svgIcon(ICONS.pause, null, 2));
 
   const hint = mk(
     'div',
@@ -468,7 +1477,7 @@ function launchGame() {
       top: '38%',
       textAlign: 'center',
       color: '#fff',
-      fontFamily: "'Barlow Condensed', sans-serif",
+      fontFamily: FONT_UI,
       fontWeight: '700',
       fontSize: '20px',
       padding: '0 16px',
@@ -482,6 +1491,7 @@ function launchGame() {
     'Prendi i barattoli col secchio'
   );
 
+  // Game over
   const panel = mk('div', {
     position: 'absolute',
     inset: '0',
@@ -492,7 +1502,7 @@ function launchGame() {
     gap: '14px',
     background: 'rgba(5,8,20,.78)',
     color: '#fff',
-    fontFamily: "'Barlow Condensed', sans-serif",
+    fontFamily: FONT_UI,
     textTransform: 'uppercase',
     textAlign: 'center',
   });
@@ -504,7 +1514,113 @@ function launchGame() {
   exitBtn.type = 'button';
   panel.append(panelTitle, panelScore, retryBtn, exitBtn);
 
-  wrap.append(canvas, hint, closeBtn, muteBtn, panel);
+  // Menu di pausa: vibrazione, suono, sfondo Giorno/Notte/Auto, legenda bonus e malus
+  const menu = mk('div', {
+    position: 'absolute',
+    inset: '0',
+    display: 'none',
+    background: 'rgba(5,8,20,.55)',
+    color: '#fff',
+    fontFamily: FONT_UI,
+    textTransform: 'uppercase',
+    overflowY: 'auto',
+    padding: 'calc(env(safe-area-inset-top, 0px) + 12px) 16px 16px',
+    boxSizing: 'border-box',
+  });
+  const card = mk('div', {
+    width: '100%',
+    maxWidth: '330px',
+    margin: 'auto',
+    background: 'rgba(12,18,40,.94)',
+    border: '2px solid rgba(255,255,255,.28)',
+    borderRadius: '12px',
+    padding: '16px',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '14px',
+    boxSizing: 'border-box',
+  });
+  const menuTitle = mk('div', { fontSize: '34px', fontWeight: '700', letterSpacing: '.08em', textAlign: 'center' }, 'Pausa');
+
+  const mkRow = (label, iconHolder, control) => {
+    const r = mk('div', { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' });
+    const left = mk('div', { display: 'flex', alignItems: 'center', gap: '10px', fontSize: '20px', fontWeight: '600', letterSpacing: '.06em' });
+    left.append(iconHolder, mk('span', null, label));
+    r.append(left, control);
+    return r;
+  };
+  const hapticsIcon = mk('span', { display: 'flex', width: '22px', justifyContent: 'center' });
+  hapticsIcon.append(svgIcon(ICONS.vibrate, null, 2));
+  const soundIcon = mk('span', { display: 'flex', width: '22px', justifyContent: 'center' });
+  const hapticsSw = mkSwitch('Vibrazione');
+  const soundSw = mkSwitch('Suono');
+  const hapticsRow = mkRow('Vibrazione', hapticsIcon, hapticsSw);
+  const soundRow = mkRow('Suono', soundIcon, soundSw);
+  if (!hapticsSupported()) hapticsRow.style.display = 'none'; // iOS: nessuna Vibration API, un interruttore inutile
+
+  const bgLabel = mk('div', { fontSize: '16px', fontWeight: '600', letterSpacing: '.08em', color: '#9fb4e8' }, 'Sfondo');
+  const bgSeg = mk('div', { display: 'flex', gap: '6px' });
+  const bgButtons = {};
+  [
+    ['day', 'Giorno', ICONS.sun],
+    ['night', 'Notte', ICONS.moon],
+    ['auto', 'Auto', ICONS.clock],
+  ].forEach(([key, label, icon]) => {
+    const b = mk('button', {
+      flex: '1',
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      gap: '4px',
+      padding: '8px 4px',
+      borderRadius: '8px',
+      border: '2px solid rgba(255,255,255,.3)',
+      background: 'transparent',
+      color: '#fff',
+      fontFamily: FONT_UI,
+      fontWeight: '700',
+      fontSize: '16px',
+      letterSpacing: '.06em',
+      textTransform: 'uppercase',
+      cursor: 'pointer',
+    });
+    b.type = 'button';
+    b.append(svgIcon(icon, null, 2), mk('span', null, label));
+    bgButtons[key] = b;
+    bgSeg.append(b);
+  });
+
+  const legend = mk('div', { display: 'flex', flexDirection: 'column', gap: '8px', borderTop: '1px solid rgba(255,255,255,.18)', paddingTop: '12px' });
+  const legendRow = (title, color, entries) => {
+    const wrapRow = mk('div', { display: 'flex', flexDirection: 'column', gap: '6px' });
+    wrapRow.append(mk('div', { fontSize: '14px', fontWeight: '700', letterSpacing: '.1em', color }, title));
+    const cells = mk('div', { display: 'flex', gap: '4px' });
+    for (const [key, caption] of entries) {
+      const cell = mk('div', { flex: '1', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', minWidth: '0' });
+      const it = ITEMS[key];
+      const iconBox = mk('div', { height: '26px', display: 'flex', alignItems: 'center' });
+      iconBox.append(svgIcon(it.rows, it.pal, 2));
+      cell.append(iconBox, mk('div', { fontSize: '13px', fontWeight: '600', letterSpacing: '.03em', color: '#cbd5e8', textAlign: 'center', lineHeight: '1.1' }, caption));
+      cells.append(cell);
+    }
+    wrapRow.append(cells);
+    return wrapRow;
+  };
+  legend.append(
+    legendRow('Bonus', '#8fe388', [['coil', 'Bobina +5'], ['magnet', 'Calamita'], ['wrench', '+1 cuore'], ['stop', 'Stop linea']]),
+    legendRow('Malus', '#ff8f8f', [['rust', '-1 cuore'], ['oil', 'Olio'], ['spark', 'Scintilla']])
+  );
+
+  const resumeBtn = pixelButton('Riprendi', true);
+  const quitBtn = pixelButton('Esci', false);
+  resumeBtn.type = 'button';
+  quitBtn.type = 'button';
+  resumeBtn.style.width = '100%';
+  quitBtn.style.width = '100%';
+  card.append(menuTitle, hapticsRow, soundRow, bgLabel, bgSeg, legend, resumeBtn, quitBtn);
+  menu.append(card);
+
+  wrap.append(canvas, hint, pauseBtn, panel, menu);
   overlay.append(wrap);
   document.body.append(overlay);
 
@@ -514,32 +1630,71 @@ function launchGame() {
   let H = 240;
   let topPad = 6;
   let stars = [];
+  let clouds = [];
   let raf = 0;
   let last = 0;
+  let amb = 0; // tempo "d'ambiente" (stelle, nuvole): corre anche in pausa
+  let hintTimer = 0;
+  let lastPullFx = 0;
   const keys = { left: false, right: false };
 
   const g = {
-    state: 'play',
+    state: 'intro', // intro | play | paused | over
+    resume: 'play',
+    introT: 0,
     score: 0,
     lives: MAX_LIVES,
-    cans: [],
+    items: [],
     parts: [],
+    pops: [],
+    fx: { magnet: 0, stop: 0, oil: 0, freeze: 0 },
+    timeScale: 1,
     t: 0,
     spawn: 1,
     hurt: 0,
+    hurtRgb: '255,60,60',
+    flashT: 0,
+    flashRgb: '255,255,255',
     bump: 0,
     combo: 0,
     cx: 60,
     tcx: 60,
+    vx: 0,
     bw: 28,
     by: 200,
   };
 
-  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
   const level = () => Math.floor(g.score / POINTS_PER_LEVEL);
 
   function baseBucketW() {
     return clamp(Math.round(W * 0.24), 24, 34);
+  }
+
+  // --- Ambiente (giorno / notte) ---
+  const env = { d: 1, twi: 0, sunP: 0.62, moonQ: 0.4 };
+  let skyCur = null;
+  let skyClock = 0;
+  let bandKey = -1;
+  let bands = [];
+
+  function skyTarget() {
+    if (prefs.bg === 'day') return SKY_FIXED_DAY;
+    if (prefs.bg === 'night') return SKY_FIXED_NIGHT;
+    if (!skyCur) skyCur = skyAt(new Date());
+    return skyCur;
+  }
+  function updateEnv(dt, snap) {
+    skyClock -= dt;
+    if (skyClock <= 0) {
+      skyCur = skyAt(new Date());
+      skyClock = 5;
+    }
+    const t = skyTarget();
+    const k = snap ? 1 : Math.min(1, dt * 2.5);
+    env.d += (t.d - env.d) * k;
+    env.twi += (t.twi - env.twi) * k;
+    env.sunP += (t.sunP - env.sunP) * k;
+    env.moonQ += (t.moonQ - env.moonQ) * k;
   }
 
   function layout() {
@@ -567,50 +1722,105 @@ function launchGame() {
     g.cx = clamp(g.cx, g.bw / 2, W - g.bw / 2);
     g.tcx = clamp(g.tcx, g.bw / 2, W - g.bw / 2);
 
-    // Stelle fisse (generatore pseudo-casuale con seme, così non "ballano" al resize)
+    // Stelle e nuvole fisse (generatore pseudo-casuale con seme, così non "ballano" al resize)
     let seed = 1234567;
     const rnd = () => {
       seed = (seed * 1664525 + 1013904223) % 4294967296;
       return seed / 4294967296;
     };
-    stars = Array.from({ length: 26 }, () => ({
+    stars = Array.from({ length: 30 }, () => ({
       x: Math.floor(rnd() * W),
       y: Math.floor(rnd() * (H - GROUND_H - 20)),
-      c: rnd() > 0.7 ? '#ffffff' : '#7f95c9',
+      c: rnd() > 0.7 ? '#ffffff' : '#9fb0dd',
+      ph: rnd() * Math.PI * 2,
+      big: rnd() > 0.88,
+    }));
+    clouds = Array.from({ length: 4 }, (_, i) => ({
+      x0: rnd() * (W + 40),
+      y: Math.floor(H * (0.1 + 0.13 * i + rnd() * 0.05)),
+      v: 3 + rnd() * 5,
     }));
   }
 
-  function startRound() {
-    g.state = 'play';
+  function startRound(intro) {
+    g.state = intro ? 'intro' : 'play';
+    g.introT = intro ? 0.95 : 0;
     g.score = 0;
     g.lives = MAX_LIVES;
-    g.cans = [];
+    g.items = [];
     g.parts = [];
+    g.pops = [];
+    g.fx = { magnet: 0, stop: 0, oil: 0, freeze: 0 };
+    g.timeScale = 1;
     g.t = 0;
     g.spawn = 1;
     g.hurt = 0;
+    g.flashT = 0;
     g.bump = 0;
     g.bw = baseBucketW();
     g.cx = W / 2;
     g.tcx = W / 2;
+    g.vx = 0;
     g.combo = 0;
     panel.style.display = 'none';
+    pauseBtn.style.display = 'flex';
     if (audio) {
       audio.setTempo(BASE_BPM);
-      audio.startMusic();
+      if (!intro) audio.startMusic();
     }
   }
 
-  function spawnCan() {
+  function applyTempo() {
+    if (audio) audio.setTempo((BASE_BPM + Math.min(level(), 10) * 5) * (g.fx.stop > 0 ? 0.72 : 1));
+  }
+
+  // --- Oggetti che cadono ---
+  function pickType() {
+    const lv = level();
+    const pMalus = lv >= 1 ? Math.min(0.28, 0.1 + (lv - 1) * 0.03) : 0;
+    const pBonus = lv >= 1 ? 0.1 : 0.05;
+    const pick = (pool) => {
+      const tot = pool.reduce((s, p) => s + p[1], 0);
+      let x = Math.random() * tot;
+      for (const [k, w] of pool) {
+        x -= w;
+        if (x <= 0) return k;
+      }
+      return pool[0][0];
+    };
+    const r = Math.random();
+    if (r < pMalus) {
+      const pool = [['rust', 3]];
+      if (g.fx.oil <= 0) pool.push(['oil', 2]);
+      if (lv >= 2 && g.fx.freeze <= 0) pool.push(['spark', 2]);
+      return pick(pool);
+    }
+    if (r < pMalus + pBonus) {
+      const pool = [['coil', 3]];
+      if (g.fx.magnet <= 0) pool.push(['magnet', 2]);
+      if (g.fx.stop <= 0) pool.push(['stop', 2]);
+      if (g.lives < MAX_LIVES) pool.push(['wrench', 3]);
+      return pick(pool);
+    }
+    return 'can';
+  }
+
+  function spawnItem() {
     const lv = level();
     const k = H / 240; // la velocità scala con l'altezza dello schermo
+    const type = pickType();
+    const it = ITEMS[type];
     const amp = lv >= 3 ? Math.min(9, (lv - 2) * 1.5) : 0;
     const margin = amp + 2;
     const base = 42 + lv * 7;
-    g.cans.push({
-      x0: margin + Math.random() * Math.max(1, W - CW - margin * 2),
+    g.items.push({
+      type,
+      kind: it.kind,
+      w: it.w,
+      h: it.h,
+      x0: margin + Math.random() * Math.max(1, W - it.w - margin * 2),
       x: 0,
-      y: -CH,
+      y: -it.h,
       vy: Math.min(165, base * (0.9 + Math.random() * 0.25)) * k,
       amp,
       freq: 2 + Math.random() * 2,
@@ -618,8 +1828,17 @@ function launchGame() {
       age: 0,
       vx: 0,
       missed: false,
+      pulled: false,
     });
     g.spawn = Math.max(0.38, 1.15 - lv * 0.07) + Math.random() * 0.25;
+    // Segnale d'arrivo: scintillio per i bonus, nota grave per i malus
+    if (it.kind === 'bonus') {
+      if (audio) audio.bonusSpawn();
+      vib(HAP.spawnBonus, 1);
+    } else if (it.kind === 'malus') {
+      if (audio) audio.malusSpawn();
+      vib(HAP.spawnMalus, 1);
+    }
   }
 
   function burst(x, y, color, n) {
@@ -635,81 +1854,259 @@ function launchGame() {
     }
   }
 
-  const vibrate = vib;
+  function pop(text, x, color) {
+    g.pops.push({ text, x: clamp(x, text.length * 2 + 2, W - text.length * 2 - 2), y: g.by - 6, life: 1, color });
+  }
 
-  function loseLife() {
+  function flash(rgb, t) {
+    g.flashRgb = rgb;
+    g.flashT = t;
+  }
+
+  function addScore(n) {
+    const before = level();
+    g.score += n;
+    if (level() > before) {
+      if (audio) audio.levelUp();
+      vib(HAP.level, 2);
+      applyTempo();
+    }
+  }
+
+  function loseLife(kind) {
     g.lives -= 1;
     g.hurt = 0.25;
+    g.hurtRgb = kind === 'rust' ? '255,140,40' : '255,60,60';
     g.combo = 0;
-    vibrate(35);
-    if (audio) audio.miss();
+    if (kind === 'rust') {
+      vib(HAP.rust, 3);
+      if (audio) audio.rust();
+    } else {
+      vib(HAP.miss, 2);
+      if (audio) audio.miss();
+    }
     if (g.lives <= 0) {
       g.state = 'over';
+      g.fx = { magnet: 0, stop: 0, oil: 0, freeze: 0 };
+      g.timeScale = 1;
+      pauseBtn.style.display = 'none';
       if (audio) {
         audio.stopMusic();
         audio.gameOver();
       }
       panelScore.textContent = `Punteggio: ${g.score}`;
       panel.style.display = 'flex';
-      vibrate(120);
+      vib(HAP.over, 3);
+    }
+  }
+
+  // Raccolta di un oggetto dentro il secchio
+  function collect(c, center) {
+    switch (c.type) {
+      case 'can':
+        addScore(1);
+        g.combo += 1;
+        g.bump = 0.12;
+        if (audio) audio.catch(g.combo - 1);
+        burst(center, g.by, '#e8eef8', 6);
+        break;
+      case 'coil':
+        addScore(5);
+        g.combo += 1;
+        g.bump = 0.14;
+        if (audio) audio.coil();
+        vib(HAP.coil, 2);
+        burst(center, g.by, '#ffe27a', 12);
+        pop('+5', center, '#ffe27a');
+        break;
+      case 'magnet':
+        g.fx.magnet = FX_DUR.magnet;
+        g.bump = 0.14;
+        if (audio) audio.magnet();
+        vib(HAP.magnet, 2);
+        burst(center, g.by, '#ff9aa0', 10);
+        pop('CALAMITA', center, '#ff9aa0');
+        break;
+      case 'wrench':
+        g.bump = 0.14;
+        if (g.lives < MAX_LIVES) {
+          g.lives += 1;
+          pop('VITA', center, '#ff8c90');
+        } else {
+          addScore(3);
+          pop('+3', center, '#8fd0ff');
+        }
+        if (audio) audio.wrench();
+        vib(HAP.wrench, 2);
+        burst(center, g.by, '#8fd0ff', 10);
+        break;
+      case 'stop':
+        g.fx.stop = FX_DUR.stop;
+        g.bump = 0.14;
+        if (audio) audio.stopOn();
+        vib(HAP.stop, 2);
+        flash('90,140,255', 0.25);
+        pop('STOP', center, '#ffd0d2');
+        applyTempo();
+        break;
+      case 'rust':
+        burst(center, g.by, '#b8733a', 10);
+        pop('RUGGINE', center, '#ff9a4d');
+        loseLife('rust');
+        break;
+      case 'oil':
+        g.fx.oil = FX_DUR.oil;
+        g.vx = (Math.random() < 0.5 ? -1 : 1) * 40;
+        g.bump = 0.14;
+        if (audio) audio.oil();
+        vib(HAP.oil, 2);
+        burst(center, g.by, '#c98a2b', 10);
+        pop('OLIO', center, '#c98a2b');
+        break;
+      case 'spark':
+        g.fx.freeze = FX_DUR.freeze;
+        if (audio) audio.spark();
+        vib(HAP.spark, 3);
+        flash('170,225,255', 0.22);
+        burst(center, g.by, '#ffd23f', 12);
+        burst(center, g.by, '#4cc9f0', 6);
+        pop('SCARICA', center, '#4cc9f0');
+        break;
+      default:
+        break;
+    }
+  }
+
+  // Fine di un effetto temporaneo: stesso trattamento (suono + vibrazione) dell'inizio
+  function endFx(key) {
+    if (g.state === 'over') return;
+    if (key === 'magnet') {
+      if (audio) audio.magnetEnd();
+      vib(HAP.magnetEnd, 2);
+    } else if (key === 'stop') {
+      if (audio) audio.stopEnd();
+      vib(HAP.stopEnd, 2);
+      applyTempo();
+    } else if (key === 'oil') {
+      g.vx = 0;
+      if (audio) audio.oilEnd();
+      vib(HAP.oilEnd, 2);
+    } else if (key === 'freeze') {
+      if (audio) audio.sparkEnd();
+      vib(HAP.sparkEnd, 2);
     }
   }
 
   function update(dt) {
-    g.t += dt;
-    if (keys.left) g.tcx -= 120 * dt;
-    if (keys.right) g.tcx += 120 * dt;
+    if (g.state === 'intro') {
+      g.introT -= dt;
+      if (g.introT <= 0) {
+        g.state = 'play';
+        if (audio) audio.startMusic();
+        if (fx) vib(HAP.launch, 2);
+      }
+    }
 
-    // Il secchio si restringe un po' con i livelli alti
+    // Effetti temporanei (a tempo reale)
+    for (const key of ['magnet', 'stop', 'oil', 'freeze']) {
+      if (g.fx[key] > 0) {
+        g.fx[key] -= dt;
+        if (g.fx[key] <= 0) {
+          g.fx[key] = 0;
+          endFx(key);
+        }
+      }
+    }
+    // "Stop linea": il mondo scorre al 45% della velocità (si ferma/riparte in modo morbido)
+    g.timeScale += ((g.fx.stop > 0 ? 0.45 : 1) - g.timeScale) * Math.min(1, dt * 4);
+    const wdt = dt * g.timeScale;
+    g.t += wdt;
+
+    // Secchio
+    const frozen = g.fx.freeze > 0;
+    if (!frozen) {
+      if (keys.left) g.tcx -= 120 * dt;
+      if (keys.right) g.tcx += 120 * dt;
+    }
     const lv = level();
-    g.bw = Math.max(baseBucketW() - 8, baseBucketW() - Math.floor(lv / 3) * 2);
+    g.bw = Math.max(baseBucketW() - 8, baseBucketW() - Math.floor(lv / 3) * 2); // si restringe un po' con i livelli alti
     g.tcx = clamp(g.tcx, g.bw / 2, W - g.bw / 2);
-    g.cx += (g.tcx - g.cx) * Math.min(1, dt * 20);
+    if (frozen) {
+      g.vx = 0; // scarica di saldatura: il secchio resta bloccato dov'è
+    } else if (g.fx.oil > 0) {
+      // Olio: molla poco smorzata, il secchio pattina e supera il bersaglio
+      g.vx += (g.tcx - g.cx) * 60 * dt;
+      g.vx *= Math.max(0, 1 - 3.5 * dt);
+      g.cx += g.vx * dt;
+      if (g.cx < g.bw / 2 || g.cx > W - g.bw / 2) g.vx *= -0.4;
+    } else {
+      g.cx += (g.tcx - g.cx) * Math.min(1, dt * 20);
+    }
     g.cx = clamp(g.cx, g.bw / 2, W - g.bw / 2);
 
-    g.spawn -= dt;
-    if (g.spawn <= 0) spawnCan();
+    if (g.state === 'play') {
+      g.spawn -= wdt;
+      if (g.spawn <= 0) spawnItem();
+    }
 
     const left = g.cx - g.bw / 2;
-    for (let i = g.cans.length - 1; i >= 0; i--) {
-      const c = g.cans[i];
-      c.age += dt;
-      c.y += c.vy * dt;
+    for (let i = g.items.length - 1; i >= 0; i--) {
+      const c = g.items[i];
+      c.age += wdt;
+      c.y += c.vy * g.timeScale * dt;
+
+      // Calamita: i barattoli e i bonus vicini al secchio vengono attirati verso il centro
+      if (g.fx.magnet > 0 && !c.missed && c.kind !== 'malus' && c.y > topPad + 10 && c.y < g.by - 2) {
+        const dx = g.cx - (c.x0 + c.w / 2);
+        if (Math.abs(dx) < 46) {
+          c.x0 = clamp(c.x0 + dx * Math.min(1, dt * (1.2 + 3 * (c.y / g.by))), 0, W - c.w);
+          if (!c.pulled) {
+            c.pulled = true;
+            const now = performance.now();
+            if (now - lastPullFx > 220) {
+              lastPullFx = now;
+              if (audio) audio.magnetPull();
+              vib(HAP.magnetPull, 1);
+            }
+          }
+        }
+      }
+
       if (c.missed) c.x += c.vx * dt;
       else c.x = c.x0 + Math.sin(c.age * c.freq + c.ph) * c.amp;
 
-      if (!c.missed && c.y + CH >= g.by + 2) {
-        const center = c.x + CW / 2;
+      if (!c.missed && c.y + c.h >= g.by + 2) {
+        const center = c.x + c.w / 2;
         if (center >= left + 1 && center <= left + g.bw - 1) {
-          // Preso: entra nel secchio
-          const lvBefore = level();
-          g.score += 1;
-          g.combo += 1;
-          g.bump = 0.12;
-          if (audio) {
-            audio.catch(g.combo - 1);
-            if (level() > lvBefore) {
-              audio.levelUp();
-              audio.setTempo(BASE_BPM + Math.min(level(), 10) * 5); // la musica accelera
-            }
-          }
-          burst(center, g.by, '#e8eef8', 6);
-          g.cans.splice(i, 1);
+          collect(c, center);
+          g.items.splice(i, 1);
+          if (g.state === 'over') break;
           continue;
         }
-        // Mancato (anche se sfiora il bordo): rimbalza di lato e cade
+        // Non preso (anche se sfiora il bordo): rimbalza di lato e cade; costa un cuore solo se è un barattolo
         c.missed = true;
         c.vx = (center < g.cx ? -1 : 1) * 28;
-        loseLife();
-        if (g.state === 'over') break;
+        if (c.kind === 'good') {
+          loseLife('miss');
+          if (g.state === 'over') break;
+        }
       }
 
-      if (c.y + CH >= H - GROUND_H) {
-        if (c.missed) {
-          burst(c.x + CW / 2, H - GROUND_H, '#a0abbd', 5);
+      if (c.y + c.h >= H - GROUND_H) {
+        const mid = c.x + c.w / 2;
+        if (c.kind === 'good' && c.missed) {
+          burst(mid, H - GROUND_H, '#a0abbd', 5);
           if (audio) audio.clank();
+        } else if (c.kind === 'bonus') {
+          burst(mid, H - GROUND_H, '#a0abbd', 4);
+          if (audio) audio.bonusMiss(); // bonus perso: nota discendente leggera
+          vib(HAP.bonusMiss, 1);
+        } else if (c.kind === 'malus') {
+          burst(mid, H - GROUND_H, '#6f7b91', 4);
+          if (audio) audio.dodge(); // pericolo evitato: breve fruscio
+          vib(HAP.dodge, 1);
         }
-        g.cans.splice(i, 1);
+        g.items.splice(i, 1);
       }
     }
 
@@ -724,8 +2121,15 @@ function launchGame() {
       p.x += p.vx * dt;
       p.y += p.vy * dt;
     }
+    for (let i = g.pops.length - 1; i >= 0; i--) {
+      const p = g.pops[i];
+      p.life -= dt * 1.1;
+      p.y -= 14 * dt;
+      if (p.life <= 0) g.pops.splice(i, 1);
+    }
 
     if (g.hurt > 0) g.hurt -= dt;
+    if (g.flashT > 0) g.flashT -= dt;
     if (g.bump > 0) g.bump -= dt;
   }
 
@@ -752,6 +2156,13 @@ function launchGame() {
     }
   }
 
+  function disc(cxp, cyp, r) {
+    for (let dy = -r; dy <= r; dy++) {
+      const w = Math.floor(Math.sqrt(r * r - dy * dy));
+      ctx.fillRect(R(cxp - w), R(cyp + dy), w * 2 + 1, 1);
+    }
+  }
+
   function heart(x, y, full) {
     ['-1,0', '1,0', '0,-1', '0,1'].forEach((o) => {
       const [dx, dy] = o.split(',').map(Number);
@@ -765,9 +2176,11 @@ function launchGame() {
     }
   }
 
-  function drawText(str, xRight, y, s, color) {
-    const width = str.length * 4 * s - s;
-    let x = R(xRight - width);
+  function textW(str, s) {
+    return str.length * 4 * s - s;
+  }
+  function drawText(str, xRight, y, s) {
+    let x = R(xRight - textW(str, s));
     for (const ch of str) {
       const rows = FONT[ch] || FONT[' '];
       for (let r = 0; r < 5; r++) {
@@ -778,12 +2191,53 @@ function launchGame() {
       x += 4 * s;
     }
   }
-
   function textWithShadow(str, xRight, y, s, color) {
     ctx.fillStyle = 'rgba(0,0,0,.65)';
     drawText(str, xRight + 1, y + 1, s);
     ctx.fillStyle = color;
     drawText(str, xRight, y, s);
+  }
+
+  function drawSun(x, y, a) {
+    const k = env.twi * 0.8;
+    const core = rgbStr(mixC([255, 243, 176], [255, 176, 102], k));
+    const edge = rgbStr(mixC([255, 210, 63], [255, 122, 61], k));
+    ctx.globalAlpha = a * 0.16;
+    ctx.fillStyle = edge;
+    disc(x, y, 14);
+    ctx.globalAlpha = a * 0.3;
+    disc(x, y, 10);
+    ctx.globalAlpha = a;
+    disc(x, y, 7);
+    ctx.fillStyle = core;
+    disc(x, y, 5);
+    // raggi: lampeggiano a due lunghezze
+    const rad = Math.floor(amb * 2) % 2 ? 10 : 9;
+    ctx.fillStyle = edge;
+    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      for (let s = 0; s < 3; s++) ctx.fillRect(R(x + dx * (rad + s)), R(y + dy * (rad + s)), 1, 1);
+    }
+    for (const [dx, dy] of [[1, 1], [1, -1], [-1, 1], [-1, -1]]) {
+      for (let s = 0; s < 2; s++) ctx.fillRect(R(x + dx * (rad - 2 + s)), R(y + dy * (rad - 2 + s)), 1, 1);
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  function drawMoon(x, y, a) {
+    ctx.globalAlpha = a * 0.14;
+    ctx.fillStyle = '#9fb4e8';
+    disc(x, y, 11);
+    ctx.globalAlpha = a;
+    for (let dy = -6; dy <= 6; dy++) {
+      for (let dx = -6; dx <= 6; dx++) {
+        if (dx * dx + dy * dy > 36) continue;
+        const cut = (dx - 3) * (dx - 3) + (dy + 2) * (dy + 2);
+        if (cut <= 27) continue;
+        ctx.fillStyle = dx < -3 ? '#d9d4b8' : '#f4f1de';
+        ctx.fillRect(R(x + dx), R(y + dy), 1, 1);
+      }
+    }
+    ctx.globalAlpha = 1;
   }
 
   function drawBucket() {
@@ -813,28 +2267,131 @@ function launchGame() {
         ctx.fillRect(rx, y + 2 + r, rw, 1);
       }
     }
+    // Olio: macchie scure lucide sul secchio
+    if (g.fx.oil > 0) {
+      ctx.fillStyle = '#3b2a12';
+      ctx.fillRect(x + 3, y + 3, 4, 2);
+      ctx.fillRect(x + w - 8, y + 6, 5, 3);
+      ctx.fillRect(x + 6, y + 9, 3, 3);
+      ctx.fillStyle = '#c98a2b';
+      ctx.fillRect(x + 3, y + 3, 1, 1);
+      ctx.fillRect(x + w - 8, y + 6, 1, 1);
+    }
+    // Scarica: archi elettrici attorno al secchio
+    if (g.fx.freeze > 0) {
+      for (let i = 0; i < 12; i++) {
+        ctx.fillStyle = Math.random() < 0.5 ? '#4cc9f0' : '#ffffff';
+        const px = x - 3 + Math.floor(Math.random() * (w + 6));
+        const py = y - 3 + Math.floor(Math.random() * (BUCKET_H + 6));
+        ctx.fillRect(px, py, 1, Math.random() < 0.4 ? 2 : 1);
+      }
+    }
+    // Calamita: arco di punti che pulsa sopra il secchio
+    if (g.fx.magnet > 0) {
+      const blink = g.fx.magnet < 1.5 && Math.floor(amb * 8) % 2 === 0; // negli ultimi istanti lampeggia
+      if (!blink) {
+        for (let k = 0; k <= 16; k++) {
+          const ang = Math.PI + (k / 16) * Math.PI;
+          const rr = 22 + (Math.floor(amb * 6) % 2) * 3;
+          ctx.fillStyle = k % 2 ? '#ff9aa0' : '#8fd0ff';
+          ctx.globalAlpha = 0.85;
+          ctx.fillRect(R(g.cx + Math.cos(ang) * rr), R(g.by + 2 + Math.sin(ang) * rr * 0.6), 1, 1);
+        }
+        ctx.globalAlpha = 1;
+      }
+    }
+  }
+
+  function drawItem(c) {
+    const it = ITEMS[c.type];
+    sprite(it.rows, c.x, c.y, it.pal);
+    if (c.missed) return;
+    if (it.kind === 'bonus') {
+      // scintillii attorno ai bonus
+      const ph = Math.floor(amb * 6 + c.ph * 3) % 4;
+      ctx.fillStyle = it.glow;
+      const pts = [[-2, 1], [it.w + 1, 3], [it.w - 2, -2], [1, it.h + 1]];
+      const p = pts[ph];
+      ctx.fillRect(R(c.x) + p[0], R(c.y) + p[1], 1, 1);
+      ctx.fillRect(R(c.x) + p[0] - 1, R(c.y) + p[1], 3, 1);
+      ctx.fillRect(R(c.x) + p[0], R(c.y) + p[1] - 1, 1, 3);
+    } else if (it.kind === 'malus' && Math.floor(amb * 3 + c.ph) % 2 === 0) {
+      // parentesi rosse che lampeggiano: segnalano il pericolo
+      ctx.fillStyle = '#ff4d4d';
+      const x = R(c.x) - 2;
+      const y = R(c.y) - 2;
+      const w = it.w + 4;
+      const h = it.h + 4;
+      for (const [px, py, sx, sy] of [[x, y, 1, 1], [x + w - 1, y, -1, 1], [x, y + h - 1, 1, -1], [x + w - 1, y + h - 1, -1, -1]]) {
+        ctx.fillRect(px, py, 1, 1);
+        ctx.fillRect(px + sx, py, 1, 1);
+        ctx.fillRect(px, py + sy, 1, 1);
+      }
+    }
   }
 
   function draw() {
-    // cielo
-    const bh = Math.ceil(H / SKY.length);
-    for (let i = 0; i < SKY.length; i++) {
-      ctx.fillStyle = SKY[i];
+    // cielo (a fasce) in base a giorno/notte/alba/tramonto
+    const key = Math.round(env.d * 200) * 1000 + Math.round(env.twi * 200);
+    if (key !== bandKey) {
+      bandKey = key;
+      bands = skyBands(env.d, env.twi);
+      overlay.style.background = bands[0];
+    }
+    const bh = Math.ceil(H / SKY_N);
+    for (let i = 0; i < SKY_N; i++) {
+      ctx.fillStyle = bands[i];
       ctx.fillRect(0, i * bh, W, bh);
     }
-    for (const s of stars) {
-      ctx.fillStyle = s.c;
-      ctx.fillRect(s.x, s.y, 1, 1);
+
+    // stelle (solo di notte, con scintillio)
+    const night = Math.pow(1 - env.d, 1.5);
+    if (night > 0.03) {
+      for (const s of stars) {
+        const tw = 0.65 + 0.35 * Math.sin(amb * 1.8 + s.ph);
+        ctx.globalAlpha = night * tw;
+        ctx.fillStyle = s.c;
+        ctx.fillRect(s.x, s.y, 1, 1);
+        if (s.big) {
+          ctx.globalAlpha = night * tw * 0.5;
+          ctx.fillRect(s.x - 1, s.y, 1, 1);
+          ctx.fillRect(s.x + 1, s.y, 1, 1);
+          ctx.fillRect(s.x, s.y - 1, 1, 1);
+          ctx.fillRect(s.x, s.y + 1, 1, 1);
+        }
+      }
+      ctx.globalAlpha = 1;
     }
+
+    // sole e luna seguono l'ora: arco da est a ovest
+    const horizon = H - GROUND_H;
+    const peak = H * 0.2;
+    const arc = (p) => horizon - Math.sin(Math.PI * clamp(p, 0, 1)) * (horizon - peak);
+    const sunA = clamp(env.d * 1.4, 0, 1);
+    if (sunA > 0.02) drawSun(W * (0.14 + 0.72 * clamp(env.sunP, 0, 1)), arc(env.sunP), sunA);
+    const moonA = clamp((1 - env.d) * 1.4, 0, 1);
+    if (moonA > 0.02) drawMoon(W * (0.14 + 0.72 * env.moonQ), arc(env.moonQ), moonA);
+
+    // nuvole che scorrono piano (più chiare di giorno, scure di notte, rosate al tramonto)
+    let cloudCol = mixC([58, 72, 118], [255, 255, 255], env.d);
+    cloudCol = mixC(cloudCol, [255, 196, 168], env.twi * 0.7);
+    ctx.fillStyle = rgbStr(cloudCol);
+    ctx.globalAlpha = 0.3 + 0.6 * env.d;
+    for (const c of clouds) {
+      const x = ((c.x0 + amb * c.v) % (W + 40)) - 20;
+      mask(CLOUD, x, c.y, rgbStr(cloudCol));
+    }
+    ctx.globalAlpha = 1;
+
     // suolo
-    ctx.fillStyle = '#222844';
+    ctx.fillStyle = rgbStr(mixC([34, 40, 68], [88, 105, 143], env.d));
     ctx.fillRect(0, H - GROUND_H, W, GROUND_H);
-    ctx.fillStyle = '#4a5580';
+    ctx.fillStyle = rgbStr(mixC([74, 85, 128], [157, 179, 222], env.d));
     ctx.fillRect(0, H - GROUND_H, W, 1);
-    ctx.fillStyle = '#171c33';
+    ctx.fillStyle = rgbStr(mixC([23, 28, 51], [69, 83, 119], env.d));
     for (let x = 0; x < W; x += 8) ctx.fillRect(x, H - GROUND_H + 3, 4, 1);
 
-    for (const c of g.cans) sprite(CAN, c.x, c.y, PAL);
+    for (const c of g.items) drawItem(c);
     drawBucket();
 
     for (const p of g.parts) {
@@ -842,13 +2399,50 @@ function launchGame() {
       ctx.fillRect(R(p.x), R(p.y), 1, 1);
     }
 
+    // scritte che salgono dal secchio (+5, VITA, STOP, …)
+    for (const p of g.pops) {
+      ctx.globalAlpha = clamp(p.life * 1.6, 0, 1);
+      const cxm = R(p.x + textW(p.text, 1) / 2);
+      ctx.fillStyle = 'rgba(0,0,0,.7)';
+      drawText(p.text, cxm + 1, p.y + 1, 1);
+      ctx.fillStyle = p.color;
+      drawText(p.text, cxm, p.y, 1);
+    }
+    ctx.globalAlpha = 1;
+
     // HUD: cuori in alto a sinistra, punteggio e livello in alto a destra
     for (let i = 0; i < MAX_LIVES; i++) heart(5 + i * (HW + 3), topPad, i < g.lives);
     textWithShadow(String(g.score), W - 5, topPad, 2, '#ffffff');
-    textWithShadow(`LV ${level() + 1}`, W - 5, topPad + 13, 1, '#9fb4e8');
+    textWithShadow(`LV ${level() + 1}`, W - 5, topPad + 13, 1, env.d > 0.6 ? '#2a3f78' : '#9fb4e8');
 
+    // effetti attivi: icona con barretta del tempo residuo (lampeggia negli ultimi istanti)
+    let slot = 0;
+    for (const [fxKey, itemKey, color] of [['magnet', 'magnet', '#8fe388'], ['stop', 'stop', '#8fe388'], ['oil', 'oil', '#ff8f8f'], ['freeze', 'spark', '#ff8f8f']]) {
+      const left = g.fx[fxKey];
+      if (left <= 0) continue;
+      const x = 5 + slot * 14;
+      const y = topPad + HH + 5;
+      slot += 1;
+      if (left < 1.5 && Math.floor(amb * 8) % 2 === 0) continue;
+      const it = ITEMS[itemKey];
+      sprite(it.rows, x, y, it.pal);
+      ctx.fillStyle = 'rgba(0,0,0,.55)';
+      ctx.fillRect(x, y + it.h + 1, 12, 2);
+      ctx.fillStyle = color;
+      ctx.fillRect(x, y + it.h + 1, R((12 * left) / FX_DUR[fxKey]), 2);
+    }
+
+    // velature: stop linea (azzurrina) e lampi di evento
+    if (g.fx.stop > 0) {
+      ctx.fillStyle = 'rgba(110,150,255,.10)';
+      ctx.fillRect(0, 0, W, H);
+    }
     if (g.hurt > 0) {
-      ctx.fillStyle = `rgba(255,60,60,${Math.min(0.35, g.hurt * 1.4)})`;
+      ctx.fillStyle = `rgba(${g.hurtRgb},${Math.min(0.35, g.hurt * 1.4)})`;
+      ctx.fillRect(0, 0, W, H);
+    }
+    if (g.flashT > 0) {
+      ctx.fillStyle = `rgba(${g.flashRgb},${Math.min(0.3, g.flashT * 1.6)})`;
       ctx.fillRect(0, 0, W, H);
     }
   }
@@ -858,9 +2452,101 @@ function launchGame() {
     if (!last) last = ts;
     const dt = Math.min(0.05, (ts - last) / 1000);
     last = ts;
-    if (g.state === 'play') update(dt);
+    amb += dt;
+    updateEnv(dt, false);
+    if (g.state === 'play' || g.state === 'intro') update(dt);
     draw();
   }
+
+  // ---------- Pausa e impostazioni ----------
+  function refreshMenu() {
+    hapticsSw.set(effHaptics());
+    soundSw.set(effSound());
+    soundIcon.replaceChildren(svgIcon(effSound() ? ICONS.soundOn : ICONS.soundOff, null, 2));
+    for (const [k, b] of Object.entries(bgButtons)) {
+      const on = prefs.bg === k;
+      b.setAttribute('aria-pressed', String(on));
+      b.style.background = on ? '#f4cf55' : 'transparent';
+      b.style.borderColor = on ? '#f4cf55' : 'rgba(255,255,255,.3)';
+      b.style.color = on ? '#1a1a2e' : '#fff';
+    }
+  }
+
+  function openPause() {
+    if (g.state !== 'play' && g.state !== 'intro') return;
+    g.resume = g.state;
+    g.state = 'paused';
+    keys.left = false;
+    keys.right = false;
+    refreshMenu();
+    menu.style.display = 'block';
+    if (audio) {
+      audio.stopMusic();
+      audio.pauseOpen();
+    }
+    vib(HAP.pause, 2);
+  }
+
+  function closePause() {
+    if (g.state !== 'paused') return;
+    menu.style.display = 'none';
+    g.state = g.resume || 'play';
+    last = 0; // evita un salto di tempo alla ripresa
+    if (audio) {
+      audio.pauseClose();
+      if (g.state === 'play') audio.resumeMusic();
+    }
+    vib(HAP.resume, 2);
+  }
+
+  function setBg(mode) {
+    if (prefs.bg === mode) return;
+    prefs.bg = mode;
+    skyCur = skyAt(new Date());
+    skyClock = 5;
+    refreshMenu();
+    if (audio) audio[mode]();
+    vib(HAP[mode], 2);
+  }
+
+  pauseBtn.addEventListener('click', openPause);
+  resumeBtn.addEventListener('click', closePause);
+  quitBtn.addEventListener('click', () => {
+    if (audio) audio.click();
+    vib(HAP.tap, 2);
+    close(false);
+  });
+  hapticsSw.addEventListener('click', () => {
+    if (effHaptics()) {
+      vib(HAP.off, 2); // ultimo impulso, prima di spegnere
+      prefs.haptics = false;
+    } else {
+      prefs.haptics = true;
+      vib(HAP.on, 2);
+    }
+    refreshMenu();
+    if (audio) (effHaptics() ? audio.toggleOn : audio.toggleOff)();
+  });
+  soundSw.addEventListener('click', () => {
+    if (effSound()) {
+      // il suono di "spento" deve sentirsi: si silenzia dopo che è finito
+      prefs.sound = false;
+      if (audio) audio.toggleOff();
+      setTimeout(() => {
+        if (graph) graph.syncMaster();
+      }, 170);
+      vib(HAP.off, 2);
+    } else {
+      prefs.sound = true;
+      if (graph) graph.syncMaster();
+      setTimeout(() => {
+        if (audio && active) audio.toggleOn();
+      }, 40);
+      vib(HAP.on, 2);
+    }
+    refreshMenu();
+  });
+  for (const [k, b] of Object.entries(bgButtons)) b.addEventListener('click', () => setBg(k));
 
   // ---------- Input ----------
   function setTarget(clientX) {
@@ -868,15 +2554,19 @@ function launchGame() {
     g.tcx = clamp((clientX - rect.left) / scale, g.bw / 2, W - g.bw / 2);
   }
   const onPointer = (e) => {
+    if (g.state === 'paused') return;
     // Ignora i tocchi sui pulsanti del gioco; accetta tutto il resto (anche il dito
     // ancora appoggiato sul tasto della barra da cui è partita la pressione lunga).
     if (overlay.contains(e.target) && e.target.closest('button')) return;
     setTarget(e.clientX);
   };
   const onKeyDown = (e) => {
-    if (e.key === 'ArrowLeft' || e.key === 'a') keys.left = true;
+    if (e.key === 'Escape' || e.key === 'p' || e.key === 'P') {
+      if (g.state === 'paused') closePause();
+      else openPause();
+    } else if (g.state === 'paused') return;
+    else if (e.key === 'ArrowLeft' || e.key === 'a') keys.left = true;
     else if (e.key === 'ArrowRight' || e.key === 'd') keys.right = true;
-    else if (e.key === 'Escape') close(false);
   };
   const onKeyUp = (e) => {
     if (e.key === 'ArrowLeft' || e.key === 'a') keys.left = false;
@@ -885,14 +2575,16 @@ function launchGame() {
   const onResize = () => layout();
   const onVisibility = () => {
     last = 0; // evita un salto di tempo al ritorno sulla pagina
-    if (audio) {
-      if (document.hidden) audio.suspend();
-      else audio.resume();
+    if (document.hidden) {
+      openPause(); // se si esce dall'app il gioco va in pausa
+      if (graph) graph.idle();
+    } else {
+      getGraph();
     }
   };
   // Le policy autoplay (soprattutto iOS) sbloccano l'audio solo dopo un gesto: lo si riprova a ogni tocco
   const unlockAudio = () => {
-    if (audio) audio.resume();
+    if (graph && graph.ctx.state !== 'running' && !document.hidden) graph.ctx.resume().catch(() => {});
   };
 
   window.addEventListener('pointermove', onPointer);
@@ -910,6 +2602,7 @@ function launchGame() {
     if (!active) return;
     active = false;
     cancelAnimationFrame(raf);
+    clearTimeout(hintTimer);
     window.removeEventListener('pointermove', onPointer);
     window.removeEventListener('pointerdown', onPointer);
     window.removeEventListener('pointerdown', unlockAudio);
@@ -918,33 +2611,38 @@ function launchGame() {
     window.removeEventListener('keyup', onKeyUp);
     window.removeEventListener('resize', onResize);
     document.removeEventListener('visibilitychange', onVisibility);
+    vibStop();
     if (audio) audio.dispose();
     overlay.remove();
     if (!fromBack) releaseLayer(layer);
+    // il motore audio resta acceso un attimo per non tagliare l'ultimo suono, poi si spegne
+    setTimeout(() => {
+      if (!active && graph) graph.idle();
+    }, 450);
   }
   layer = pushLayer(() => close(true));
 
-  closeBtn.addEventListener('click', () => close(false));
-  exitBtn.addEventListener('click', () => close(false));
+  exitBtn.addEventListener('click', () => {
+    if (audio) audio.click();
+    vib(HAP.tap, 2);
+    close(false);
+  });
   retryBtn.addEventListener('click', () => {
     if (audio) audio.click();
-    startRound();
+    vib(HAP.tap, 2);
+    startRound(false);
     last = 0;
-  });
-  muteBtn.addEventListener('click', () => {
-    muted = !muted;
-    muteBtn.textContent = muted ? '🔇' : '🔊';
-    if (audio) {
-      audio.setMuted(muted);
-      audio.resume();
-      if (!muted) audio.click();
-    }
   });
 
   layout();
-  startRound();
-  setTimeout(() => {
+  updateEnv(0, true); // lo sfondo parte già coerente con l'ora, senza transizione
+  startRound(!!fx);
+  if (fx) {
+    // il gioco "salta fuori" mentre i frammenti dello schermo cadono
+    wrap.animate([{ transform: 'scale(1.07)', filter: 'brightness(1.8)' }, { transform: 'scale(1)', filter: 'brightness(1)' }], { duration: 560, easing: 'ease-out' });
+  }
+  hintTimer = setTimeout(() => {
     hint.style.opacity = '0';
-  }, 3000);
+  }, 3500);
   raf = requestAnimationFrame(frame);
 }
