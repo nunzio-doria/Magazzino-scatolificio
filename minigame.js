@@ -1601,28 +1601,14 @@ function charLeg(out, u, lift, far) {
 function legAt(phi) {
   if (phi < 0.5) return { u: 1 - 4 * phi, lift: 0 };
   const p = phi - 0.5;
-  return { u: -1 + 4 * p, lift: Math.round(3 * Math.sin(Math.PI * clamp((p - 0.02) / 0.46, 0, 1))) };
+  const q = p / 0.5;
+  const e = q - (0.6 * Math.sin(2 * Math.PI * q)) / (2 * Math.PI); // easing: il piede rallenta prima del contatto
+  return { u: -1 + 2 * e, lift: Math.round(3 * Math.sin(Math.PI * clamp((p - 0.02) / 0.46, 0, 1))) };
 }
 
-// k = 0..CHAR_CYCLE-1: due passi (le braccia si scambiano tra il primo e il secondo).
-// Busto: sale e scende, la testa lo segue con un attimo di ritardo e va avanti al contatto;
-// la mano vicina oscilla in opposizione alla gamba vicina.
-function buildWalkFrame(k) {
-  const psi = (k % CHAR_CYCLE) / CHAR_CYCLE;
-  const out = charBlank();
-  const near = legAt(psi);
-  const far = legAt((psi + 0.5) % 1);
-  charLeg(out, far.u, far.lift, true); // lontana prima, vicina sopra
-  charLeg(out, near.u, near.lift, false);
-
-  const stepT = (psi * 2) % 1; // posizione nel passo
-  const up = (t) => {
-    const f = ((t % 1) + 1) % 1;
-    return f > 0.3 && f < 0.7;
-  };
-  const bob = up(stepT) ? 1 : 0;
-  const headBob = up(stepT - 0.08) ? 1 : 0;
-  const nod = stepT < 0.25 || stepT > 0.9 ? 1 : 0; // la testa va avanti di un pixel al contatto
+// Busto di profilo (condiviso da camminata e salto): bob = salita del corpo, headBob = testa in ritardo,
+// nod = testa avanti di 1 px, sw = spostamento orizzontale della mano vicina
+function charTorso(out, bob, headBob, nod, sw) {
   const S = CHAR_POSES.sideB;
   const HAND = { x0: 3, x1: 10, y0: 35, y1: 39 };
   const inHand = (x, y) => x >= HAND.x0 && x <= HAND.x1 && y >= HAND.y0 && y <= HAND.y1;
@@ -1636,8 +1622,52 @@ function buildWalkFrame(k) {
     }
   }
   if (bob) for (let x = 0; x < S[HIP_Y - 1].length; x++) charPut(out, x + SIDE_X, HIP_Y - 1, S[HIP_Y - 1][x]); // chiude il vuoto in vita
-  const sw = -Math.round(2 * Math.cos(2 * Math.PI * psi));
   for (let y = HAND.y0; y <= HAND.y1; y++) for (let x = HAND.x0; x <= HAND.x1; x++) charPut(out, x + SIDE_X + sw, y - bob + (sw > 0 ? -1 : 0), S[y][x]);
+}
+
+// k = 0..CHAR_CYCLE-1: due passi (le braccia si scambiano tra il primo e il secondo).
+function buildWalkFrame(k) {
+  const psi = (k % CHAR_CYCLE) / CHAR_CYCLE;
+  const out = charBlank();
+  const near = legAt(psi);
+  const far = legAt((psi + 0.5) % 1);
+  charLeg(out, far.u, far.lift, true); // lontana prima, vicina sopra
+  charLeg(out, near.u, near.lift, false);
+  const stepT = (psi * 2) % 1; // posizione nel passo
+  const up = (t) => {
+    const f = ((t % 1) + 1) % 1;
+    return f > 0.3 && f < 0.7;
+  };
+  const bob = up(stepT) ? 1 : 0;
+  const headBob = up(stepT - 0.08) ? 1 : 0;
+  const nod = stepT < 0.25 || stepT > 0.9 ? 1 : 0; // la testa va avanti di un pixel al contatto
+  const sw = -Math.round(2 * Math.cos(2 * Math.PI * psi));
+  charTorso(out, bob, headBob, nod, sw);
+  return out;
+}
+
+// Salto: JUMP_FRAMES pose lungo l'arco (0 = stacco, ultimo = pronto al contatto). I keyframe sono
+// [u gamba vicina, lift vicina, u lontana, lift lontana]; l'ultimo coincide col contatto di buildWalkFrame(0)
+const JUMP_FRAMES = 6;
+const JUMP_KEYS = [
+  [-0.9, 0, 0.4, 5], // stacco: gamba di spinta dietro, ginocchio lontano su
+  [-0.6, 2, 0.5, 5],
+  [-0.2, 4, 0.4, 4], // apice: gambe raccolte
+  [0.5, 2, 0.0, 2],
+  [1, 0, -1, 0], // contatto
+];
+function buildJumpFrame(i) {
+  const s = clamp((i + 0.5) / JUMP_FRAMES, 0, 1);
+  const f = s * (JUMP_KEYS.length - 1);
+  const i0 = Math.min(Math.floor(f), JUMP_KEYS.length - 2);
+  const a = JUMP_KEYS[i0];
+  const b = JUMP_KEYS[i0 + 1];
+  const t = f - i0;
+  const mix = (j) => a[j] + (b[j] - a[j]) * t;
+  const out = charBlank();
+  charLeg(out, mix(2), Math.round(mix(3)), true);
+  charLeg(out, mix(0), Math.round(mix(1)), false);
+  charTorso(out, 0, 0, s > 0.5 ? 1 : 0, Math.round(2 * Math.cos(Math.PI * s))); // braccia in opposizione alle gambe
   return out;
 }
 
@@ -1672,16 +1702,20 @@ const buildBackFrame = () => {
 const buildHurtFrame = () => CHAR_POSES.hurt.map((r) => r.split(''));
 const buildCheerFrame = () => CHAR_POSES.cheer.map((r) => r.split(''));
 
-// Posa abbassata (alta 44 px): stesse gambe della camminata, busto accorciato di 10 righe e testa/spalle in avanti
-const CROUCH_DROP = new Set([24, 25, 26, 27, 28, 29, 30, 31, 32, 33]);
-function buildCrouchFrame(k) {
+// Posa abbassata (a piena profondità: busto accorciato di 10 righe): n = righe tolte (0..10), così
+// la transizione cammina <-> abbassato passa per pose intermedie. Testa e spalle vanno avanti in
+// modo graduale (fino a 2 px) e non di colpo, così non resta il gradino sulla cucitura.
+const CROUCH_STEPS = [0, 3, 5, 8, 10];
+function buildCrouchFrame(k, n = 10) {
+  const lean = Math.round((2 * n) / 10);
   const rows = [];
   buildWalkFrame(k).forEach((r, y) => {
-    if (CROUCH_DROP.has(y)) return;
-    if (y >= 24) return rows.push(r);
-    const lean = Array(CHAR_W).fill('.'); // righe di testa e spalle: 2 pixel avanti
-    for (let x = 0; x < CHAR_W - 2; x++) lean[x + 2] = r[x];
-    rows.push(lean);
+    if (y >= 24 && y < 24 + n) return;
+    const sh = y < 24 ? Math.round(lean * clamp(1 - (y - 12) / 12, 0, 1)) : 0;
+    if (!sh) return rows.push(r);
+    const row = Array(CHAR_W).fill('.');
+    for (let x = 0; x < CHAR_W - sh; x++) row[x + sh] = r[x];
+    rows.push(row);
   });
   const pad = Array.from({ length: CHAR_H - rows.length }, () => Array(CHAR_W).fill('.'));
   return pad.concat(rows);
@@ -1697,6 +1731,7 @@ const C_HIT_HALF = 4; // metà larghezza del corpo che può essere colpito
 const C_H_STAND = 50;
 const C_H_DUCK = 42; // sprite abbassato: 44 px
 const C_DUCK_SPEED = 0.5;
+const DUCK_BLEND = 0.1; // secondi per abbassarsi / rialzarsi (solo grafica: la hitbox cambia subito)
 const C_INV = 1.4; // secondi di invulnerabilità dopo un colpo
 const DOOR_GAP = 6; // distanza della porta dal traguardo
 const DOOR_W = 38;
@@ -1839,6 +1874,7 @@ function newCamp(lv) {
     pf: 0, // altezza dei piedi dal pavimento
     vy: 0,
     duck: false,
+    duckA: 0, // 0..1: profondità grafica dell'abbassamento
     hearts: MAX_LIVES,
     inv: 0,
     jumpBuf: 0,
@@ -1889,8 +1925,10 @@ function campStep(c, dt, inp) {
       c.pf = 0;
       c.vy = 0;
       ev.push({ k: 'land' });
+      c.walkD = Math.round(c.walkD / CHAR_STEP) * CHAR_STEP; // si atterra sempre su un contatto: niente piede che scatta
     }
   }
+  c.duckA += clamp((c.duck ? 1 : 0) - c.duckA, -dt / DUCK_BLEND, dt / DUCK_BLEND);
   const sp = c.speed * (c.duck ? C_DUCK_SPEED : 1);
   c.x += sp * dt;
   c.walkD += sp * dt;
@@ -3818,12 +3856,15 @@ function launchGame({ fx = null } = {}) {
   function playerFrame(c) {
     if (c.state === 'dead' || (c.state === 'run' && c.inv > C_INV - 0.55)) return charFrame('hurt', buildHurtFrame); // stordito dopo un colpo
     if (g.state === 'intro') return charFrame('front', () => buildFrontFrame({}));
-    if (c.pf > 0) return charFrame('jump', () => buildWalkFrame(6)); // in aria: gamba piegata e braccia in opposizione
-    if (c.duck) {
-      const k = Math.floor(((c.walkD % (CHAR_STEP * 2)) / (CHAR_STEP * 2)) * CHAR_CYCLE) % CHAR_CYCLE;
-      return charFrame(`c${k}`, () => buildCrouchFrame(k)); // gambe che si muovono anche da accovacciato
-    }
     const k = Math.floor(((c.walkD % (CHAR_STEP * 2)) / (CHAR_STEP * 2)) * CHAR_CYCLE) % CHAR_CYCLE;
+    if (c.pf > 0) {
+      // in aria: la posa segue l'arco (vy da +C_JUMP a -C_JUMP): stacco, apice, discesa verso il contatto
+      const s = clamp((C_JUMP - c.vy) / (2 * C_JUMP), 0, 1);
+      const j = Math.min(JUMP_FRAMES - 1, Math.floor(s * JUMP_FRAMES));
+      return charFrame(`j${j}`, () => buildJumpFrame(j));
+    }
+    const n = CROUCH_STEPS[Math.round(c.duckA * (CROUCH_STEPS.length - 1))]; // 0 = in piedi, 10 = tutto abbassato
+    if (n > 0) return charFrame(`c${k}_${n}`, () => buildCrouchFrame(k, n)); // stessa fase k: i piedi non si muovono
     return charFrame(`w${k}`, () => buildWalkFrame(k));
   }
 
