@@ -1180,322 +1180,440 @@ function mkSwitch(label) {
   return b;
 }
 
-// ---------- Personaggio della home (4 pose disegnate dall'utente, ~48 px) ----------
-// Camminata a 8 fotogrammi per passo: busto e gambe dalla posa di profilo,
-// gambe intermedie ricavate spostando le due gambe dello sprite.
+// ---------- Personaggio della home e di Campagna (6 pose disegnate dall'utente) ----------
+// Camminata e abbassamento si ottengono rimontando le pose: busto dalla posa di profilo, gambe
+// ricavate dalla gamba di profilo piegata e spostata a ogni passo (la posa non ha le gambe divaricate).
 const CHAR_POSES = {
   front: [
-    '.........ppppo.........',
-    '.......wxuuussyx.......',
-    '......xsppsspnsvA......',
-    '......sjiiiigggmw......',
-    '.....AnjiggggggipB.....',
-    '.....vnjigggggijpw.....',
-    '.....vpjgggggggjpx.....',
-    '.....xnmqnigiqqmmx.....',
-    '.....simpmjimppjmw.....',
-    '....wqjnnijgjijmnqk....',
-    '....snnjjjmgmiijmmf....',
-    '.....nsjiijimggjms.....',
-    '.....hsjgjjmjigjq......',
-    '......smijjjjjims......',
-    '......knjijjjiimp......',
-    '.....xuonjiiijnpzB.....',
-    '...AsekeppjimnvekfyA...',
-    '..BffafaepwwwsebhaffA..',
-    '..Aadafllfpnpfllhaeav..',
-    '.vkacdbdekkclkfdcdeahB.',
-    '.AeaehddcckokfefafeacB.',
-    '.vaaflhfefclfhppolhcal.',
-    '.obafrhhfhdkdekkdohabe.',
-    'zfcchrfbaddhdefhdrkeadA',
-    'AdbfolfeefdhdeeefovfabB',
-    'AbaeAlccbbchdcbcdoAfaax',
-    'paaeBkdbabchdcbaeoBfabk',
-    'oaaepvffdabhdbbffxofaak',
-    'ohkksBkfhffkhefefBolkhk',
-    'AmiqAzyuvxxvvvvuxzBsiiA',
-    'BgggwxvrrrrvtrrruyBiggs',
-    'Bggnpvrrtttvvurrrxqmigs',
-    'BjinAvrrrtzAzurrruAsiiw',
-    '.BBBlvrrruxAvrrrrvABBA.',
-    '....ovrrrrvAurrrrvA....',
-    '....ourrrrvAurrrrvA....',
-    '....ovrrrtvAurrrrxA....',
-    '....oyrrrvxAuurrtzA....',
-    '.....yvvxvxAutuvuz.....',
-    '.....zvvvvxAutrruA.....',
-    '.....ozxvvyAurrrrA.....',
-    '.....ozzzyxAvzyyxA.....',
-    '......AyyxwAxtuuuA.....',
-    '......BpppqBzyqqAB.....',
-    '.....BnjjnqBynnnnBh....',
-    '.....BqmmqB.AnjjjnA....',
-    '......BBBBB.BqqqqqB....',
-    '............BBBBBBB....',
+    '...........EFBwt...........',
+    '.........CCjmwhnCE.........',
+    '........FmeenhffjhH........',
+    '.......nzgghnhefhhjr.......',
+    '.......EhhhoqnoggdhF.......',
+    '.......rfpqkkklphojnE......',
+    '.......rmpliiiiklponE......',
+    '.......tglkiiiiikljfE......',
+    '.......rtpqqlkkpqqprw......',
+    '.......iypEEyssBEyyfB......',
+    '.......qslgkqkqkkqqpy......',
+    '.......yqlqsqilqqlqB.......',
+    '........ykklqpplkky........',
+    '........EilgjmmkkiF........',
+    '........FtgkkkklhpF........',
+    '......EHppoiikkgjztCE......',
+    '....EHfdhdwwggmrCjnemEH....',
+    '...joaaafactssswmcraadhB...',
+    '..wEhaaafppnqqsoooraacejw..',
+    '..EeafeaacfnpennhaacefaeE..',
+    '.goaafoccaaeowpfacfahfacep.',
+    '.wjaanojdcahjpfmsyqrppacdH.',
+    '.EeaewnmjjmnfpefioojoAdacE.',
+    '.naafCjncacedodfchgjoCfaaj.',
+    'EeaooConmfaddpcejmjnoComceE',
+    'ocenHnfccacdcrcbdddchoEhdcr',
+    'naddHmcbbbbbcobbbdcccoHfban',
+    'HaanHhdbbbbbbodbbbdehzphaar',
+    'hccnHhedbbbdcoaddbbacjHhabn',
+    'haacEjhbbbbddpbbbbbbcjEheen',
+    'jaafHjdbbbbbbpdbdbbccjEhcdn',
+    'jcdfEmfbbbbbdpddddbcemEjadn',
+    'mhmmHnnebbbddpbbdbbejnEnhhn',
+    'mfsyEznnfbbddnabbdfjnzByqgo',
+    'yskkyBConheeepdddhmpBBsiksy',
+    'ykikqBACCnjjmrmfhmCCCBlkiky',
+    'ykikqBxxzAxCCzCAAAxvzyliikB',
+    'ykiilBxuuuvwwxzvuuuuzBqiikF',
+    'siillyAvuuvACCCAvuuuzBkliiF',
+    'qkiksBxuuuuvzBAvuuuuvBqqikB',
+    '.yqkBCvuuvuvzCzvuuuuuABlqs.',
+    '..CC.CvuuuuvCECxuuuuwBCCC..',
+    '.....EvuuvuvC.ExvuuvxB.....',
+    '.....CxuvvuxC.ExvvuuxC.....',
+    '.....CAvuuuxC.CzvvuuAC.....',
+    '......CzvvvAC.CzwvvxC......',
+    '......BAxxxxC.CxxxzxA......',
+    '......CAxxuxC.CxvxxzC......',
+    '......CzuvvxB.CxvuxAC......',
+    '.......CvttxC.CzrttyC......',
+    '......FyssyFF.CBysyyB......',
+    '.....Fsllqqy..CrvslllF.....',
+    '.....FssssyE..CysssqsF.....',
+    '.....wwssrr....wtsssst.....',
   ],
-  stepA: [
-    '...........ppppp.........',
-    '.........yxvssssso.......',
-    '........vvsqnpssswl......',
-    '........xvnigggjjjs......',
-    '.......BvpjgggggggmB.....',
-    '.......zsnjjggggggjB.....',
-    '.......yspnjggggggjB.....',
-    '.......yssmjnqniijqB.....',
-    '.......wwpjjlnqiisll.....',
-    '.......nmqjjjjjjiqqA.....',
-    '.......mqqjigggjijmp.....',
-    '.......ljpjiigijjjjw.....',
-    '........wqmjgiijnjm......',
-    '........Bwmjgjjmnmn......',
-    '........Bkpjjjijmjn......',
-    '.......solenmjigimf......',
-    '.......ldekhksljmk.......',
-    '......Ahhbafkeouyl.......',
-    '......Aldcabfklokl.......',
-    '......BracbafabkkB.......',
-    '......BobbbdldddkB.......',
-    '......BhbbbeoeabhB.......',
-    '......Becaakledaekf......',
-    '......BebchrfebachA......',
-    '......Bfbdkufbffdhz......',
-    '......Bfaackkaaabhz......',
-    '......BlaaafofabbhzB.....',
-    '......BvhbadzhfdahwB.....',
-    '......BzkefelkeeekqmB....',
-    '......BzveesmwyvuznmB....',
-    '......BzAAjggjArtwnmB....',
-    '.......zxqgggnwrrzpB.....',
-    '.......Bvwigjnorrzl......',
-    '......ByzvzAAuoortl......',
-    '......Axvzvuttrrrrz......',
-    '......AvvxAutrtrrrz......',
-    '.....vzuvxxzutrtrrts.....',
-    '....lAvxxxxAyuttrruu.....',
-    '...lAuuvvxyzfzvttrrz.....',
-    '...AuuvvvvAh.Avrtrrzh....',
-    '..AvuxvvxAh..Byttrrvo....',
-    '.Bxuxxxxz.....zuorrvA....',
-    'AppyvvxA......AuruutzAAA.',
-    'Bpnszvyz......AyxttznqjmB',
-    '.BqnpBB.......yxuysnjjmpz',
-    '..Aqmmqy.......BBnmnnnsB.',
-    '..BpqqqB........BssABy...',
-    '...BBBAB........BBB......',
+  sideA: [
+    '.......yFCByyg....',
+    '.....BHwmjmmpHp...',
+    '....Fjjhffhmhfw...',
+    '...FopohhjhhjheB..',
+    '..nHommmjfpappmg..',
+    '..Hjpnjfnoppigsr..',
+    '..FonnneglkikimE..',
+    '..Honmfnjiipsrm...',
+    '..FtroqpsssqenF...',
+    '...EoBlkkkiqlkis..',
+    '...EnBllkiiillgi..',
+    '...Eopyykkiiikpy..',
+    '....Bpyqngiglpy...',
+    '....FBlqpjfhllq...',
+    '....FnqqpofhglF...',
+    '...Erfacytrnnt....',
+    '..gredomaeFFE.....',
+    '..FfjechnffpEp....',
+    '..Emfccfhppohw....',
+    '.FHpaabaheeojH....',
+    '.Frfbaafredenr....',
+    '.FmdaaafrhdehjF...',
+    '.FhbaabjrhaacjEt..',
+    '.EhaadhtjhedfejEj.',
+    '.EgaaeoEmhjmbbbhH.',
+    '.HhbaceCmeddbbbeC.',
+    '.pteacewwdcddbbcj.',
+    '.FhaabnEmfbdbbbez.',
+    '.Hjfaadzmgedbbbch.',
+    'HoCeabdmtmhebbbafH',
+    'HnChacczmjeebddafF',
+    'FnnAddajomjddddcfE',
+    '.EAAhbfhCpomddbahE',
+    '.ExCmhaeAtomhcahmF',
+    '.EwxCengBtzrhhjjCj',
+    '.ExxpnjcjrtrvhhttH',
+    '.EAxzmalsBwrAzAwwH',
+    '..CAEssiiqBAuwzzE.',
+    '..oCzyiikqywAACFj.',
+    '...ExyikkqyvAzBo..',
+    '....wysqqwtuuww...',
+    '....xzzzzuruuE....',
+    '....Axxxuuuuv.....',
+    '....zBzvruuuB.....',
+    '.....BzxuuuwB.....',
+    '....CAxxxuvC......',
+    '....FxxxxxzC......',
+    '....Exuuuuz.......',
+    '....ExvvxxBC......',
+    '....CBzutyBH......',
+    '.....BzwyssyFB....',
+    '.....FtssqllqsB...',
+    '.....FwtyssqqyF...',
+    '.....CrtttsrCC....',
   ],
-  stepB: [
-    '...........moopp.........',
-    '.........wywvsssxv.......',
-    '........xvssqpnpssw......',
-    '.......fvrpnigggjjmm.....',
-    '.......zvppjiggggggw.....',
-    '.......zuppjiggggggq.....',
-    '.......zvppnjggggggj.....',
-    '.......Avusmjqqqigmw.....',
-    '.......Bwspjjlwsmisq.....',
-    '.......Bqnqjmjnmmgss.....',
-    '.......Binqjijggmgnm.....',
-    '........piqjiggimmnw.....',
-    '........Bqqmiggiinnw.....',
-    '........wzpnjijjnnnA.....',
-    '........Bhfsmmjijnn......',
-    '.......ulkkesnmjiis......',
-    '.......yfeflefspqq.......',
-    '......ykdbahkdhhA........',
-    '......zhaaaafkklo........',
-    '......AfaabehaaekB.......',
-    '......vdaaafocffkx.......',
-    '.....wkaaadkhdffhv.......',
-    '.....xhaachohccafh.......',
-    '.....xhahkrkhdhhahA......',
-    '.....AkbaeokhabbbhA......',
-    '......yaabhukdaabhA......',
-    '......BfaaetkfbachA......',
-    '......BkaabhlhfhhhB......',
-    '......Bxcdfhvytfekpw.....',
-    '......BAkdenwyuruznB.....',
-    '......BzAqjgjsrruznB.....',
-    '.......AwiggnyrrrAsn.....',
-    '......BAwmgijyrrryA......',
-    '......ByzzBAAtrrrrA......',
-    '......BxxAyutrtrrrz......',
-    '......AvxxAutrrrrry......',
-    '.....vyxvxxzvtrtrrrz.....',
-    '....vzvvxxxzAvttrrrA.....',
-    '...ozvuxxxxAlzvrtrrz.....',
-    '..pAvvxxxxAk.Avttrrz.....',
-    '.sByvxxxxAk..Axttrrx.....',
-    '.wpxvxxyAf....ztorrrA....',
-    '.qnszxyA......zurtrvB....',
-    '.wqnwBAv......AyxrrvBzAB.',
-    '.BsnqwB.......BxvyyqqmjjB',
-    '..Apmmql.......AwnnmmjmnB',
-    '..BwqqpB.......BsqqqqssBp',
-    '...BBBBB........BBBppm...',
+  sideB: [
+    '........yFFEyt....',
+    '......HEpjjjmnF...',
+    '.....HjjhfffmghF..',
+    '....Fnomjjffhjjct.',
+    '...FzhjmmffnaqohE.',
+    '...FenfhhhppqklsE.',
+    '...Fnhnjfjlkkkkq..',
+    '...Fomnnjmkkqpll..',
+    '...Enpppsqkksyws..',
+    '...Epoqqqkikiksly.',
+    '....tmsqlkiiiklkl.',
+    '....Hppysiiiikkss.',
+    '.....Fpsqmgiikpyg.',
+    '.....EElonggiqkq..',
+    '.....Cjeprojmily..',
+    '....HnohapCwonrg..',
+    '...BohcjteeCFn....',
+    '..HzmcaahpenoB....',
+    '..HpfbaaeowwoH....',
+    '.ECpcabbenecnnE...',
+    '.FofaabbhAemjmF...',
+    '.HmeaaadpndhhjF...',
+    '.FmeabbhwofedhnF..',
+    '.Fmdafowoocmjfmno.',
+    '.HjeachBonhdaabhE.',
+    '.HmfaafnEneaabcez.',
+    '.omjaacmEmdabbabp.',
+    '.mnzaaftnnfdabbbhF',
+    '.njEcachEjaaabcbhH',
+    'BptEodbfBmaaabcbhH',
+    'BjmHebbbrnabbbbcfF',
+    'FCmFgbdennhfcbbcfE',
+    'npCEoeffnpjhbcddhF',
+    'tprEjedfnwjjmfefnE',
+    'jHpFwffhnwronnmmrB',
+    '.HCBtonefrrrArnAF.',
+    '.FCAEnnqiswtACEE..',
+    '..ExCFqiilywtvzh..',
+    '..jxxBlkklyzBAt...',
+    '...xxElkksytxA....',
+    '...zxCBqqqwrrt....',
+    '...AzxzzwwuuuA....',
+    '....Cxxuuuuuvw....',
+    '....EAxuuuuuCC....',
+    '.....BzxvuuuC.....',
+    '....CAzxxvuzz.....',
+    '....HzxuwvxB......',
+    '....FzvuuuwC......',
+    '....FzxvvxzC......',
+    '....EAzwvwyyC.....',
+    '.....EwwyssyBFr...',
+    '.....EtssqllllB...',
+    '.....HyEysqsqsy...',
+    '.....CCC.rrrrr....',
   ],
   back: [
-    '..........psssp.........',
-    '........wzuuuuxAw.......',
-    '.......wvputvvuvvz......',
-    '......osppppspppsx......',
-    '......xpppppppppppA.....',
-    '.....pvpppppppppppB.....',
-    '.....pvppppppppppvB.....',
-    '.....pvppppppppppvB.....',
-    '.....ovuspppppppsvA.....',
-    '.....wsussppppsvuul.....',
-    '.....wmvuuuuuuuuusm.....',
-    '.....hwssuuuuuuuvmw.....',
-    '......zssuvsssuspw......',
-    '.......wnwwssswps.......',
-    '.......BweccdddpA.......',
-    '.....oBolkkkkkkkoBv.....',
-    '....wohccbbcccbaaeoA....',
-    '...Afecccccccccbcbbdy...',
-    '..wkcecbcccccccbccdabB..',
-    '..AdafcbccccccccccfaaA..',
-    '..tachbbccccccbbbbhaak..',
-    '.Ahaekbbccccccccbalfadz.',
-    '.Aeaetacccccccccccofaby.',
-    '.oaafucccccccccccbufaals',
-    '.kachvdbcccccccccaufaahy',
-    'kkeckzkacccccccccfxhddhy',
-    'khhhhzkdbcccccccehyhffhz',
-    'khhhhylkfdcddcdfklyhffhy',
-    '.khhlAkddddddddafhAofflx',
-    '.vkhkAxutuuuuuuutuApffrz',
-    '.pjnnAuorrroooooouAnnml.',
-    '.qjnnAutrrroooooruAqqml.',
-    '.wmnsAuuuuuutttttvAwmjw.',
-    '..ABwvuuvxyzzxvvvvA.BB..',
-    '.....wuuuuvxBxxvvvB.....',
-    '.....wuuuuvxBxvvvvB.....',
-    '.....wuuuuvxBxvvvvB.....',
-    '.....vvuvvxxBzxxvvB.....',
-    '.....syvutuxBxrrrvB.....',
-    '......zrrorxAxyxux......',
-    '......zrrrrxAvrrvy......',
-    '......zurrtyBwsswx......',
-    '......zvvvvxApqqnA......',
-    '......yvvvvxAsqqqw......',
-    '.......wwwwABsqqqw......',
-    '......snmmnwAwqqqw......',
-    '......sqqqqw.zsssA......',
-    '......oBBBBB............',
+    '............EBBy............',
+    '..........tHnoEpFFE.........',
+    '.........HwhfffnjjEF........',
+    '........EnhhmrrmmemFg.......',
+    '........Hefhfjjehhfjt.......',
+    '.......BfceefefeehfoF.......',
+    '.......EfeeeffffeefmH.......',
+    '.......FnfhehfffffnoF.......',
+    '........pnnjogfhhnopF.......',
+    '.......FrmomnjgnmprpF.......',
+    '.......FnnoonmjnnprpF.......',
+    '.......FEsomomjpprysE.......',
+    '........FypooonpprsB........',
+    '.........FpwzzzBBry.........',
+    '.........FEhaaaaayF.........',
+    '.......BHEpnmmmnnmBFH.......',
+    '.....FHwh...........nHHj....',
+    '....Ep.................tp...',
+    '...BC...................F...',
+    '...E....................gF..',
+    '..Eg.mm..................B..',
+    '..E..nn......hh.......pj.nB.',
+    '..h..pm......mj......fCj..B.',
+    '.....rjj.............mEh..jj',
+    '....nCjf.............mpo...E',
+    '...hrj................gCh..t',
+    '.EfjEh.................wn..t',
+    'pnfmof......hjjmf......mBjhz',
+    'phjmojhffCCCCCCCEEEhgfhmCjjt',
+    'pjjnCjttzxuuuvxvuuxAECooCjjz',
+    'rjmnCzxuuuvuuuxuuvvuvvAACjjA',
+    'rjopBzuvuuuuuuvuuuuuvvxABmnz',
+    'tpjmyvuuuuuuuuxruuuuuuvACmnH',
+    'wBnoywvuuuuuuvxuuvxuuvxAnnpE',
+    '.EqsBAxxvvuuvxzuuuuuvvxByys.',
+    '.BlqyzvuuuuuuwAvuuuuruvzsll.',
+    '.BlqBzxxuuuuvAAxuuuuuxxBssl.',
+    '.oppyCxzxxxxxACxxxxxxxxBsqs.',
+    '..pFEBxxxAxxABCAxxxxxxAEFF..',
+    '.....EAxxxACCBCzCAzxxxC.....',
+    '......zzxxxxxAEzxzxxxxC.....',
+    '......EAxzAzzBECzzzxzzB.....',
+    '......yAxxvxACvCAxxzAA......',
+    '......wBxuuuxECCwuuuzC......',
+    '.......CxuuuvE.AuuuuAC......',
+    '.......ExuuuvE.AuuuxAC......',
+    '.......BxuuuwH.Avuuvzw......',
+    '.......EAuuuvE.AuuuvC.......',
+    '.......FzuuuxE.AvuuwA.......',
+    '.......wBzxxzH.AxxxzBf......',
+    '.......ByEBwAF.BzxyyBB......',
+    '......FsqsywB..BwwysqyE.....',
+    '......BssyywB..ywyysssF.....',
+    '......rtqtrrr...rttrrrC.....',
+  ],
+  hurt: [
+    '............wyFptHhh.......',
+    '..........mFymmhechpt......',
+    '.........Ermfgmfjfhfo......',
+    '.........Fneefmjeaaea......',
+    '........yCmffcoponfdm......',
+    '........Ejhmjiikkklho......',
+    '.......Hnmjpqlkkkkkkpn.....',
+    '.......EnjjlkiikklkikF.....',
+    '.......otyppsskkklkppE.....',
+    '........BpsswwysqywywF.....',
+    '........sqlksggysypFoE.....',
+    '........Bqllqkkqikpkl......',
+    '........wBpllqsliksss......',
+    '.........twgkillqqllk......',
+    '.......FEHnrggqqqqqjjp.....',
+    '......HhanfrjgilplimEEo....',
+    '.....Fedahcewrggfgnppezg...',
+    '....EaafbeaafmponntnccaC...',
+    '...nwabdbcmcxoqpqsnotcaH...',
+    '...Hcabdmehmmmtccypohfamw..',
+    '...zaaadtaaabehoapocanefE..',
+    '..FdaaaovehhffdhremrspmeE..',
+    '.wraaaaAmehhhhcdmefhrjphmy.',
+    '.FfafeeConjjjjbaemcahoEoht.',
+    '.Edccjnphhdbbabbbhcbbhnzfz.',
+    '.CbbhnojbbbbbbbbbfccbehAen.',
+    'rmbbdfChbbbbbbbbaahabbbnfht',
+    'rmbbabCheabbbbbbbajbbabjffF',
+    'pmdbbeEmhheccbbbbbjedcfpjmw',
+    'pnhffhEmnjheadbbbbjbahjCwwE',
+    'prfrrBFzrjjjhfaaadjeejCykil',
+    'gEyqkkqzwAArjhgffenjhCtqlik',
+    '.FliiiiBxAvxAzACCCCAACsqklk',
+    '.FqkiksCAxuuuutAwvvurCwqysq',
+    '..BqlsszuuuuuvCCAwuuuvEFEFj',
+    '...FFF.zuuvuuvECAwuuuvC....',
+    '.......wuuuuuu.ECwuuuuE....',
+    '.......wuuuuuw.FCwvuuuC....',
+    '.......wuuuuuz.pEwwuuuA....',
+    '.......wuuuuuA..ExvuuuvE...',
+    '.......wuuuuxC..FAxvuuwE...',
+    '.......xxxvxAF..HAwwxxAF...',
+    '.......xwxxwBE..FzvvvxCC...',
+    '......ExxxxxCE..FzvvuxE....',
+    '......EurrxxCr..FAvvrAE....',
+    '.....rArrruxHC..HzuvutE....',
+    '.....EAAxxrwEC..FxvzAzE....',
+    '.....EAHEBrAE...FzzwBBF....',
+    '.....yysssBBB...FByysqqE...',
+    '.....BsqqlqE....FssqqqqqEB.',
+    '....FlkklqqF....FwssqllllE.',
+    '....FvqqqvyF....FEBysssssB.',
+    '....FyyyyyEt....CCrEFFFFFF.',
+  ],
+  cheer: [
+    '..................yyym................',
+    '..............fEFFnnpoEg..............',
+    '.............EEjonjjffjyF......FgF....',
+    '............HmfffnfghgffrH.....FigByy.',
+    '............pfhefeneeechgF.....FgkqlkB',
+    '......BB...FjnhhmsqsqoehhjF....Fgyqqly',
+    '.....qiB..ECnjrjqlkkiiqhpjF....Biskkil',
+    '.hFFyiiB..EohorllkkkkkkppoF....Bisqkkl',
+    '.siiklli..FompllkklkkklllpF....Bqlslkl',
+    'Fiiiqqqn..HrhollkkilllkklqE....yylslkF',
+    'Fiilqqqm..FBssqsrrilkllpryF...EegsqsFw',
+    'FiklsqE...FpssywBByysywyyyF...Hecehjrp',
+    'Fkklsy....ElslykpBkylymiqyF..EedenptF.',
+    'Fyqqsy.....BllllklskilqkkyE.oCaaabfjH.',
+    'FnyyBn.....EwiklklqlilqlkBjzEnaaabemH.',
+    'HmhefmE.....FoikkllqqqqliEFwhmfabdhry.',
+    'odfhfeE.EEwrEBfkkikkkklliEfbbdfebdjw..',
+    'oebbbbnwndffjwoghkqqqqlmmjbbdbbhhjmF..',
+    'ofabbbjmdaafhjomgkillkintjbdddehhjzm..',
+    'ohbabbhfbaabfcawrhhffgjzmmebbefhhnF...',
+    'HmdbbfeeddbdhvbdfwogggAhfmjfhfjjmE....',
+    'HnhdffdbddehhojrrnwsssBrrpfmhjjmCf....',
+    'EwjhjfjddejmffnhhomrpqnmeeewmmoHn.....',
+    '.EtnjjhhjmnpjdabddfnfpngssjCtEHj......',
+    '..EHtmmjjnzmdfhhhhehppffqsnjF.........',
+    '....nFHHEEpjdjhffhfdfneeejfjF.........',
+    '.........CmmjfdaaahddjeefffoH.........',
+    '.........Cjmmhhfffbbbbhbddddpm........',
+    '........FwjfdddbbbbbbbfdddddgE........',
+    '........Fojddbbbbbbbbbdddddddo........',
+    '........Hnhdbbbbbbbbbbbfdddddo........',
+    '........Hnjfbbbbbbbbbdbmddddhr........',
+    '........Hpnjhbbbbbbbbdbmdddfmw........',
+    '........rCnnmjjbbbbbbbbmefhnnH........',
+    '.........CAojnnffbbbbbmhemjnCw........',
+    '.........CAxCrrmjjhhjhmjjozAAzw.......',
+    '.........EzxxAxzACAAAAAzAAvuuuzr......',
+    '.........EAxzxvuvvuuvwzvvvvuuuvCn.....',
+    '..........CxzuuuturrxxzxvvvuuuuwE.....',
+    '..........AxuuuuxxxzAACAxuuuuuuuzt....',
+    '..........CvuuuruwABCCAAAxvuuuuuvE....',
+    '..........CuuuuuvxCEm.BCCAzwvuuuvE....',
+    '..........EuuuuvuvHE...tCAAxxxvuxF....',
+    '.........BCuuuuuuxE....tCAxxxxxxB.....',
+    '.........HwuuuuuuAr...CBAxxxxxxCC.....',
+    '.........HwuuuuuxC....CzzxxxxzCF......',
+    '.........FuuuurxAE...EwAxxxxxCF.......',
+    '.........ExuuuvxAE...FwzxzAAAE........',
+    '.........CAxwvxxAC...FyqBzxAEt........',
+    '..........CxxxxxAAC..ryqqszCt.........',
+    '..........EzxxxxxAE...EqlsqB..........',
+    '..........tAxxxxxAE...yqqqqyF.........',
+    '...........CxxxxxxE...CwlllkB.........',
+    '...........EAxxAxxCC...CyqllB.........',
+    '...........CCAAxxAyF....HyssF.........',
+    '............CAACBwyF..................',
+    '.............ByssqyE..................',
+    '............zyssqsB...................',
+    '............FssqqsF...................',
+    '............ylllqsF...................',
+    '............ykklsFr...................',
+    '............EqqsBF....................',
+    '............yFFFy.....................',
   ],
 };
-const CHAR_PAL = { a: '#ecf6f8', b: '#eaf4f6', c: '#e9f2f5', d: '#e5f0f3', e: '#d7e0e3', f: '#bec6cb', g: '#f2b18a', h: '#acb5bb', i: '#dd9d7d', j: '#c38266', k: '#969da3', l: '#8f7d76', m: '#946859', n: '#7e5044', o: '#454b5e', p: '#543f40', q: '#55332f', r: '#384059', s: '#3c2c2f', t: '#2a344f', u: '#27293c', v: '#212233', w: '#22161c', x: '#181522', y: '#13131f', z: '#0c0e1a', A: '#08080f', B: '#070408', G: '#f4cf55', W: '#fff6c8', D: '#2b2f3a', Y: '#ffffff' };
-const CHAR_W = 28;
-const CHAR_H = 48;
-const CHAR_STEP = 15; // pixel percorsi dal corpo in un passo: tiene il piede d'appoggio fermo a terra
+const CHAR_PAL = { a: '#e5f4f6', b: '#def2f2', c: '#e1eef0', d: '#daedef', e: '#d5e0e3', f: '#c3d1d5', g: '#c4bfbd', h: '#aab8be', i: '#c7a89d', j: '#9ba7ad', k: '#c29587', l: '#ae7767', m: '#8d9aa1', n: '#848c92', o: '#76797e', p: '#6d6364', q: '#704d46', r: '#404655', s: '#51302c', t: '#323448', u: '#2c3856', v: '#272f48', w: '#212336', x: '#181e38', y: '#211218', z: '#131427', A: '#0e1226', B: '#0c0811', C: '#050811', E: '#030308', F: '#020105', H: '#000105', G: '#f4cf55', W: '#fff6c8', D: '#2b2f3a', Y: '#ffffff' };
+const CHAR_W = 30;
+const CHAR_H = 54;
+const CHAR_STEP = 16; // pixel percorsi dal corpo in un passo: tiene il piede d'appoggio fermo a terra
 const CHAR_FRAMES = 12; // fotogrammi per passo
 const CHAR_CYCLE = CHAR_FRAMES * 2; // il ciclo completo sono due passi (le braccia si scambiano)
-const LEG_TOP = 39;
-
-const charBlank = () => Array.from({ length: CHAR_H }, () => Array(CHAR_W).fill('.'));
-const charPut = (out, x, y, c) => {
-  if (c && c !== '.' && x >= 0 && x < CHAR_W && y >= 0 && y < CHAR_H) out[y][x] = c;
-};
-function charRuns(str) {
-  const r = [];
-  let s = -1;
-  for (let x = 0; x <= str.length; x++) {
-    const on = x < str.length && str[x] !== '.';
-    if (on && s < 0) s = x;
-    if (!on && s >= 0) {
-      r.push([s, x - 1]);
-      s = -1;
-    }
-  }
-  return r;
-}
-// ---- Gambe: dal bacino (riga 34) al piede (riga 47), coscia compresa ----
-// Ogni gamba ha tre posizioni chiave per riga: dietro (u = -1), sotto il bacino (u = 0) e davanti (u = +1);
-// in mezzo si interpolano gli estremi della riga, quindi coscia, ginocchio e piede si muovono insieme.
-const HIP_Y = 34; // prima riga della coscia (sopra c'è il busto)
+const HIP_Y = 40; // prima riga delle gambe (sopra c'è il busto con la pancia)
+const KNEE_Y = 46;
 const FOOT_Y = CHAR_H - 1;
-const HIP_X = 12; // colonna che separa la gamba dietro da quella davanti nelle cosce
+const STRIDE = 8; // spostamento del piede avanti/indietro rispetto a sotto il bacino
+const SIDE_X = 5; // la posa di profilo è stretta: la si centra nella tela
+const FRONT_X = 1;
 
-function charLegSet(poseRows, footRows) {
-  const rows = [];
-  for (let y = HIP_Y; y <= FOOT_Y; y++) {
-    if (y < LEG_TOP) {
-      const r = charRuns(poseRows[y]);
-      const l = r[0][0];
-      const rr = r[r.length - 1][1];
-      rows.push({ y, row: poseRows[y], back: [l, HIP_X], front: [HIP_X + 1, rr] });
-    } else {
-      const r = charRuns(footRows[y]);
-      rows.push({ y, row: footRows[y], back: r[0], front: r[r.length - 1] });
-    }
-  }
-  return rows;
-}
-const LEGS_A = charLegSet(CHAR_POSES.stepA, CHAR_POSES.stepA);
-const LEGS_B = charLegSet(CHAR_POSES.stepA, CHAR_POSES.stepB);
-
-// Gamba verticale sotto il bacino: coscia un po' più stretta del bacino, poi il piede della gamba davanti
-const legRest = (e) => {
-  if (e.y < LEG_TOP) {
-    const t = (e.y - HIP_Y) / (LEG_TOP - HIP_Y);
-    return [Math.round(7 + 2 * t), Math.round(18 - 2 * t)];
-  }
-  return [e.front[0] - 4, e.front[1] - 4];
+const charBlank = (w = CHAR_W, h = CHAR_H) => Array.from({ length: h }, () => Array(w).fill('.'));
+const charPut = (out, x, y, c) => {
+  if (c && c !== '.' && y >= 0 && y < out.length && x >= 0 && x < out[0].length) out[y][x] = c;
 };
-
-// u: -1 dietro .. +1 davanti; lift: righe di sollevamento del piede; il ginocchio va avanti e il piede resta indietro
-function charLeg(out, set, u, lift) {
-  const fwd = Math.round(lift * 0.6);
-  const bend = Math.round(lift * 0.7);
-  const t = Math.abs(u);
-  for (const e of set) {
-    const rest = legRest(e);
-    const src = u >= 0 ? e.front : e.back;
-    let sh;
-    if (e.y <= LEG_TOP) sh = (fwd * (e.y - HIP_Y)) / (LEG_TOP - HIP_Y); // il ginocchio avanza
-    else sh = fwd - ((fwd + bend) * (e.y - LEG_TOP)) / (FOOT_Y - LEG_TOP); // la caviglia torna indietro
-    const tl = Math.round(rest[0] + (src[0] - rest[0]) * t + sh);
-    const tr = Math.round(rest[1] + (src[1] - rest[1]) * t + sh);
-    const tw = Math.max(1, tr - tl);
-    const sw = src[1] - src[0];
-    const dy = lift > 0 ? Math.round((lift * Math.min(1, (e.y - HIP_Y + 1) / (FOOT_Y - HIP_Y + 1)))) : 0;
-    for (let x = tl; x <= tr; x++) charPut(out, x + 1, e.y - dy, e.row[src[0] + Math.round(((x - tl) * sw) / tw)]);
-  }
-}
-
 const charStamp = (out, rows, offX, y0, y1, dy) => {
   for (let y = y0; y <= y1; y++) for (let x = 0; x < rows[y].length; x++) charPut(out, x + offX, y + dy, rows[y][x]);
 };
+const charHex = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
+// La gamba lontana è la stessa, più scura (si ricava il colore più vicino della tavolozza)
+const CHAR_FAR = (() => {
+  const keys = Object.keys(CHAR_PAL).filter((k) => !'GWDY'.includes(k));
+  const rgb = Object.fromEntries(keys.map((k) => [k, charHex(CHAR_PAL[k])]));
+  const map = {};
+  for (const k of keys) {
+    const t = rgb[k].map((v) => v * 0.7);
+    let best = k;
+    let bd = Infinity;
+    for (const j of keys) {
+      const d = rgb[j].reduce((a, v, i) => a + (v - t[i]) ** 2, 0);
+      if (d < bd) {
+        bd = d;
+        best = j;
+      }
+    }
+    map[k] = best;
+  }
+  return map;
+})();
+
+// Gamba di profilo (righe 40..53 della posa): un intervallo per riga, spostato in orizzontale a ogni passo
+const LEG_ROWS = CHAR_POSES.sideB.slice(HIP_Y).map((row, i) => {
+  let l = 0;
+  let r = row.length - 1;
+  while (row[l] === '.') l++;
+  while (row[r] === '.') r--;
+  return { y: HIP_Y + i, row, l, r };
+});
+
+// u: -1 dietro .. +1 davanti; lift: righe di sollevamento del piede; il ginocchio va avanti e il piede resta indietro
+function charLeg(out, u, lift, far) {
+  const fwd = Math.round(lift * 0.6);
+  const bend = Math.round(lift * 0.8);
+  for (const e of LEG_ROWS) {
+    const f = (e.y - HIP_Y) / (FOOT_Y - HIP_Y);
+    const knee = e.y <= KNEE_Y ? (fwd * (e.y - HIP_Y)) / (KNEE_Y - HIP_Y) : fwd - ((fwd + bend) * (e.y - KNEE_Y)) / (FOOT_Y - KNEE_Y);
+    const sh = Math.round(u * STRIDE * f + knee);
+    const dy = lift > 0 ? Math.round(lift * Math.min(1, (e.y - HIP_Y + 1) / (FOOT_Y - HIP_Y + 1))) : 0;
+    for (let x = e.l; x <= e.r; x++) {
+      const c = e.row[x];
+      charPut(out, x + sh + SIDE_X, e.y - dy, far && c !== '.' ? CHAR_FAR[c] : c);
+    }
+  }
+}
 
 // Gamba nella fase phi (0..1) di un ciclo di due passi: appoggio da +1 (davanti) a -1 (dietro),
 // poi oscillazione col ginocchio piegato fino al nuovo contatto.
 function legAt(phi) {
-  if (phi < 0.5) {
-    const u = 1 - 4 * phi;
-    if (phi < 0.06) return { set: LEGS_A, u, lift: 0 }; // tallone a terra
-    return { set: u >= 0 ? LEGS_B : LEGS_A, u, lift: 0 }; // piede piatto, poi si stacca da dietro
-  }
+  if (phi < 0.5) return { u: 1 - 4 * phi, lift: 0 };
   const p = phi - 0.5;
-  const u = -1 + 4 * p;
-  const lift = Math.round(3 * Math.sin(Math.PI * clamp((p - 0.02) / 0.46, 0, 1)));
-  if (p < 0.12) return { set: LEGS_B, u, lift }; // spinta: tallone alzato
-  if (u < 0) return { set: LEGS_A, u, lift };
-  if (p < 0.43) return { set: LEGS_B, u, lift };
-  return { set: LEGS_A, u, lift: 0 };
+  return { u: -1 + 4 * p, lift: Math.round(3 * Math.sin(Math.PI * clamp((p - 0.02) / 0.46, 0, 1))) };
 }
 
 // k = 0..CHAR_CYCLE-1: due passi (le braccia si scambiano tra il primo e il secondo).
-// Busto: sale e scende, la testa lo segue con un attimo di ritardo e si china in avanti al contatto;
-// le mani oscillano in opposizione alle gambe.
+// Busto: sale e scende, la testa lo segue con un attimo di ritardo e va avanti al contatto;
+// la mano vicina oscilla in opposizione alla gamba vicina.
 function buildWalkFrame(k) {
   const psi = (k % CHAR_CYCLE) / CHAR_CYCLE;
   const out = charBlank();
-  const l1 = legAt(psi);
-  const l2 = legAt((psi + 0.5) % 1);
-  // la gamba che oscilla va disegnata sopra quella d'appoggio
-  const order = psi < 0.5 ? [l1, l2] : [l2, l1];
-  for (const l of order) charLeg(out, l.set, l.u, l.lift);
+  const near = legAt(psi);
+  const far = legAt((psi + 0.5) % 1);
+  charLeg(out, far.u, far.lift, true); // lontana prima, vicina sopra
+  charLeg(out, near.u, near.lift, false);
 
   const stepT = (psi * 2) % 1; // posizione nel passo
   const up = (t) => {
@@ -1505,32 +1623,21 @@ function buildWalkFrame(k) {
   const bob = up(stepT) ? 1 : 0;
   const headBob = up(stepT - 0.08) ? 1 : 0;
   const nod = stepT < 0.25 || stepT > 0.9 ? 1 : 0; // la testa va avanti di un pixel al contatto
-  const S = CHAR_POSES.stepA;
-
-  // busto (righe 0..33), senza le mani che oscillano
-  const near = { x0: 8, x1: 14, y0: 28, y1: 33 };
-  const far = { x0: 16, x1: 20, y0: 27, y1: 33 };
-  const inBlock = (b, x, y) => x >= b.x0 && x <= b.x1 && y >= b.y0 && y <= b.y1;
-  for (let y = 17; y <= 19; y++) for (let x = 0; x < S[y].length; x++) charPut(out, x + 1, y, S[y][x]); // base del collo: nessuno spiraglio tra testa e busto
+  const S = CHAR_POSES.sideB;
+  const HAND = { x0: 3, x1: 10, y0: 35, y1: 39 };
+  const inHand = (x, y) => x >= HAND.x0 && x <= HAND.x1 && y >= HAND.y0 && y <= HAND.y1;
+  for (let y = 15; y <= 17; y++) for (let x = 0; x < S[y].length; x++) charPut(out, x + SIDE_X, y, S[y][x]); // base del collo: nessuno spiraglio
   for (let y = 0; y < HIP_Y; y++) {
-    const dy = y <= 17 ? -headBob : -bob;
-    const dx = y <= 15 ? nod : 0;
+    const dy = y <= 16 ? -headBob : -bob;
+    const dx = y <= 14 ? nod : 0;
     for (let x = 0; x < S[y].length; x++) {
-      let c = S[y][x];
-      if (inBlock(near, x, y)) c = (y >= 31 && x <= 11 ? S[y][7] : S[y][15]) || '.'; // dove c'era la mano: si vede il busto
-      else if (inBlock(far, x, y)) c = x <= 17 ? S[y][15] || '.' : '.';
-      charPut(out, x + 1 + dx, y + dy, c);
+      const c = inHand(x, y) ? S[y][11] || '.' : S[y][x]; // dove c'era la mano: si vede il busto
+      charPut(out, x + SIDE_X + dx, y + dy, c);
     }
   }
-  if (bob) for (let x = 0; x < S[HIP_Y - 1].length; x++) charPut(out, x + 1, HIP_Y - 1, S[HIP_Y - 1][x]); // chiude il vuoto in vita
-
-  // mani: quella vicina va avanti quando la gamba vicina è indietro; la lontana al contrario
+  if (bob) for (let x = 0; x < S[HIP_Y - 1].length; x++) charPut(out, x + SIDE_X, HIP_Y - 1, S[HIP_Y - 1][x]); // chiude il vuoto in vita
   const sw = -Math.round(2 * Math.cos(2 * Math.PI * psi));
-  const hand = (b, dx, dy) => {
-    for (let y = b.y0; y <= b.y1; y++) for (let x = b.x0; x <= b.x1; x++) charPut(out, x + 1 + dx, y - bob + dy, S[y][x]);
-  };
-  hand(far, -sw, 0);
-  hand(near, sw, sw > 0 ? -1 : 0);
+  for (let y = HAND.y0; y <= HAND.y1; y++) for (let x = HAND.x0; x <= HAND.x1; x++) charPut(out, x + SIDE_X + sw, y - bob + (sw > 0 ? -1 : 0), S[y][x]);
   return out;
 }
 
@@ -1538,39 +1645,40 @@ function buildWalkFrame(k) {
 function buildFrontFrame(p) {
   const S = CHAR_POSES.front;
   const out = charBlank();
-  const X = 2;
   for (let y = 0; y < CHAR_H; y++) {
     for (let x = 0; x < S[y].length; x++) {
-      if (p.watch && y >= 25 && x >= 18) continue; // l'avambraccio viene ridisegnato sotto
-      charPut(out, x + X, y, S[y][x]);
+      if (p.watch && y >= 29 && x >= 22) continue; // l'avambraccio viene ridisegnato sotto
+      charPut(out, x + FRONT_X, y, S[y][x]);
     }
   }
   if (p.watch) {
-    const Y0 = 24;
-    for (let v = 0; v < 10; v++) for (let u = 0; u < 5; u++) charPut(out, 22 - v + X, Y0 + u, S[24 + v][18 + u]);
-    for (let j = 0; j < 5; j++) charPut(out, 20 + X, Y0 + j, 'D'); // cinturino
+    const Y0 = 27;
+    for (let v = 0; v < 12; v++) for (let u = 0; u < 5; u++) charPut(out, 26 - v + FRONT_X, Y0 + u + 1, S[29 + v][22 + u]);
+    for (let j = 0; j < 5; j++) charPut(out, 23 + FRONT_X, Y0 + 1 + j, 'D'); // cinturino
     for (let j = 1; j <= 3; j++) {
-      charPut(out, 18 + X, Y0 + j, 'G');
-      charPut(out, 19 + X, Y0 + j, 'G');
+      charPut(out, 21 + FRONT_X, Y0 + 1 + j, 'G');
+      charPut(out, 22 + FRONT_X, Y0 + 1 + j, 'G');
     }
-    charPut(out, 19 + X, Y0 + 2, p.glint ? 'Y' : 'W');
+    charPut(out, 22 + FRONT_X, Y0 + 3, p.glint ? 'Y' : 'W');
   }
   return out;
 }
 const buildBackFrame = () => {
   const out = charBlank();
-  charStamp(out, CHAR_POSES.back, 2, 0, CHAR_H - 1, 0);
+  charStamp(out, CHAR_POSES.back, FRONT_X, 0, CHAR_H - 1, 0);
   return out;
 };
+// Stordito (con le stelle) ed esultante (pollici in su): pose intere, di dimensioni proprie
+const buildHurtFrame = () => CHAR_POSES.hurt.map((r) => r.split(''));
+const buildCheerFrame = () => CHAR_POSES.cheer.map((r) => r.split(''));
 
-
-// Posa abbassata (alta 40 px): stesse gambe della camminata, busto accorciato di 8 righe e testa/spalle in avanti
-const CROUCH_DROP = new Set([20, 21, 22, 23, 24, 25, 26, 27]);
+// Posa abbassata (alta 44 px): stesse gambe della camminata, busto accorciato di 10 righe e testa/spalle in avanti
+const CROUCH_DROP = new Set([24, 25, 26, 27, 28, 29, 30, 31, 32, 33]);
 function buildCrouchFrame(k) {
   const rows = [];
   buildWalkFrame(k).forEach((r, y) => {
     if (CROUCH_DROP.has(y)) return;
-    if (y >= 20) return rows.push(r);
+    if (y >= 24) return rows.push(r);
     const lean = Array(CHAR_W).fill('.'); // righe di testa e spalle: 2 pixel avanti
     for (let x = 0; x < CHAR_W - 2; x++) lean[x + 2] = r[x];
     rows.push(lean);
@@ -1586,22 +1694,23 @@ const CAMP_KEY = 'magazzino-minigame-campaign';
 const C_GRAV = 300;
 const C_JUMP = 160; // velocità iniziale del salto: altezza massima ~43 px, in aria ~1 s
 const C_HIT_HALF = 4; // metà larghezza del corpo che può essere colpito
-const C_H_STAND = 44;
-const C_H_DUCK = 34; // sprite abbassato: 40 px
+const C_H_STAND = 50;
+const C_H_DUCK = 42; // sprite abbassato: 44 px
 const C_DUCK_SPEED = 0.5;
 const C_INV = 1.4; // secondi di invulnerabilità dopo un colpo
 const DOOR_GAP = 6; // distanza della porta dal traguardo
-const DOOR_W = 34;
-const DOOR_H = 60; // più alta del personaggio (48 px)
+const DOOR_W = 38;
+const DOOR_H = 68; // più alta del personaggio (54 px)
+const WIN_CHEER = 0.9; // secondi di esultanza prima di girarsi verso la porta
 const WIN_WALK = 1.0; // secondi per entrare nella porta
 const PRESS = { T: 2.0, up0: 0.3, warn0: 1.25, slam0: 1.65, slam1: 1.77, w: 22 };
 
 // Altezza (dal pavimento) del bordo basso della pressa nell'istante tp del suo ciclo
 function pressBottom(tp) {
-  if (tp < PRESS.up0) return 62 * (tp / PRESS.up0); // risale dopo la battuta
-  if (tp < PRESS.warn0) return 62; // alta: si passa
-  if (tp < PRESS.slam0) return 62 - 28 * ((tp - PRESS.warn0) / (PRESS.slam0 - PRESS.warn0)); // avviso: scende piano, lampeggia
-  if (tp < PRESS.slam1) return 34 * (1 - (tp - PRESS.slam0) / (PRESS.slam1 - PRESS.slam0)); // battuta
+  if (tp < PRESS.up0) return 72 * (tp / PRESS.up0); // risale dopo la battuta
+  if (tp < PRESS.warn0) return 72; // alta: si passa
+  if (tp < PRESS.slam0) return 72 - 28 * ((tp - PRESS.warn0) / (PRESS.slam0 - PRESS.warn0)); // avviso: scende piano, lampeggia
+  if (tp < PRESS.slam1) return 44 * (1 - (tp - PRESS.slam0) / (PRESS.slam1 - PRESS.slam0)); // battuta
   return 0; // a terra
 }
 
@@ -1609,7 +1718,7 @@ const OB = {
   crate: (x) => ({ k: 'crate', x, w: 14, lo: 0, hi: 14 }),
   tall: (x) => ({ k: 'tall', x, w: 12, lo: 0, hi: 20 }),
   oil: (x) => ({ k: 'oil', x, w: 18, lo: 0, hi: 3 }),
-  beam: (x) => ({ k: 'beam', x, w: 38, lo: 38, hi: 50 }),
+  beam: (x) => ({ k: 'beam', x, w: 38, lo: 46, hi: 58 }),
   // o (scostamento del ciclo) si calcola dopo, in base a quando arriva il personaggio
   press: (x) => ({ k: 'press', x, w: PRESS.w, lo: 0, hi: 300, o: 0, tp: 0 }),
 };
@@ -3661,7 +3770,7 @@ function launchGame({ fx = null } = {}) {
     const inp = { jump: campIn.jumpQ, crouch: campIn.crouch };
     campIn.jumpQ = false;
     for (const e of campStep(camp, dt, inp)) campEvent(e);
-    if (!campDone && ((camp.state === 'win' && camp.endT > 1.3) || (camp.state === 'dead' && camp.endT > 0.9))) {
+    if (!campDone && ((camp.state === 'win' && camp.endT > WIN_CHEER + WIN_WALK + 0.3) || (camp.state === 'dead' && camp.endT > 0.9))) {
       campDone = true;
       showCampResult(camp.state === 'win');
     }
@@ -3707,7 +3816,8 @@ function launchGame({ fx = null } = {}) {
 
   // ----- Disegno della Campagna -----
   function playerFrame(c) {
-    if (c.state === 'dead' || g.state === 'intro') return charFrame('front', () => buildFrontFrame({}));
+    if (c.state === 'dead' || (c.state === 'run' && c.inv > C_INV - 0.55)) return charFrame('hurt', buildHurtFrame); // stordito dopo un colpo
+    if (g.state === 'intro') return charFrame('front', () => buildFrontFrame({}));
     if (c.pf > 0) return charFrame('jump', () => buildWalkFrame(6)); // in aria: gamba piegata e braccia in opposizione
     if (c.duck) {
       const k = Math.floor(((c.walkD % (CHAR_STEP * 2)) / (CHAR_STEP * 2)) * CHAR_CYCLE) % CHAR_CYCLE;
@@ -3917,25 +4027,45 @@ function launchGame({ fx = null } = {}) {
     }
 
     // personaggio
-    if (c.state !== 'win' || c.endT < WIN_WALK) {
-      const frame = c.state === 'win' ? charFrame('back', buildBackFrame) : playerFrame(c);
-      const blink = c.inv > 0 && c.state === 'run' && Math.floor(c.t * 14) % 2 === 0;
+    const winT = c.endT - WIN_CHEER; // dopo l'esultanza: di schiena verso la porta
+    if (c.state !== 'win' || winT < WIN_WALK) {
+      const frame =
+        c.state === 'win' ? (winT < 0 ? charFrame('cheer', buildCheerFrame) : charFrame('back', buildBackFrame)) : playerFrame(c);
+      const blink = c.inv > 0 && c.state === 'run' && c.inv <= C_INV - 0.55 && Math.floor(c.t * 14) % 2 === 0;
       if (!blink) {
         const feet = fy - Math.round(c.pf);
         if (c.state === 'dead') {
-          ctx.save();
-          ctx.translate(px, fy);
-          ctx.rotate((Math.PI / 2) * Math.min(1, c.endT / 0.3));
-          ctx.drawImage(frame, -14, -CHAR_H);
-          ctx.restore();
+          ctx.drawImage(frame, Math.round(px - frame.width / 2), fy - frame.height);
+          // stelline che girano attorno alla testa
+          for (let i = 0; i < 3; i++) {
+            const an = c.endT * 6 + (i * Math.PI * 2) / 3;
+            const sx = Math.round(px + Math.cos(an) * 12);
+            const sy = Math.round(fy - frame.height + 3 + Math.sin(an) * 3);
+            ctx.fillStyle = '#ffe27a';
+            ctx.fillRect(sx - 1, sy, 3, 1);
+            ctx.fillRect(sx, sy - 1, 1, 3);
+          }
+        } else if (c.state === 'win' && winT < 0) {
+          const hop = Math.round(Math.abs(Math.sin(c.endT * 9)) * 4);
+          ctx.drawImage(frame, Math.round(px - frame.width / 2), fy - frame.height - hop + 3);
         } else {
-          // vittoria: di schiena verso la porta, con un passetto ogni 0,12 s; svanisce quando è sulla soglia
-          const e = clamp(c.endT / WIN_WALK, 0, 1);
+          // di schiena verso la porta, con un passetto ogni 0,12 s; svanisce quando è sulla soglia
+          const e = clamp(winT / WIN_WALK, 0, 1);
           const walkIn = c.state === 'win' ? (c.len + DOOR_GAP + DOOR_W / 2 - c.x) * (1 - (1 - e) * (1 - e)) : 0;
-          const step = c.state === 'win' && Math.floor(c.endT / 0.12) % 2 ? 1 : 0;
+          const step = c.state === 'win' && Math.floor(winT / 0.12) % 2 ? 1 : 0;
           ctx.globalAlpha = c.state === 'win' ? 1 - clamp((e - 0.55) / 0.45, 0, 1) : 1;
-          ctx.drawImage(frame, Math.round(px - 14 + walkIn), feet - CHAR_H - step);
+          ctx.drawImage(frame, Math.round(px - 14.5 + walkIn), feet - frame.height - step);
           ctx.globalAlpha = 1;
+          if (c.state === 'run' && c.inv > C_INV - 0.55) {
+            for (let i = 0; i < 3; i++) {
+              const an = c.t * 8 + (i * Math.PI * 2) / 3;
+              const sx = Math.round(px + Math.cos(an) * 11);
+              const sy = Math.round(feet - frame.height + 2 + Math.sin(an) * 3);
+              ctx.fillStyle = '#ffe27a';
+              ctx.fillRect(sx - 1, sy, 3, 1);
+              ctx.fillRect(sx, sy - 1, 1, 3);
+            }
+          }
         }
       }
     }
@@ -4080,10 +4210,11 @@ function launchGame({ fx = null } = {}) {
     let cv = frameCache.get(key);
     if (!cv) {
       cv = document.createElement('canvas');
-      cv.width = CHAR_W;
-      cv.height = CHAR_H;
+      const grid = build();
+      cv.width = grid[0].length;
+      cv.height = grid.length;
       const c = cv.getContext('2d');
-      build().forEach((row, y) =>
+      grid.forEach((row, y) =>
         row.forEach((ch, x) => {
           if (ch === '.') return;
           c.fillStyle = CHAR_PAL[ch];
