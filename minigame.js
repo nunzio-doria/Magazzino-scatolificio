@@ -1410,43 +1410,79 @@ function charRuns(str) {
   }
   return r;
 }
-// Per ogni riga delle gambe: la gamba dietro (prima sequenza) e quella davanti (ultima)
-const charLegs = (rows) =>
-  rows.slice(LEG_TOP).map((row, i) => {
-    const r = charRuns(row);
-    return { y: LEG_TOP + i, row, back: r[0], front: r[r.length - 1] };
-  });
-const LEGS_A = charLegs(CHAR_POSES.stepA);
-const LEGS_B = charLegs(CHAR_POSES.stepB);
+// ---- Gambe: dal bacino (riga 34) al piede (riga 47), coscia compresa ----
+// Ogni gamba ha tre posizioni chiave per riga: dietro (u = -1), sotto il bacino (u = 0) e davanti (u = +1);
+// in mezzo si interpolano gli estremi della riga, quindi coscia, ginocchio e piede si muovono insieme.
+const HIP_Y = 34; // prima riga della coscia (sopra c'è il busto)
+const FOOT_Y = CHAR_H - 1;
+const HIP_X = 12; // colonna che separa la gamba dietro da quella davanti nelle cosce
 
-function charLeg(out, legs, which, shift, lift, bend = 0) {
-  for (const it of legs) {
-    const [l, r] = it[which];
-    const sh = shift - (it.y >= 43 ? bend : 0); // polpaccio e piede indietro: ginocchio piegato
-    for (let x = l; x <= r; x++) charPut(out, x + sh + 1, it.y - lift, it.row[x]);
+function charLegSet(poseRows, footRows) {
+  const rows = [];
+  for (let y = HIP_Y; y <= FOOT_Y; y++) {
+    if (y < LEG_TOP) {
+      const r = charRuns(poseRows[y]);
+      const l = r[0][0];
+      const rr = r[r.length - 1][1];
+      rows.push({ y, row: poseRows[y], back: [l, HIP_X], front: [HIP_X + 1, rr] });
+    } else {
+      const r = charRuns(footRows[y]);
+      rows.push({ y, row: footRows[y], back: r[0], front: r[r.length - 1] });
+    }
+  }
+  return rows;
+}
+const LEGS_A = charLegSet(CHAR_POSES.stepA, CHAR_POSES.stepA);
+const LEGS_B = charLegSet(CHAR_POSES.stepA, CHAR_POSES.stepB);
+
+// Gamba verticale sotto il bacino: coscia un po' più stretta del bacino, poi il piede della gamba davanti
+const legRest = (e) => {
+  if (e.y < LEG_TOP) {
+    const t = (e.y - HIP_Y) / (LEG_TOP - HIP_Y);
+    return [Math.round(7 + 2 * t), Math.round(18 - 2 * t)];
+  }
+  return [e.front[0] - 4, e.front[1] - 4];
+};
+
+// u: -1 dietro .. +1 davanti; lift: righe di sollevamento del piede; il ginocchio va avanti e il piede resta indietro
+function charLeg(out, set, u, lift) {
+  const fwd = Math.round(lift * 0.6);
+  const bend = Math.round(lift * 0.7);
+  const t = Math.abs(u);
+  for (const e of set) {
+    const rest = legRest(e);
+    const src = u >= 0 ? e.front : e.back;
+    let sh;
+    if (e.y <= LEG_TOP) sh = (fwd * (e.y - HIP_Y)) / (LEG_TOP - HIP_Y); // il ginocchio avanza
+    else sh = fwd - ((fwd + bend) * (e.y - LEG_TOP)) / (FOOT_Y - LEG_TOP); // la caviglia torna indietro
+    const tl = Math.round(rest[0] + (src[0] - rest[0]) * t + sh);
+    const tr = Math.round(rest[1] + (src[1] - rest[1]) * t + sh);
+    const tw = Math.max(1, tr - tl);
+    const sw = src[1] - src[0];
+    const dy = lift > 0 ? Math.round((lift * Math.min(1, (e.y - HIP_Y + 1) / (FOOT_Y - HIP_Y + 1)))) : 0;
+    for (let x = tl; x <= tr; x++) charPut(out, x + 1, e.y - dy, e.row[src[0] + Math.round(((x - tl) * sw) / tw)]);
   }
 }
+
 const charStamp = (out, rows, offX, y0, y1, dy) => {
   for (let y = y0; y <= y1; y++) for (let x = 0; x < rows[y].length; x++) charPut(out, x + offX, y + dy, rows[y][x]);
 };
 
-// Gamba nella fase phi (0..1) di un ciclo completo di due passi: appoggio da +1 (davanti) a -1 (dietro),
-// poi oscillazione col ginocchio piegato (piede alzato e arretrato) fino al nuovo contatto.
+// Gamba nella fase phi (0..1) di un ciclo di due passi: appoggio da +1 (davanti) a -1 (dietro),
+// poi oscillazione col ginocchio piegato fino al nuovo contatto.
 function legAt(phi) {
   if (phi < 0.5) {
     const u = 1 - 4 * phi;
-    if (phi < 0.06) return { legs: LEGS_A, which: 'front', shift: Math.round(-8 * (1 - u)), lift: 0, bend: 0 }; // tallone a terra
-    if (u >= 0) return { legs: LEGS_B, which: 'front', shift: Math.round(-8 * (1 - u)), lift: 0, bend: 0 }; // piede piatto, il corpo ci passa sopra
-    return { legs: LEGS_A, which: 'back', shift: Math.round(7.5 * (1 + u)), lift: 0, bend: 0 };
+    if (phi < 0.06) return { set: LEGS_A, u, lift: 0 }; // tallone a terra
+    return { set: u >= 0 ? LEGS_B : LEGS_A, u, lift: 0 }; // piede piatto, poi si stacca da dietro
   }
   const p = phi - 0.5;
   const u = -1 + 4 * p;
   const lift = Math.round(3 * Math.sin(Math.PI * clamp((p - 0.02) / 0.46, 0, 1)));
-  const bend = Math.round(lift * 0.7); // il piede resta indietro rispetto al ginocchio
-  if (p < 0.12) return { legs: LEGS_B, which: 'back', shift: Math.round(7.5 * (1 + u)), lift, bend }; // spinta: tallone alzato
-  if (u < 0) return { legs: LEGS_A, which: 'back', shift: Math.round(7.5 * (1 + u)), lift, bend };
-  if (p < 0.43) return { legs: LEGS_B, which: 'front', shift: Math.round(-8 * (1 - u)), lift, bend };
-  return { legs: LEGS_A, which: 'front', shift: Math.round(-8 * (1 - u)), lift: 0, bend: 0 };
+  if (p < 0.12) return { set: LEGS_B, u, lift }; // spinta: tallone alzato
+  if (u < 0) return { set: LEGS_A, u, lift };
+  if (p < 0.43) return { set: LEGS_B, u, lift };
+  return { set: LEGS_A, u, lift: 0 };
 }
 
 // k = 0..CHAR_CYCLE-1: due passi (le braccia si scambiano tra il primo e il secondo).
@@ -1457,43 +1493,36 @@ function buildWalkFrame(k) {
   const out = charBlank();
   const l1 = legAt(psi);
   const l2 = legAt((psi + 0.5) % 1);
-  const stanceFirst = psi % 0.5 < 0.25 ? 1 : 2;
-  const draw = (l) => charLeg(out, l.legs, l.which, l.shift, l.lift, l.bend);
   // la gamba che oscilla va disegnata sopra quella d'appoggio
-  if (psi < 0.5) {
-    draw(l1);
-    draw(l2);
-  } else {
-    draw(l2);
-    draw(l1);
-  }
-  void stanceFirst;
+  const order = psi < 0.5 ? [l1, l2] : [l2, l1];
+  for (const l of order) charLeg(out, l.set, l.u, l.lift);
 
   const stepT = (psi * 2) % 1; // posizione nel passo
-  const up = (t) => ((t % 1) + 1) % 1 > 0.3 && ((t % 1) + 1) % 1 < 0.7;
+  const up = (t) => {
+    const f = ((t % 1) + 1) % 1;
+    return f > 0.3 && f < 0.7;
+  };
   const bob = up(stepT) ? 1 : 0;
   const headBob = up(stepT - 0.08) ? 1 : 0;
   const nod = stepT < 0.25 || stepT > 0.9 ? 1 : 0; // la testa va avanti di un pixel al contatto
   const S = CHAR_POSES.stepA;
 
-  // busto (righe 0..38), senza le mani che oscillano
+  // busto (righe 0..33), senza le mani che oscillano
   const near = { x0: 8, x1: 14, y0: 28, y1: 33 };
   const far = { x0: 16, x1: 20, y0: 27, y1: 33 };
   const inBlock = (b, x, y) => x >= b.x0 && x <= b.x1 && y >= b.y0 && y <= b.y1;
   for (let y = 17; y <= 19; y++) for (let x = 0; x < S[y].length; x++) charPut(out, x + 1, y, S[y][x]); // base del collo: nessuno spiraglio tra testa e busto
-  for (let y = 0; y < LEG_TOP; y++) {
+  for (let y = 0; y < HIP_Y; y++) {
     const dy = y <= 17 ? -headBob : -bob;
     const dx = y <= 15 ? nod : 0;
     for (let x = 0; x < S[y].length; x++) {
       let c = S[y][x];
-      if (y >= 34 && x <= 4 && 'lokphf'.includes(c)) c = 'A'; // pixel chiari sporchi sul bordo della schiena
-      if (inBlock(near, x, y)) c = (y >= 31 && x <= 11 ? S[y][7] : S[y][15]) || '.'; // dove c'era la mano: si vede il busto (più scuro verso la schiena)
+      if (inBlock(near, x, y)) c = (y >= 31 && x <= 11 ? S[y][7] : S[y][15]) || '.'; // dove c'era la mano: si vede il busto
       else if (inBlock(far, x, y)) c = x <= 17 ? S[y][15] || '.' : '.';
       charPut(out, x + 1 + dx, y + dy, c);
     }
   }
-  charPut(out, 1 + 15, 0, '.'); // evita pixel isolati sul bordo dopo lo spostamento
-  if (bob) for (let x = 0; x < S[LEG_TOP - 1].length; x++) charPut(out, x + 1, LEG_TOP - 1, S[LEG_TOP - 1][x]); // chiude il vuoto all'anca
+  if (bob) for (let x = 0; x < S[HIP_Y - 1].length; x++) charPut(out, x + 1, HIP_Y - 1, S[HIP_Y - 1][x]); // chiude il vuoto in vita
 
   // mani: quella vicina va avanti quando la gamba vicina è indietro; la lontana al contrario
   const sw = -Math.round(2 * Math.cos(2 * Math.PI * psi));
