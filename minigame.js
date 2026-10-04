@@ -1389,7 +1389,8 @@ const CHAR_PAL = { a: '#ecf6f8', b: '#eaf4f6', c: '#e9f2f5', d: '#e5f0f3', e: '#
 const CHAR_W = 28;
 const CHAR_H = 48;
 const CHAR_STEP = 15; // pixel percorsi dal corpo in un passo: tiene il piede d'appoggio fermo a terra
-const CHAR_FRAMES = 8; // fotogrammi per passo
+const CHAR_FRAMES = 12; // fotogrammi per passo
+const CHAR_CYCLE = CHAR_FRAMES * 2; // il ciclo completo sono due passi (le braccia si scambiano)
 const LEG_TOP = 39;
 
 const charBlank = () => Array.from({ length: CHAR_H }, () => Array(CHAR_W).fill('.'));
@@ -1418,32 +1419,89 @@ const charLegs = (rows) =>
 const LEGS_A = charLegs(CHAR_POSES.stepA);
 const LEGS_B = charLegs(CHAR_POSES.stepB);
 
-function charLeg(out, legs, which, shift, lift) {
+function charLeg(out, legs, which, shift, lift, bend = 0) {
   for (const it of legs) {
     const [l, r] = it[which];
-    for (let x = l; x <= r; x++) charPut(out, x + shift + 1, it.y - lift, it.row[x]);
+    const sh = shift - (it.y >= 43 ? bend : 0); // polpaccio e piede indietro: ginocchio piegato
+    for (let x = l; x <= r; x++) charPut(out, x + sh + 1, it.y - lift, it.row[x]);
   }
 }
 const charStamp = (out, rows, offX, y0, y1, dy) => {
   for (let y = y0; y <= y1; y++) for (let x = 0; x < rows[y].length; x++) charPut(out, x + offX, y + dy, rows[y][x]);
 };
 
-// k = 0..7: 0 = contatto (posa A), 4 = gambe vicine (gamba che oscilla alzata e busto più in alto)
+// Gamba nella fase phi (0..1) di un ciclo completo di due passi: appoggio da +1 (davanti) a -1 (dietro),
+// poi oscillazione col ginocchio piegato (piede alzato e arretrato) fino al nuovo contatto.
+function legAt(phi) {
+  if (phi < 0.5) {
+    const u = 1 - 4 * phi;
+    if (phi < 0.06) return { legs: LEGS_A, which: 'front', shift: Math.round(-8 * (1 - u)), lift: 0, bend: 0 }; // tallone a terra
+    if (u >= 0) return { legs: LEGS_B, which: 'front', shift: Math.round(-8 * (1 - u)), lift: 0, bend: 0 }; // piede piatto, il corpo ci passa sopra
+    return { legs: LEGS_A, which: 'back', shift: Math.round(7.5 * (1 + u)), lift: 0, bend: 0 };
+  }
+  const p = phi - 0.5;
+  const u = -1 + 4 * p;
+  const lift = Math.round(3 * Math.sin(Math.PI * clamp((p - 0.02) / 0.46, 0, 1)));
+  const bend = Math.round(lift * 0.7); // il piede resta indietro rispetto al ginocchio
+  if (p < 0.12) return { legs: LEGS_B, which: 'back', shift: Math.round(7.5 * (1 + u)), lift, bend }; // spinta: tallone alzato
+  if (u < 0) return { legs: LEGS_A, which: 'back', shift: Math.round(7.5 * (1 + u)), lift, bend };
+  if (p < 0.43) return { legs: LEGS_B, which: 'front', shift: Math.round(-8 * (1 - u)), lift, bend };
+  return { legs: LEGS_A, which: 'front', shift: Math.round(-8 * (1 - u)), lift: 0, bend: 0 };
+}
+
+// k = 0..CHAR_CYCLE-1: due passi (le braccia si scambiano tra il primo e il secondo).
+// Busto: sale e scende, la testa lo segue con un attimo di ritardo e si china in avanti al contatto;
+// le mani oscillano in opposizione alle gambe.
 function buildWalkFrame(k) {
-  const t = k / CHAR_FRAMES;
+  const psi = (k % CHAR_CYCLE) / CHAR_CYCLE;
   const out = charBlank();
-  // Gamba d'appoggio: scorre all'indietro da +1 a -1; gamba che oscilla: va avanti da -1 a +1, alzata a metà
-  const uX = 1 - 2 * t;
-  const uY = -1 + 2 * t;
-  const lift = t < 0.15 ? 0 : Math.round(2 * Math.sin((Math.PI * (t - 0.15)) / 0.85));
-  if (uX >= 0) charLeg(out, LEGS_A, 'front', Math.round(-8 * (1 - uX)), 0);
-  else charLeg(out, LEGS_A, 'back', Math.round(7.5 * (1 + uX)), 0);
-  if (uY >= 0) charLeg(out, LEGS_A, 'front', Math.round(-8 * (1 - uY)), lift);
-  else charLeg(out, uY > -0.9 && uY < -0.1 ? LEGS_B : LEGS_A, 'back', Math.round(7.5 * (1 + uY)), lift); // tallone alzato in spinta
-  const bob = k === 3 || k === 4 || k === 5 ? 1 : 0; // al passaggio il corpo è un pixel più in alto
+  const l1 = legAt(psi);
+  const l2 = legAt((psi + 0.5) % 1);
+  const stanceFirst = psi % 0.5 < 0.25 ? 1 : 2;
+  const draw = (l) => charLeg(out, l.legs, l.which, l.shift, l.lift, l.bend);
+  // la gamba che oscilla va disegnata sopra quella d'appoggio
+  if (psi < 0.5) {
+    draw(l1);
+    draw(l2);
+  } else {
+    draw(l2);
+    draw(l1);
+  }
+  void stanceFirst;
+
+  const stepT = (psi * 2) % 1; // posizione nel passo
+  const up = (t) => ((t % 1) + 1) % 1 > 0.3 && ((t % 1) + 1) % 1 < 0.7;
+  const bob = up(stepT) ? 1 : 0;
+  const headBob = up(stepT - 0.08) ? 1 : 0;
+  const nod = stepT < 0.25 || stepT > 0.9 ? 1 : 0; // la testa va avanti di un pixel al contatto
   const S = CHAR_POSES.stepA;
-  charStamp(out, S, 1, 0, LEG_TOP - 1, -bob);
-  if (bob) charStamp(out, S, 1, LEG_TOP - 1, LEG_TOP - 1, 0); // riempie il vuoto all'anca
+
+  // busto (righe 0..38), senza le mani che oscillano
+  const near = { x0: 8, x1: 14, y0: 28, y1: 33 };
+  const far = { x0: 16, x1: 20, y0: 27, y1: 33 };
+  const inBlock = (b, x, y) => x >= b.x0 && x <= b.x1 && y >= b.y0 && y <= b.y1;
+  for (let y = 17; y <= 19; y++) for (let x = 0; x < S[y].length; x++) charPut(out, x + 1, y, S[y][x]); // base del collo: nessuno spiraglio tra testa e busto
+  for (let y = 0; y < LEG_TOP; y++) {
+    const dy = y <= 17 ? -headBob : -bob;
+    const dx = y <= 15 ? nod : 0;
+    for (let x = 0; x < S[y].length; x++) {
+      let c = S[y][x];
+      if (y >= 34 && x <= 4 && 'lokphf'.includes(c)) c = 'A'; // pixel chiari sporchi sul bordo della schiena
+      if (inBlock(near, x, y)) c = (y >= 31 && x <= 11 ? S[y][7] : S[y][15]) || '.'; // dove c'era la mano: si vede il busto (più scuro verso la schiena)
+      else if (inBlock(far, x, y)) c = x <= 17 ? S[y][15] || '.' : '.';
+      charPut(out, x + 1 + dx, y + dy, c);
+    }
+  }
+  charPut(out, 1 + 15, 0, '.'); // evita pixel isolati sul bordo dopo lo spostamento
+  if (bob) for (let x = 0; x < S[LEG_TOP - 1].length; x++) charPut(out, x + 1, LEG_TOP - 1, S[LEG_TOP - 1][x]); // chiude il vuoto all'anca
+
+  // mani: quella vicina va avanti quando la gamba vicina è indietro; la lontana al contrario
+  const sw = -Math.round(2 * Math.cos(2 * Math.PI * psi));
+  const hand = (b, dx, dy) => {
+    for (let y = b.y0; y <= b.y1; y++) for (let x = b.x0; x <= b.x1; x++) charPut(out, x + 1 + dx, y - bob + dy, S[y][x]);
+  };
+  hand(far, -sw, 0);
+  hand(near, sw, sw > 0 ? -1 : 0);
   return out;
 }
 
@@ -1494,9 +1552,9 @@ const C_JUMP = 160; // velocità iniziale del salto: altezza massima ~43 px, in 
 const C_HIT_HALF = 4; // metà larghezza del corpo che può essere colpito
 const C_H_STAND = 44;
 const C_H_DUCK = 32; // sprite abbassato: 36 px
-const C_DUCK_SPEED = 0.55;
+const C_DUCK_SPEED = 0.5;
 const C_INV = 1.4; // secondi di invulnerabilità dopo un colpo
-const PRESS = { T: 2.6, up0: 0.3, warn0: 1.7, slam0: 2.1, slam1: 2.22, w: 22 };
+const PRESS = { T: 2.0, up0: 0.3, warn0: 1.25, slam0: 1.65, slam1: 1.77, w: 22 };
 
 // Altezza (dal pavimento) del bordo basso della pressa nell'istante tp del suo ciclo
 function pressBottom(tp) {
@@ -1536,14 +1594,14 @@ function tunePresses(obs, speed) {
   for (const o of obs) {
     if (o.k !== 'press') continue;
     const arr = campArrival(obs, speed, o.x - C_HIT_HALF);
-    o.o = (((2.0 - arr) % PRESS.T) + PRESS.T) % PRESS.T;
+    o.o = (((1.5 - arr) % PRESS.T) + PRESS.T) % PRESS.T;
   }
   return obs;
 }
 
 function buildCampLevels() {
-  const s1 = 38;
-  const s2 = 44;
+  const s1 = 52;
+  const s2 = 62;
   const lv = [
     {
       id: 1,
@@ -1602,6 +1660,18 @@ function buildCampLevels() {
       tips: [{ x: 330, to: 500, lines: ['LE PRESSE BATTONO A TEMPO', 'ABBASSATI PER RALLENTARE'] }],
     },
   ];
+  // Più veloce = più lungo: le distanze in secondi tra gli ostacoli restano le stesse
+  const stretch = (l, k) => {
+    l.len = Math.round(l.len * k);
+    l.obs.forEach((o) => (o.x = Math.round(o.x * k)));
+    l.pick.forEach((p) => (p.x = Math.round(p.x * k)));
+    l.tips.forEach((t) => {
+      t.x = Math.round(t.x * k);
+      t.to = Math.round(t.to * k);
+    });
+  };
+  stretch(lv[0], s1 / 38);
+  stretch(lv[1], s2 / 44);
   for (const l of lv) tunePresses(l.obs, l.speed);
   return lv;
 }
@@ -3598,12 +3668,12 @@ function launchGame({ fx = null } = {}) {
   // ----- Disegno della Campagna -----
   function playerFrame(c) {
     if (c.state === 'dead' || g.state === 'intro') return charFrame('front', () => buildFrontFrame({}));
-    if (c.pf > 0) return charFrame('w1', () => buildWalkFrame(1));
+    if (c.pf > 0) return charFrame('jump', () => buildWalkFrame(6)); // in aria: gamba piegata e braccia in opposizione
     if (c.duck) {
-      const k = Math.floor((c.walkD % CHAR_STEP) / (CHAR_STEP / 2)) % 2 ? 5 : 1;
+      const k = Math.floor((c.walkD % (CHAR_STEP * 2)) / CHAR_STEP) % 2 ? 14 : 2;
       return charFrame(`c${k}`, () => buildCrouchFrame(k));
     }
-    const k = Math.floor(((c.walkD % CHAR_STEP) / CHAR_STEP) * CHAR_FRAMES) % CHAR_FRAMES;
+    const k = Math.floor(((c.walkD % (CHAR_STEP * 2)) / (CHAR_STEP * 2)) * CHAR_CYCLE) % CHAR_CYCLE;
     return charFrame(`w${k}`, () => buildWalkFrame(k));
   }
 
@@ -4026,7 +4096,7 @@ function launchGame({ fx = null } = {}) {
       } else if (cs.t >= cs.until) charSet('idle', 0.7 + Math.random() * 0.9);
     }
     if (cs.mode === 'walk') {
-      const k = Math.floor(((cs.walked % CHAR_STEP) / CHAR_STEP) * CHAR_FRAMES) % CHAR_FRAMES;
+      const k = Math.floor(((cs.walked % (CHAR_STEP * 2)) / (CHAR_STEP * 2)) * CHAR_CYCLE) % CHAR_CYCLE;
       key = `w${k}`;
       build = () => buildWalkFrame(k);
       flip = cs.dir < 0;
