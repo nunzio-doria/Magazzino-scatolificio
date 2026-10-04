@@ -1564,10 +1564,17 @@ const buildBackFrame = () => {
 };
 
 
-// Posa abbassata: dalla camminata si tolgono 12 righe di busto e gambe (alta 36 px, piedi a terra)
-const CROUCH_DROP = new Set([22, 24, 26, 28, 30, 32, 34, 36, 38, 41, 43, 45]);
+// Posa abbassata (alta 40 px): stesse gambe della camminata, busto accorciato di 8 righe e testa/spalle in avanti
+const CROUCH_DROP = new Set([20, 21, 22, 23, 24, 25, 26, 27]);
 function buildCrouchFrame(k) {
-  const rows = buildWalkFrame(k).filter((_, y) => !CROUCH_DROP.has(y));
+  const rows = [];
+  buildWalkFrame(k).forEach((r, y) => {
+    if (CROUCH_DROP.has(y)) return;
+    if (y >= 20) return rows.push(r);
+    const lean = Array(CHAR_W).fill('.'); // righe di testa e spalle: 2 pixel avanti
+    for (let x = 0; x < CHAR_W - 2; x++) lean[x + 2] = r[x];
+    rows.push(lean);
+  });
   const pad = Array.from({ length: CHAR_H - rows.length }, () => Array(CHAR_W).fill('.'));
   return pad.concat(rows);
 }
@@ -1580,9 +1587,13 @@ const C_GRAV = 300;
 const C_JUMP = 160; // velocità iniziale del salto: altezza massima ~43 px, in aria ~1 s
 const C_HIT_HALF = 4; // metà larghezza del corpo che può essere colpito
 const C_H_STAND = 44;
-const C_H_DUCK = 32; // sprite abbassato: 36 px
+const C_H_DUCK = 34; // sprite abbassato: 40 px
 const C_DUCK_SPEED = 0.5;
 const C_INV = 1.4; // secondi di invulnerabilità dopo un colpo
+const DOOR_GAP = 6; // distanza della porta dal traguardo
+const DOOR_W = 34;
+const DOOR_H = 60; // più alta del personaggio (48 px)
+const WIN_WALK = 1.0; // secondi per entrare nella porta
 const PRESS = { T: 2.0, up0: 0.3, warn0: 1.25, slam0: 1.65, slam1: 1.77, w: 22 };
 
 // Altezza (dal pavimento) del bordo basso della pressa nell'istante tp del suo ciclo
@@ -3699,8 +3710,8 @@ function launchGame({ fx = null } = {}) {
     if (c.state === 'dead' || g.state === 'intro') return charFrame('front', () => buildFrontFrame({}));
     if (c.pf > 0) return charFrame('jump', () => buildWalkFrame(6)); // in aria: gamba piegata e braccia in opposizione
     if (c.duck) {
-      const k = Math.floor((c.walkD % (CHAR_STEP * 2)) / CHAR_STEP) % 2 ? 14 : 2;
-      return charFrame(`c${k}`, () => buildCrouchFrame(k));
+      const k = Math.floor(((c.walkD % (CHAR_STEP * 2)) / (CHAR_STEP * 2)) * CHAR_CYCLE) % CHAR_CYCLE;
+      return charFrame(`c${k}`, () => buildCrouchFrame(k)); // gambe che si muovono anche da accovacciato
     }
     const k = Math.floor(((c.walkD % (CHAR_STEP * 2)) / (CHAR_STEP * 2)) * CHAR_CYCLE) % CHAR_CYCLE;
     return charFrame(`w${k}`, () => buildWalkFrame(k));
@@ -3862,22 +3873,27 @@ function launchGame({ fx = null } = {}) {
     for (let x = tl - 26; x < W + 26; x += 26) ctx.fillRect(Math.round(x), fy + 12, 1, H - fy - 12);
     ctx.fillRect(-4, fy + 12, W + 8, 1);
 
-    // porta d'uscita
-    const dx = Math.round(px + (c.len - cx));
-    if (dx < W + 30) {
-      const near = c.len - cx < 50 || c.state === 'win';
+    // porta d'uscita: più alta del personaggio, a 6 px dal traguardo
+    const dx = Math.round(px + (c.len + DOOR_GAP - cx));
+    if (dx < W + 40) {
+      const near = c.len + DOOR_GAP - cx < 70 || c.state === 'win';
       ctx.fillStyle = '#caa24a';
-      ctx.fillRect(dx - 2, fy - 38, 26, 38);
+      ctx.fillRect(dx - 2, fy - DOOR_H - 2, DOOR_W + 4, DOOR_H + 2);
       ctx.fillStyle = near ? '#fff0b8' : '#0c0f18';
-      ctx.fillRect(dx, fy - 36, 22, 36);
+      ctx.fillRect(dx, fy - DOOR_H, DOOR_W, DOOR_H);
       if (near) {
         ctx.fillStyle = '#e8cf7a';
-        ctx.fillRect(dx + 4, fy - 36, 14, 36);
+        ctx.fillRect(dx + 5, fy - DOOR_H, DOOR_W - 10, DOOR_H);
+        ctx.fillStyle = '#fffbe0';
+        ctx.fillRect(dx + 11, fy - DOOR_H, DOOR_W - 22, DOOR_H);
+      } else {
+        ctx.fillStyle = '#161a27';
+        ctx.fillRect(dx + 4, fy - DOOR_H + 4, DOOR_W - 8, DOOR_H - 4);
       }
       ctx.fillStyle = '#1f7a45';
-      ctx.fillRect(dx - 2, fy - 50, 26, 9);
+      ctx.fillRect(dx - 2, fy - DOOR_H - 14, DOOR_W + 4, 12);
       ctx.fillStyle = '#d9ffe6';
-      drawText('USCITA', dx + 23, fy - 48, 1);
+      drawText('USCITA', dx - 2 + Math.round((DOOR_W + 4 + textW('USCITA', 1)) / 2), fy - DOOR_H - 11, 1);
     }
 
     for (const o of c.obs) {
@@ -3901,8 +3917,8 @@ function launchGame({ fx = null } = {}) {
     }
 
     // personaggio
-    if (c.state !== 'win' || c.endT < 0.9) {
-      const frame = playerFrame(c);
+    if (c.state !== 'win' || c.endT < WIN_WALK) {
+      const frame = c.state === 'win' ? charFrame('back', buildBackFrame) : playerFrame(c);
       const blink = c.inv > 0 && c.state === 'run' && Math.floor(c.t * 14) % 2 === 0;
       if (!blink) {
         const feet = fy - Math.round(c.pf);
@@ -3913,9 +3929,12 @@ function launchGame({ fx = null } = {}) {
           ctx.drawImage(frame, -14, -CHAR_H);
           ctx.restore();
         } else {
-          const walkIn = c.state === 'win' ? Math.min(c.endT, 0.8) * c.speed * 0.9 : 0;
-          ctx.globalAlpha = c.state === 'win' ? 1 - clamp((c.endT - 0.5) / 0.4, 0, 1) : 1;
-          ctx.drawImage(frame, Math.round(px - 14 + walkIn), feet - CHAR_H);
+          // vittoria: di schiena verso la porta, con un passetto ogni 0,12 s; svanisce quando è sulla soglia
+          const e = clamp(c.endT / WIN_WALK, 0, 1);
+          const walkIn = c.state === 'win' ? (c.len + DOOR_GAP + DOOR_W / 2 - c.x) * (1 - (1 - e) * (1 - e)) : 0;
+          const step = c.state === 'win' && Math.floor(c.endT / 0.12) % 2 ? 1 : 0;
+          ctx.globalAlpha = c.state === 'win' ? 1 - clamp((e - 0.55) / 0.45, 0, 1) : 1;
+          ctx.drawImage(frame, Math.round(px - 14 + walkIn), feet - CHAR_H - step);
           ctx.globalAlpha = 1;
         }
       }
