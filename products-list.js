@@ -391,8 +391,11 @@ function renderGroupedCards({ wrapEl, openSet, entriesFn, titleField, subtitleFi
     }
   }
   const scopeKey = (series) => (seriesFn ? `g:${series}` : 'all');
+  // Una sigla con un solo scaffale (es. "Parete frontale", a differenza di SA001, SA002...)
+  // non genera il gruppo \"Scaffale ...\": la card dello scaffale sta direttamente nella lista.
+  const isSolo = (series) => !!seriesFn && siblingKeys.get(series)?.length === 1;
   const getParent = (series) => {
-    if (!seriesFn) return wrapEl;
+    if (!seriesFn || isSolo(series)) return wrapEl;
     if (!groupEls.has(series)) {
       const { el, inner } = buildShelfGroup(series, siblingKeys.get(series), groups, unassignedLabel, iconName, searching);
       groupEls.set(series, inner);
@@ -476,8 +479,11 @@ function renderGroupedCards({ wrapEl, openSet, entriesFn, titleField, subtitleFi
       }
 
       // Un solo scaffale aperto (per gruppo): chiude l'eventuale precedente (tinta e cassetto insieme)...
+      // (uno scaffale senza gruppo è indipendente: non chiude gli altri)
       const scopeEl = seriesFn ? card.parentElement : wrapEl;
-      const others = scopeEl.querySelectorAll(':scope > .shelf-card.shelf-open, :scope > .shelf-card.shelf-active');
+      const others = isSolo(series)
+        ? []
+        : scopeEl.querySelectorAll(':scope > .shelf-card.shelf-open, :scope > .shelf-card.shelf-active');
       if (others.length) {
         others.forEach((c) => c.classList.remove('shelf-open', 'shelf-active'));
         scope.closeEndsAt = Math.max(scope.closeEndsAt, performance.now() + modalCloseMs());
