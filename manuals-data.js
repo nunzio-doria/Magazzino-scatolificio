@@ -20,12 +20,18 @@ let groupsByMachineId = new Map(); // machine_id -> Array<riga machine_manual_gr
 /** Ricarica dal database le mappe machine_id/nome → { linea → manuale } (ricambi) e machine_id → [manuali] (operatore). Va richiamata dopo ogni upload/eliminazione. */
 export async function refreshManualsCache() {
   try {
-    const [{ manuals, tableMissing }, { manuals: opManuals, tableMissing: opTableMissing }, { sections, tableMissing: sectionsMissing }, { groups }] = await Promise.all([
+    const results = await Promise.allSettled([
       listMachineManuals(),
       listOperatorManuals(),
       listManualSections(),
       listManualGroups(),
     ]);
+    const ok = (i, fallback) => (results[i].status === 'fulfilled' ? results[i].value : fallback);
+    results.forEach((r) => r.status === 'rejected' && console.warn('Caricamento manuali parziale.', r.reason));
+    const { manuals, tableMissing } = ok(0, { manuals: [], tableMissing: false });
+    const { manuals: opManuals, tableMissing: opTableMissing } = ok(1, { manuals: [], tableMissing: false });
+    const { sections, tableMissing: sectionsMissing } = ok(2, { sections: [], tableMissing: false });
+    const { groups } = ok(3, { groups: [] });
     manualsByMachineId = new Map();
     manualsByMachineName = new Map();
     manuals.forEach((row) => {
@@ -66,13 +72,28 @@ export async function refreshManualsCache() {
 }
 
 /**
+ * Sceglie il manuale giusto tra le varianti per linea di una macchina:
+ * 1) linea esatta; 2) se la linea dell'articolo è combinata (es. 'L1-L2'),
+ * la prima delle sue linee che ha un manuale; 3) manuale generale (linea vuota).
+ */
+function pickManualByLinea(byLinea, linea = '') {
+  if (!byLinea) return null;
+  const l = String(linea || '').trim();
+  if (byLinea.get(l)) return byLinea.get(l);
+  if (l.includes('-')) {
+    for (const part of l.split('-').map((x) => x.trim()).filter(Boolean)) {
+      if (byLinea.get(part)) return byLinea.get(part);
+    }
+  }
+  return byLinea.get('') || null;
+}
+
+/**
  * Manuale (riga machine_manuals) per una macchina (per id), con ripiego sul
  * manuale "generale" (linea vuota) se non esiste uno specifico per `linea`.
  */
 export function getManualForMachine(machineId, linea = '') {
-  const byLinea = machineId && manualsByMachineId.get(machineId);
-  if (!byLinea) return null;
-  return byLinea.get(linea || '') || byLinea.get('') || null;
+  return pickManualByLinea(machineId && manualsByMachineId.get(machineId), linea);
 }
 
 /** Tutte le varianti (per linea) caricate per una macchina, dato il suo id. Chiave '' = generale. */
@@ -87,9 +108,7 @@ export function getManualsForMachine(machineId) {
  */
 export function getManualForMachineName(nome, linea = '') {
   const key = normalizeMachineName(nome).toLowerCase();
-  const byLinea = key && manualsByMachineName.get(key);
-  if (!byLinea) return null;
-  return byLinea.get(linea || '') || byLinea.get('') || null;
+  return pickManualByLinea(key && manualsByMachineName.get(key), linea);
 }
 
 export function isManualsTableMissing() {
