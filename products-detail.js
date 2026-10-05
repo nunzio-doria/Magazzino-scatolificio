@@ -463,9 +463,12 @@ function updateManualButtonVisibility() {
   els.openManualBtn.classList.toggle('hidden', !hasManual);
 }
 
-/** Il pulsante "genera barcode" ha senso solo per le cinghie, che non hanno un codice a barre fisico sulla confezione */
+/** Categorie senza un codice a barre fisico sulla confezione: per queste si può generare il barcode */
+const BARCODE_GENERATABLE_CATEGORIES = ['cinghie', 'pezzi_ricambio'];
+
+/** Il pulsante "genera barcode" ha senso solo per cinghie e ricambi tecnici (i cuscinetti hanno il codice stampato) */
 function updateGenerateBarcodeVisibility() {
-  els.generateBarcodeBtn.classList.toggle('hidden', els.categoriaSelect.value !== 'cinghie');
+  els.generateBarcodeBtn.classList.toggle('hidden', !BARCODE_GENERATABLE_CATEGORIES.includes(els.categoriaSelect.value));
 }
 
 function setPickerValue(hiddenInput, labelEl, value) {
@@ -690,7 +693,7 @@ export function stopBarcodeScan() {
 
 /**
  * Genera un codice a barre deterministico per articoli senza un barcode fisico
- * (es. cinghie): stesso prefisso di categoria + codice articolo, quindi è stabile
+ * (cinghie e ricambi tecnici): stesso prefisso di categoria + codice articolo, quindi è stabile
  * "per sempre" — rigenerarlo per lo stesso articolo produce sempre lo stesso valore.
  */
 function generateBarcodeForCurrentArticle() {

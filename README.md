@@ -41,7 +41,7 @@ Lo stesso codice (cuscinetto, cinghia o ricambio) può stare su **più scaffali,
 
 ## Più codici a barre per lo stesso articolo
 
-Ogni articolo può avere **più codici a barre**, ciascuno con il **produttore** (facoltativo). `products.codice_barre` resta il codice **principale** (quello delle etichette e della generazione per le cinghie) e `products.produttore_barcode` è il suo produttore; gli altri codici stanno nella tabella `product_barcodes` (una riga per codice, RLS: lettura a tutti, scrittura solo admin). Un codice identifica un solo articolo: il database rifiuta i duplicati, anche tra principale e secondari.
+Ogni articolo può avere **più codici a barre**, ciascuno con il **produttore** (facoltativo). `products.codice_barre` resta il codice **principale** (quello delle etichette e della generazione per cinghie e ricambi tecnici) e `products.produttore_barcode` è il suo produttore; gli altri codici stanno nella tabella `product_barcodes` (una riga per codice, RLS: lettura a tutti, scrittura solo admin). Un codice identifica un solo articolo: il database rifiuta i duplicati, anche tra principale e secondari.
 
 - **Modifica articolo (Admin)**: sotto il codice principale c'è il campo "Produttore" e il pulsante "Aggiungi codice a barre"; ogni codice aggiuntivo ha scansione da fotocamera, produttore e cestino.
 - **Scheda articolo**: elenca tutti i codici con il produttore sotto e una stampante per ognuno.
@@ -61,7 +61,7 @@ Ogni articolo può avere **più codici a barre**, ciascuno con il **produttore**
 
 **Linea e Macchina: combobox personalizzate** — sostituiti lo `<select>` nativo e il `<datalist>` (che su alcuni telefoni apriva la tastiera senza mostrare l'elenco) con un modale di selezione disegnato ad hoc: tocchi il campo, si apre un elenco a scorrimento con ricerca in tempo reale, nessun placeholder fuorviante. La combobox "Macchina" propone solo i valori già registrati ma permette comunque di digitarne uno nuovo (comparirà un'opzione "Aggiungi ..."); "Linea" mostra solo le tre opzioni fisse L1/L2/L1-L2.
 
-**Barcode per le Cinghie** — dato che le cinghie non hanno un codice a barre fisico stampato come i cuscinetti, è stato aggiunto un pulsante dedicato "Genera" (icona +) che crea un codice deterministico (prefisso di categoria + codice articolo, es. `CIN-B123`): è stabile per sempre, rigenerarlo per lo stesso articolo produce sempre lo stesso valore.
+**Barcode per Cinghie e Ricambi tecnici** — dato che cinghie e ricambi tecnici non hanno un codice a barre fisico stampato come i cuscinetti, è stato aggiunto un pulsante dedicato "Genera" (icona +) che crea un codice deterministico (prefisso di categoria + codice articolo, es. `CIN-B123` per le cinghie, `PZR-12345` per i ricambi tecnici): è stabile per sempre, rigenerarlo per lo stesso articolo produce sempre lo stesso valore.
 
 **Etichetta PDF rifatta da zero**:
 - Contiene ora **solo il barcode e il numero sotto** (nessun testo aggiuntivo).
