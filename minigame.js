@@ -23,9 +23,11 @@
 // Due giochi: Rush (pesca i barattoli, con classifica) e Campagna (il personaggio
 // cammina nel reparto e si arriva alla porta di uscita saltando e abbassandosi:
 // 2 livelli, stelle in base ai cuori rimasti, progressi salvati sul dispositivo).
-// Nella schermata iniziale cammina avanti e indietro un personaggio (4 pose
-// disegnate dall'utente) che ogni tanto controlla l'orologio (toccandolo lo
-// fa subito, con tic-tac).
+// Nella schermata iniziale camminano avanti e indietro i due rivali, Mike e
+// Porkogerry (pose disegnate dall'utente): ogni tanto controllano l'orologio
+// (toccandoli lo fanno subito, con tic-tac) e quando si incrociano si sfottono
+// a vignetta. In Campagna si sceglie con quale dei due giocare: Mike (3 cuori,
+// velocità di base) o Porkogerry (4 cuori, ma Agilità 1: -20% di velocità).
 // All'apertura compare la schermata iniziale: Nuova partita, High score
 // (le 5 migliori classifiche, con nome di chi le ha fatte), Impostazioni.
 // A fine partita, se il punteggio entra in classifica, si inserisce il nome.
@@ -1180,27 +1182,318 @@ function mkSwitch(label) {
   return b;
 }
 
-// ---------- Personaggio della home e di Campagna (6 pose disegnate dall'utente) ----------
-// Camminata e abbassamento si ottengono rimontando le pose: busto dalla posa di profilo, gambe
+// ---------- I due personaggi della home e di Campagna (pose disegnate dall'utente) ----------
+// Mike e Porkogerry hanno ognuno il proprio set di pose (frontale, profilo, schiena, stordito, esultanza).
+// Camminata, salto e abbassamento si ottengono rimontando le pose: busto dalla posa di profilo, gambe
 // ricavate dalla gamba di profilo piegata e spostata a ogni passo (la posa non ha le gambe divaricate).
-const CHAR_POSES = {
+const POSES_MIKE = {
   front: [
-    '...........EFBwt...........',
-    '.........CCjmwhnCE.........',
-    '........FmeenhffjhH........',
-    '.......nzgghnhefhhjr.......',
-    '.......EhhhoqnoggdhF.......',
-    '.......rfpqkkklphojnE......',
-    '.......rmpliiiiklponE......',
-    '.......tglkiiiiikljfE......',
-    '.......rtpqqlkkpqqprw......',
-    '.......iypEEyssBEyyfB......',
-    '.......qslgkqkqkkqqpy......',
-    '.......yqlqsqilqqlqB.......',
-    '........ykklqpplkky........',
-    '........EilgjmmkkiF........',
-    '........FtgkkkklhpF........',
-    '......EHppoiikkgjztCE......',
+    '..........AAAAAAA..........',
+    '........AAzzzxzzzAA........',
+    '.......AzzxzzzzzxzzA.......',
+    '......AzzzzzxzzzzxzzA......',
+    '......Azzz2111112zzzA......',
+    '......Az22111111122zA......',
+    '......A4211111111124A......',
+    '......A42zzzz1zzzz24A......',
+    '......A2888881888882A......',
+    '.....4A38eBe888eBe83A4.....',
+    '.....5A3833384833383A5.....',
+    '.....4A2888884888882A4.....',
+    '......A4321134311234A......',
+    '......A432134l431234A......',
+    '......A4323355533234A......',
+    '......A4333qqqqq3q34A......',
+    '.......A43q3433q334A.......',
+    '......Ahghq5322lqjghA......',
+    '....AfahaeAAAAAAAeahafA....',
+    '...Afeahffhq777qgffhaefA...',
+    '...fcfaegjhhlklfhhhfafcf...',
+    '...caeaaachhhfjhhcaaceac...',
+    '..AcaefaccdfjmhfegecfeacA..',
+    '..eaehjfeeeegofenlljhheae..',
+    '..eadjjjfffffjefoq5mjjcae..',
+    '.AaadmhfcccfefefeggfhjdaaA.',
+    '.AaaemhfaaafefeeefffhjeaaA.',
+    '.AcfhAhgcceeffeeeeehhAhfcA.',
+    '.ecfhAfdeeeaffeaeeedfAjfce.',
+    '.fachAfeaaaaffeaaaaefAhdaf.',
+    '.aaafAfedaaaffeaaacegAfaaa.',
+    'AaaafAjggeaaffeaaefgmAfaaaA',
+    'AeefjAAfehffhhgffgffAAhfeeA',
+    'AffhmAAAAaaaefeaaaAAAAmjfeA',
+    'AA42AAwAuvvvAAAvvvuAwAA23nA',
+    '.2134AAuuuuuuruuuuuuAA3212.',
+    '.2145AuuuuvuuAvuvuruuAll12.',
+    '.5l4AAvuuuuAAAAAruruvAA4ll.',
+    '..AAAAvuuuuvAEAuuuuuvAAAA..',
+    '.....AuuuuuuAEAuuuuuuA.....',
+    '.....AuuuuuuA.AvuuuuuA.....',
+    '.....CvuuuuvCECxuuuuwB.....',
+    '.....EvuuvuvC.ExvuuvxB.....',
+    '.....CxuvvuxC.ExvvuuxC.....',
+    '.....CAvuuuxC.CzvvuuAC.....',
+    '......CzvvvAC.CzwvvxC......',
+    '......BAxxxxC.CxxxzxA......',
+    '......CAxxuxC.CxvxxzC......',
+    '......CzuvvxB.CxvuxAC......',
+    '.......CvttxC.CzrttyC......',
+    '......F7557FF.CB7577B......',
+    '.....F566777..Crv5666F.....',
+    '.....F55557E..C755575F.....',
+    '.....7755rr....7t5555t.....',
+  ],
+  sideB: [
+    '........yFFEyt....',
+    '......HEAzzzzzF...',
+    '.....HzzxxxxzxxF..',
+    '....Fzzzzzxxxzzxt.',
+    '...FzxzzzxxzxqzxE.',
+    '...FxzxxxzzAqklsE.',
+    '...Fzxzzxzkkkkkq..',
+    '...Fzzzzz88888ll..',
+    '...Ezzz5sqkk888s..',
+    '...Ezzqqqkikiksly.',
+    '....tzsqlkiiiklkl.',
+    '....H55ysiiiikkss.',
+    '.....F5sq43iik5y3.',
+    '.....EEl4433iqkq..',
+    '.....C435r444ily..',
+    '....HnohapCwonrg..',
+    '...BohcjteeCFn....',
+    '..HzmcaahpenoB....',
+    '..HpfbaaeowwoH....',
+    '.ECpcabbenecnnE...',
+    '.FofaabbhAemjmF...',
+    '.HmeaaadpndhF.....',
+    '.FmeabbhwofedF....',
+    '.Fmdafowoocmjfo...',
+    '.HjeachBonhdaaE...',
+    '.HmfaafnEneaabz...',
+    '.omjaacmEmdabbp...',
+    '.mnzaaftnnfdabbF..',
+    '.njEcachEjaaabcH..',
+    'BptEodbfBmaaabcH..',
+    'BjmHebbbrnabbbbF..',
+    'FCmFgbdennhfcbbE..',
+    'npCEoeffnpjhbcdF..',
+    'tprEjedfnwjjmfeE..',
+    'jHpFwffhnwronnmB..',
+    '.HCBtonefrrrArF...',
+    '.FCAEnnqiswtAE....',
+    '..ExCFqiilywth....',
+    '..jxxBlkklyzt.....',
+    '...xxElkksytxA....',
+    '...zxCBqqqwrrt....',
+    '...AzxzzwwuuuA....',
+    '....Cxxuuuuuvw....',
+    '....EAxuuuuuCC....',
+    '.....BzxvuuuC.....',
+    '....CAzxxvuzz.....',
+    '....HzxuwvxB......',
+    '....FzvuuuwC......',
+    '....FzxvvxzC......',
+    '....EAzwvwyyC.....',
+    '.....Eww7557BFr...',
+    '.....Et5576666B...',
+    '.....H7E7575757...',
+    '.....CCC.rrrrr....',
+  ],
+  back: [
+    '...........cEEEEE...........',
+    '.........aAADDDDAEE.........',
+    '.........ADtwwwAtDwt........',
+    '........ArtrtDtttttAr.......',
+    '.......jtrrrrrrrrrrtD.......',
+    '......cntrrrrrrrrrrDw.......',
+    '......EAtrrrrrrrrrrDAE......',
+    '......EADrrrrrrrrrrDAE......',
+    '......EADtrrrrrrrrtDAE......',
+    '......EADDtrrrrrrtDwAE......',
+    '......EEADDDtrrrDwDwAE......',
+    '......EAqDDDDDDDDDwqAE......',
+    '......mosDDDDDDDDwDsng......',
+    '.......oAswDDDDDDDsAn.......',
+    '........qqqAAADAAqAA........',
+    '.........AAAAAgcAoA.........',
+    '........AAhffffffmoA........',
+    '......AAfhgfffffgfhhAA......',
+    '....jAhfcaaaaaaaaaadhmA.....',
+    '...eAcaaaaaaaaaaaaaaefeAa...',
+    '...AeaaaaaaaaaaaaaaaeeenE...',
+    '..DDeaeeaaaaaaaaaaaadcacE...',
+    '..roeaffaaaaaaaaaaaaefaen...',
+    '..AeafjgaaaaaaaaaaaafhacfE..',
+    '..ocafAeaaaaaaaaaaachhaaeE..',
+    '.EncafAAaaaaaaaaaaachjcacof.',
+    '.EhcafAAaaaaaaaaaaadjjdacmf.',
+    '.EhcchAAcaaaaaaaaaaemnfaehf.',
+    '.EhfejAAeaaaaaaaaadfoofeghg.',
+    '.EhhhmAAgdcccccccdgjonhhhhg.',
+    '.EhhhnAAmgeeeeeeegjnAAhhhhg.',
+    '.EonnpAAhccccccccaejAAnmmng.',
+    '.EponpAAuuwvwwvvvvuvAAnnnAg.',
+    '.eklq5AAurrrrurrrrruDq55lq..',
+    '.fk5qqAAurrrrurrrruvDsq5lq..',
+    '.fp55AAAvvvuuAuuuuvAAAsqlA..',
+    '..gAAAAAwwAAAEAAAAAAEAsAAa..',
+    '......AAwvAAEEEEEEEEEA......',
+    '......EAwvvvEEEEEEEEEE......',
+    '......EAwvvvEEEEEEEEEE......',
+    '......zzxxxxxAEzxzxxxxC.....',
+    '......EAxzAzzBECzzzxzzB.....',
+    '......yAxxvxACvCAxxzAA......',
+    '......wBxuuuxECCwuuuzC......',
+    '.......CxuuuvE.AuuuuAC......',
+    '.......ExuuuvE.AuuuxAC......',
+    '.......BxuuuwH.Avuuvzw......',
+    '.......EAuuuvE.AuuuvC.......',
+    '.......FzuuuxE.AvuuwA.......',
+    '.......wBzxxzH.AxxxzBf......',
+    '.......B7EB7AF.Bzx77BB......',
+    '......F57577B..B777577E.....',
+    '......B55777B..7777555F.....',
+    '......7676777...766777C.....',
+  ],
+  hurt: [
+    '............AAAAAAA........',
+    '..........AAzzzxzzzAA......',
+    '.........AzzxzzzzzxzzA.....',
+    '........AzzzzzxzzzzxzzA....',
+    '........Azzz2111112zzzA....',
+    '.......Az22111111122zA.....',
+    '.......A4211111111124A.....',
+    '.......A42zzzz1zzzz24A.....',
+    '.......A2888881888882A.....',
+    '......4A38AAA888AAA83A4....',
+    '......5A3833384833383A5....',
+    '......4A2888884888882A4....',
+    '......A4321134311234A......',
+    '......A432134l431234A......',
+    '......A4323355533234A......',
+    '......A4333qBBBB3q34A......',
+    '.......A43q3433q334A.......',
+    '......Ahghq5322lqjghA......',
+    '....AfahaeAAAAAAAeahafA....',
+    '...Afeahffhq777qgffhaefA...',
+    '...fcfaegjhhlklfhhhfafcf...',
+    '...caeaaachhhfjhhcaaceac...',
+    '..AcaefaccdfjmhfegecfeacA..',
+    '..eaehjfeeeegofenlljhheae..',
+    '..eadjjjfffffjefoq5mjjcae..',
+    '.AaadmhfcccfefefeggfhjdaaA.',
+    '.AaaemhfaaafefeeefffhjeaaA.',
+    '.AcfhAhgcceeffeeeeehhAhfcA.',
+    '.ecfhAfdeeeaffeaeeedfAjfce.',
+    '.fachAfeaaaaffeaaaaefAhdaf.',
+    '.aaafAfedaaaffeaaacegAfaaa.',
+    'AaaafAjggeaaffeaaefgmAfaaaA',
+    'AeefjAAfehffhhgffgffAAhfeeA',
+    'AffhmAAAAaaaefeaaaAAAAmjfeA',
+    'AA42AAwAuvvvAAAvvvuAwAA23nA',
+    '.2134AAuuuuuuruuuuuuAA3212.',
+    '.2145AuuuuvuuAvuvuruuAll12.',
+    '.5l4AAvuuuuAAAAAruruvAA4ll.',
+    '..AAAAvuuuuvAEAuuuuuvAAAA..',
+    '.....AuuuuuuAEAuuuuuuA.....',
+    '.....AuuuuuuA.AvuuuuuA.....',
+    '.....CvuuuuvCECxuuuuwB.....',
+    '.....EvuuvuvC.ExvuuvxB.....',
+    '.....CxuvvuxC.ExvvuuxC.....',
+    '.....CAvuuuxC.CzvvuuAC.....',
+    '......CzvvvAC.CzwvvxC......',
+    '......BAxxxxC.CxxxzxA......',
+    '......CAxxuxC.CxvxxzC......',
+    '......CzuvvxB.CxvuxAC......',
+    '.......CvttxC.CzrttyC......',
+    '......F7557FF.CB7577B......',
+    '.....F566777..Crv5666F.....',
+    '.....F55557E..C755575F.....',
+    '.....7755rr....7t5555t.....',
+  ],
+  cheer: [
+    '......................................',
+    '......................................',
+    '......................................',
+    '......................................',
+    '......................................',
+    '.....AAAA..................AAAA.......',
+    '.....A11A..................A11A.......',
+    '.....A11A..................A11A.......',
+    '.....A11A......AAAAAAA.....A11A.......',
+    '....AA11AAA..AAzzzxzzzAA..AA11AAA.....',
+    '....A21122A.AzzxzzzzzxzzA.A21122A.....',
+    '....A22222AAzzzzzxzzzzxzzAA22222A.....',
+    '....A11111AAzzz2111112zzzAA11111A.....',
+    '....A11111AAz22111111122zAA11111A.....',
+    '....A11111AA4211111111124AA11111A.....',
+    '....AAAAAAAA42zzzz1zzzz24AAAAAAAA.....',
+    '....AaaaabAA2888881888882AAaabaaA.....',
+    '...AAaaabA4A38eBe888eBe83A4AbaaaAA....',
+    '...AaaabaA5A3833384833383A5AaaaabA....',
+    '...AaabaaA4A2888884888882A4AaaabaA....',
+    '...AabaaaAAA4321134311234AAAaabaaA....',
+    '...AbaaaabAA432134l431234AAaabaaaA....',
+    '...AAaaabaaA4323355533234AaabaaaAA....',
+    '....AAabaaaa4333qqqqq3q34aabaaaAA.....',
+    '.....AbaaaabA43q3433q334AabaaaaA......',
+    '.....AAaaabaaghq5322lqjgabaaaaAA......',
+    '......AAabaaaaeAAAAAAAeabaaaaAA.......',
+    '.......AAaaaabfhq777qgfbaaaaAA........',
+    '........AaaabajhhlklfhhaaaabA.........',
+    '........AAabaachhhfjhhcaaabAA.........',
+    '.........AefaccdfjmhfegecfeA..........',
+    '..........hjfeeeegofenlljhh...........',
+    '..........jjjfffffjefoq5mjj...........',
+    '..........mhfcccfefefeggfhj...........',
+    '..........mhfaaafefeeefffhj...........',
+    '..........AhgcceeffeeeeehhA...........',
+    '..........AfdeeeaffeaeeedfA...........',
+    '..........AfeaaaaffeaaaaefA...........',
+    '..........AfedaaaffeaaacegA...........',
+    '..........AjggeaaffeaaefgmA...........',
+    '..........AAfehffhhgffgffAA...........',
+    '..........AAAAaaaefeaaaAAAA...........',
+    '..........AwAuvvvAAAvvvuAwA...........',
+    '..........AAuuuuuuruuuuuuAA...........',
+    '..........AuuuuvuuAvuvuruuA...........',
+    '..........AvuuuuAAAAAruruvA...........',
+    '..........AvuuuuvAEAuuuuuvA...........',
+    '..........AuuuuuuAEAuuuuuuA...........',
+    '..........AuuuuuuA.AvuuuuuA...........',
+    '..........CvuuuuvCECxuuuuwB...........',
+    '..........EvuuvuvC.ExvuuvxB...........',
+    '..........CxuvvuxC.ExvvuuxC...........',
+    '..........CAvuuuxC.CzvvuuAC...........',
+    '...........CzvvvAC.CzwvvxC............',
+    '...........BAxxxxC.CxxxzxA............',
+    '...........CAxxuxC.CxvxxzC............',
+    '...........CzuvvxB.CxvuxAC............',
+    '............CvttxC.CzrttyC............',
+    '...........F7557FF.CB7577B............',
+    '..........F566777..Crv5666F...........',
+    '..........F55557E..C755575F...........',
+    '..........7755rr....7t5555t...........',
+  ],
+};
+const POSES_PORK = {
+  front: [
+    '..........AAAAAAA..........',
+    '........AAhfeffehAA........',
+    '.......AhfegfhffeghA.......',
+    '......AhfeffhfffhfehA......',
+    '......AhgfhfffffffghA......',
+    '......AmfggfhfffghfmA......',
+    '......A4kkgkkkkkkgk4A......',
+    '......AAAAAAAkAAAAAAA......',
+    '......AAkkkkAkAkkkkAA......',
+    '......AAkeBkAkAkeBkAA......',
+    '......AAAAAAAkAAAAAAA......',
+    '......AkkkikklkkikkkA......',
+    '......AhgfkklllklfghA......',
+    '......AgffdqqqqqqdfgA......',
+    '......AfhgdeqqqqedghA......',
+    '.......AhfdggfffggfA.......',
     '....EHfdhdwwggmrCjnemEH....',
     '...joaaafactssswmcraadhB...',
     '..wEhaaafppnqqsoooraacejw..',
@@ -1239,62 +1532,6 @@ const CHAR_POSES = {
     '.....Fsllqqy..CrvslllF.....',
     '.....FssssyE..CysssqsF.....',
     '.....wwssrr....wtsssst.....',
-  ],
-  sideA: [
-    '.......yFCByyg....',
-    '.....BHwmjmmpHp...',
-    '....Fjjhffhmhfw...',
-    '...FopohhjhhjheB..',
-    '..nHommmjfpappmg..',
-    '..Hjpnjfnoppigsr..',
-    '..FonnneglkikimE..',
-    '..Honmfnjiipsrm...',
-    '..FtroqpsssqenF...',
-    '...EoBlkkkiqlkis..',
-    '...EnBllkiiillgi..',
-    '...Eopyykkiiikpy..',
-    '....Bpyqngiglpy...',
-    '....FBlqpjfhllq...',
-    '....FnqqpofhglF...',
-    '...Erfacytrnnt....',
-    '..gredomaeFFE.....',
-    '..FfjechnffpEp....',
-    '..Emfccfhppohw....',
-    '.FHpaabaheeojH....',
-    '.Frfbaafredenr....',
-    '.FmdaaafrhdehjF...',
-    '.FhbaabjrhaacjEt..',
-    '.EhaadhtjhedfejEj.',
-    '.EgaaeoEmhjmbbbhH.',
-    '.HhbaceCmeddbbbeC.',
-    '.pteacewwdcddbbcj.',
-    '.FhaabnEmfbdbbbez.',
-    '.Hjfaadzmgedbbbch.',
-    'HoCeabdmtmhebbbafH',
-    'HnChacczmjeebddafF',
-    'FnnAddajomjddddcfE',
-    '.EAAhbfhCpomddbahE',
-    '.ExCmhaeAtomhcahmF',
-    '.EwxCengBtzrhhjjCj',
-    '.ExxpnjcjrtrvhhttH',
-    '.EAxzmalsBwrAzAwwH',
-    '..CAEssiiqBAuwzzE.',
-    '..oCzyiikqywAACFj.',
-    '...ExyikkqyvAzBo..',
-    '....wysqqwtuuww...',
-    '....xzzzzuruuE....',
-    '....Axxxuuuuv.....',
-    '....zBzvruuuB.....',
-    '.....BzxuuuwB.....',
-    '....CAxxxuvC......',
-    '....FxxxxxzC......',
-    '....Exuuuuz.......',
-    '....ExvvxxBC......',
-    '....CBzutyBH......',
-    '.....BzwyssyFB....',
-    '.....FtssqllqsB...',
-    '.....FwtyssqqyF...',
-    '.....CrtttsrCC....',
   ],
   sideB: [
     '........yFFEyt....',
@@ -1369,18 +1606,18 @@ const CHAR_POSES = {
     '.........FpwzzzBBry.........',
     '.........FEhaaaaayF.........',
     '.......BHEpnmmmnnmBFH.......',
-    '.....FHwh...........nHHj....',
-    '....Ep.................tp...',
-    '...BC...................F...',
-    '...E....................gF..',
-    '..Eg.mm..................B..',
-    '..E..nn......hh.......pj.nB.',
-    '..h..pm......mj......fCj..B.',
-    '.....rjj.............mEh..jj',
-    '....nCjf.............mpo...E',
-    '...hrj................gCh..t',
-    '.EfjEh.................wn..t',
-    'pnfmof......hjjmf......mBjhz',
+    '.....FCwhbbbabbbbbbeCHHj....',
+    '....EpCebbbabbbbbbaeC..tp...',
+    '...BCCebbbabbbbbbabbeC..F...',
+    '...E.CebbabbbbbbabbbbeC.gF..',
+    '..EgCmmbafbbbbbabfbbbeC..B..',
+    '..E.CnnabfbbbhhbbfbbbeCj.nB.',
+    '..h.CpmbbfbbbmjbbbfbafCC..B.',
+    '...CerjjfbbbabbbbbbfbmEhC.jj',
+    '...CnCjffbbabbbbbbafbmpoC..E',
+    '..ChrjbfbbabbbbbbabfbbgCC..t',
+    '.ECjEhbfbabbbbbbabbbfbbwnC.t',
+    'pCfmoffbabbbhjjmfbbbbfamBjCz',
     'phjmojhffCCCCCCCEEEhgfhmCjjt',
     'pjjnCjttzxuuuvxvuuxAECooCjjz',
     'rjmnCzxuuuvuuuxuuvvuvvAACjjA',
@@ -1529,7 +1766,7 @@ const CHAR_POSES = {
     '............yFFFy.....................',
   ],
 };
-const CHAR_PAL = { a: '#e5f4f6', b: '#def2f2', c: '#e1eef0', d: '#daedef', e: '#d5e0e3', f: '#c3d1d5', g: '#c4bfbd', h: '#aab8be', i: '#c7a89d', j: '#9ba7ad', k: '#c29587', l: '#ae7767', m: '#8d9aa1', n: '#848c92', o: '#76797e', p: '#6d6364', q: '#704d46', r: '#404655', s: '#51302c', t: '#323448', u: '#2c3856', v: '#272f48', w: '#212336', x: '#181e38', y: '#211218', z: '#131427', A: '#0e1226', B: '#0c0811', C: '#050811', E: '#030308', F: '#020105', H: '#000105', G: '#f4cf55', W: '#fff6c8', D: '#2b2f3a', Y: '#ffffff' };
+const CHAR_PAL = { a: '#e5f4f6', b: '#def2f2', c: '#e1eef0', d: '#daedef', e: '#d5e0e3', f: '#c3d1d5', g: '#c4bfbd', h: '#aab8be', i: '#c7a89d', j: '#9ba7ad', k: '#c29587', l: '#ae7767', m: '#8d9aa1', n: '#848c92', o: '#76797e', p: '#6d6364', q: '#704d46', r: '#404655', s: '#51302c', t: '#323448', u: '#2c3856', v: '#272f48', w: '#212336', x: '#181e38', y: '#211218', z: '#131427', A: '#0e1226', B: '#0c0811', C: '#050811', E: '#030308', F: '#020105', H: '#000105', G: '#f4cf55', W: '#fff6c8', D: '#2b2f3a', Y: '#ffffff', '1': '#f5b18a', '2': '#e8a480', '3': '#e29671', '4': '#d28b6b', '5': '#a1634c', '6': '#d18d4b', '7': '#8f5a2c', '8': '#c9a24a' };
 const CHAR_W = 30;
 const CHAR_H = 54;
 const CHAR_STEP = 16; // pixel percorsi dal corpo in un passo: tiene il piede d'appoggio fermo a terra
@@ -1572,19 +1809,33 @@ const CHAR_FAR = (() => {
 })();
 
 // Gamba di profilo (righe 40..53 della posa): un intervallo per riga, spostato in orizzontale a ogni passo
-const LEG_ROWS = CHAR_POSES.sideB.slice(HIP_Y).map((row, i) => {
-  let l = 0;
-  let r = row.length - 1;
-  while (row[l] === '.') l++;
-  while (row[r] === '.') r--;
-  return { y: HIP_Y + i, row, l, r };
-});
+const legRowsOf = (sideB) =>
+  sideB.slice(HIP_Y).map((row, i) => {
+    let l = 0;
+    let r = row.length - 1;
+    while (row[l] === '.') l++;
+    while (row[r] === '.') r--;
+    return { y: HIP_Y + i, row, l, r };
+  });
+
+// Statistiche (Cuori, Agilità, Potere, Carisma). Agilità 3 = velocità di base dei livelli;
+// ogni punto in meno toglie il 10% (Agilità 1 = -20%). Potere e Carisma sono solo scenografia: nessun effetto di gioco.
+const agiSpeed = (agi) => 1 - (3 - agi) * 0.1;
+const CHARS = {
+  mike: { id: 'mike', name: 'Mike', hearts: 3, agi: 3, pow: 3, cha: 3, skin: '12', poses: POSES_MIKE },
+  pork: { id: 'pork', name: 'Porkogerry', hearts: 4, agi: 1, pow: 6, cha: 6, skin: 'ki', poses: POSES_PORK },
+};
+for (const ch of Object.values(CHARS)) {
+  ch.speedMul = agiSpeed(ch.agi);
+  ch.legRows = legRowsOf(ch.poses.sideB);
+}
+const CHAR_LIST = [CHARS.mike, CHARS.pork];
 
 // u: -1 dietro .. +1 davanti; lift: righe di sollevamento del piede; il ginocchio va avanti e il piede resta indietro
-function charLeg(out, u, lift, far) {
+function charLeg(out, u, lift, far, ch) {
   const fwd = Math.round(lift * 0.6);
   const bend = Math.round(lift * 0.8);
-  for (const e of LEG_ROWS) {
+  for (const e of ch.legRows) {
     const f = (e.y - HIP_Y) / (FOOT_Y - HIP_Y);
     const knee = e.y <= KNEE_Y ? (fwd * (e.y - HIP_Y)) / (KNEE_Y - HIP_Y) : fwd - ((fwd + bend) * (e.y - KNEE_Y)) / (FOOT_Y - KNEE_Y);
     const sh = Math.round(u * STRIDE * f + knee);
@@ -1606,10 +1857,10 @@ function legAt(phi) {
   return { u: -1 + 2 * e, lift: Math.round(3 * Math.sin(Math.PI * clamp((p - 0.02) / 0.46, 0, 1))) };
 }
 
-// Busto di profilo (condiviso da camminata e salto): bob = salita del corpo, headBob = testa in ritardo,
+// Busto di profilo (condiviso da camminata, salto e posa ferma): bob = salita del corpo, headBob = testa in ritardo,
 // nod = testa avanti di 1 px, sw = spostamento orizzontale della mano vicina
-function charTorso(out, bob, headBob, nod, sw) {
-  const S = CHAR_POSES.sideB;
+function charTorso(out, ch, bob, headBob, nod, sw) {
+  const S = ch.poses.sideB;
   const HAND = { x0: 3, x1: 10, y0: 35, y1: 39 };
   const inHand = (x, y) => x >= HAND.x0 && x <= HAND.x1 && y >= HAND.y0 && y <= HAND.y1;
   for (let y = 15; y <= 17; y++) for (let x = 0; x < S[y].length; x++) charPut(out, x + SIDE_X, y, S[y][x]); // base del collo: nessuno spiraglio
@@ -1626,13 +1877,13 @@ function charTorso(out, bob, headBob, nod, sw) {
 }
 
 // k = 0..CHAR_CYCLE-1: due passi (le braccia si scambiano tra il primo e il secondo).
-function buildWalkFrame(k) {
+function buildWalkFrame(k, ch) {
   const psi = (k % CHAR_CYCLE) / CHAR_CYCLE;
   const out = charBlank();
   const near = legAt(psi);
   const far = legAt((psi + 0.5) % 1);
-  charLeg(out, far.u, far.lift, true); // lontana prima, vicina sopra
-  charLeg(out, near.u, near.lift, false);
+  charLeg(out, far.u, far.lift, true, ch); // lontana prima, vicina sopra
+  charLeg(out, near.u, near.lift, false, ch);
   const stepT = (psi * 2) % 1; // posizione nel passo
   const up = (t) => {
     const f = ((t % 1) + 1) % 1;
@@ -1642,38 +1893,70 @@ function buildWalkFrame(k) {
   const headBob = up(stepT - 0.08) ? 1 : 0;
   const nod = stepT < 0.25 || stepT > 0.9 ? 1 : 0; // la testa va avanti di un pixel al contatto
   const sw = -Math.round(2 * Math.cos(2 * Math.PI * psi));
-  charTorso(out, bob, headBob, nod, sw);
+  charTorso(out, ch, bob, headBob, nod, sw);
   return out;
 }
 
-// Salto: JUMP_FRAMES pose lungo l'arco (0 = stacco, ultimo = pronto al contatto). I keyframe sono
-// [u gamba vicina, lift vicina, u lontana, lift lontana]; l'ultimo coincide col contatto di buildWalkFrame(0)
-const JUMP_FRAMES = 6;
-const JUMP_KEYS = [
-  [-0.9, 0, 0.4, 5], // stacco: gamba di spinta dietro, ginocchio lontano su
-  [-0.6, 2, 0.5, 5],
-  [-0.2, 4, 0.4, 4], // apice: gambe raccolte
-  [0.5, 2, 0.0, 2],
-  [1, 0, -1, 0], // contatto
-];
-function buildJumpFrame(i) {
-  const s = clamp((i + 0.5) / JUMP_FRAMES, 0, 1);
-  const f = s * (JUMP_KEYS.length - 1);
-  const i0 = Math.min(Math.floor(f), JUMP_KEYS.length - 2);
-  const a = JUMP_KEYS[i0];
-  const b = JUMP_KEYS[i0 + 1];
-  const t = f - i0;
-  const mix = (j) => a[j] + (b[j] - a[j]) * t;
+// Posa ferma di profilo (le due che si sfottono in home): gambe unite, testa che "parla" quando talk = 1
+function buildStandFrame(ch, talk) {
   const out = charBlank();
-  charLeg(out, mix(2), Math.round(mix(3)), true);
-  charLeg(out, mix(0), Math.round(mix(1)), false);
-  charTorso(out, 0, 0, s > 0.5 ? 1 : 0, Math.round(2 * Math.cos(Math.PI * s))); // braccia in opposizione alle gambe
+  charLeg(out, 0, 0, true, ch);
+  charLeg(out, 0, 0, false, ch);
+  charTorso(out, ch, 0, talk ? 1 : 0, talk ? 1 : 0, 0);
   return out;
 }
 
-// Posa frontale (p.watch: avambraccio destro alzato a guardare l'orologio; p.glint: luccichio del quadrante)
-function buildFrontFrame(p) {
-  const S = CHAR_POSES.front;
+// Salto "alla Mario": una mano in alto (braccio piegato davanti al volto, con il pugno all'altezza dei capelli) e le
+// gambe divaricate in modo simmetrico (stessa apertura davanti e dietro). JUMP_POSES = stacco, apice, discesa.
+const JUMP_PAD = 9; // righe in più sopra la testa: il pugno alzato esce dalla sagoma normale
+const JUMP_POSES = [
+  { lift: 1, u: 0.8 },
+  { lift: 4, u: 1.0 },
+  { lift: 2, u: 0.9 },
+];
+const JUMP_FRAMES = JUMP_POSES.length;
+function buildJumpFrame(i, ch) {
+  const out = charBlank(CHAR_W, CHAR_H + JUMP_PAD);
+  const P = JUMP_PAD;
+  const xc = SIDE_X + 19; // asse dell'avambraccio, davanti al naso
+  const s0 = ch.skin[0];
+  const s1 = ch.skin[1];
+  // braccio alzato (dietro al corpo: davanti si vede solo da dove esce): avambraccio verticale, gomito, braccio che torna alla spalla
+  for (let y = P - 1; y <= P + 16; y++) {
+    charPut(out, xc - 2, y, 'A');
+    charPut(out, xc - 1, y, 'e');
+    charPut(out, xc, y, 'a');
+    charPut(out, xc + 1, y, 'a');
+    charPut(out, xc + 2, y, 'A');
+  }
+  for (let y = P + 13; y <= P + 17; y++) for (let x = SIDE_X + 9; x <= xc - 3; x++) charPut(out, x, y, y === P + 13 || y === P + 17 ? 'A' : 'a'); // braccio fino alla spalla
+  for (let x = xc - 2; x <= xc + 2; x++) charPut(out, x, P + 17, 'A'); // gomito
+  // manica arrotolata al polso e pugno chiuso con il pollice in su
+  for (let x = xc - 2; x <= xc + 2; x++) charPut(out, x, P - 1, 'A');
+  for (let y = P - 7; y <= P - 2; y++) {
+    for (let x = xc - 2; x <= xc + 1; x++) charPut(out, x, y, y <= P - 5 ? s1 : s0);
+    charPut(out, xc - 3, y, 'A');
+    charPut(out, xc + 2, y, 'A');
+  }
+  charPut(out, xc - 1, P - 8, s0); // pollice in su
+  charPut(out, xc, P - 8, s0);
+  charPut(out, xc - 2, P - 8, 'A');
+  charPut(out, xc + 1, P - 8, 'A');
+  charPut(out, xc - 1, P - 9, 'A');
+  charPut(out, xc, P - 9, 'A');
+  // corpo e gambe sopra al braccio
+  const body = charBlank();
+  const { lift, u } = JUMP_POSES[i];
+  const comp = Math.round(lift * 0.8) / STRIDE; // compensa il piede arretrato dal ginocchio: apertura identica davanti e dietro
+  charLeg(body, -u + comp, lift, true, ch);
+  charLeg(body, u + comp, lift, false, ch);
+  charTorso(body, ch, 0, 0, i === 1 ? 0 : 1, -2); // l'altra mano resta indietro, in equilibrio
+  for (let y = 0; y < CHAR_H; y++) for (let x = 0; x < CHAR_W; x++) if (body[y][x] !== '.') out[y + P][x] = body[y][x];
+  return out;
+}
+
+function buildFrontFrame(p, ch) {
+  const S = ch.poses.front;
   const out = charBlank();
   for (let y = 0; y < CHAR_H; y++) {
     for (let x = 0; x < S[y].length; x++) {
@@ -1693,23 +1976,53 @@ function buildFrontFrame(p) {
   }
   return out;
 }
-const buildBackFrame = () => {
-  const out = charBlank();
-  charStamp(out, CHAR_POSES.back, FRONT_X, 0, CHAR_H - 1, 0);
+
+// Riempie i buchi chiusi dentro la sagoma (non raggiungibili dal bordo): così nessuna posa risulta "bucata" sul Canvas
+function charSolid(out) {
+  const h = out.length;
+  const w = out[0].length;
+  const seen = Array.from({ length: h }, () => Array(w).fill(false));
+  const stack = [];
+  const push = (x, y) => {
+    if (x < 0 || y < 0 || x >= w || y >= h || seen[y][x] || out[y][x] !== '.') return;
+    seen[y][x] = true;
+    stack.push([x, y]);
+  };
+  for (let x = 0; x < w; x++) {
+    push(x, 0);
+    push(x, h - 1);
+  }
+  for (let y = 0; y < h; y++) {
+    push(0, y);
+    push(w - 1, y);
+  }
+  while (stack.length) {
+    const [x, y] = stack.pop();
+    push(x + 1, y);
+    push(x - 1, y);
+    push(x, y + 1);
+    push(x, y - 1);
+  }
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) if (out[y][x] === '.' && !seen[y][x]) out[y][x] = y < HIP_Y ? 'e' : 'u';
   return out;
+}
+const buildBackFrame = (ch) => {
+  const out = charBlank();
+  charStamp(out, ch.poses.back, FRONT_X, 0, CHAR_H - 1, 0);
+  return charSolid(out);
 };
 // Stordito (con le stelle) ed esultante (pollici in su): pose intere, di dimensioni proprie
-const buildHurtFrame = () => CHAR_POSES.hurt.map((r) => r.split(''));
-const buildCheerFrame = () => CHAR_POSES.cheer.map((r) => r.split(''));
+const buildHurtFrame = (ch) => ch.poses.hurt.map((r) => r.split(''));
+const buildCheerFrame = (ch) => ch.poses.cheer.map((r) => r.split(''));
 
 // Posa abbassata (a piena profondità: busto accorciato di 10 righe): n = righe tolte (0..10), così
 // la transizione cammina <-> abbassato passa per pose intermedie. Testa e spalle vanno avanti in
 // modo graduale (fino a 2 px) e non di colpo, così non resta il gradino sulla cucitura.
 const CROUCH_STEPS = [0, 3, 5, 8, 10];
-function buildCrouchFrame(k, n = 10) {
+function buildCrouchFrame(k, n, ch) {
   const lean = Math.round((2 * n) / 10);
   const rows = [];
-  buildWalkFrame(k).forEach((r, y) => {
+  buildWalkFrame(k, ch).forEach((r, y) => {
     if (y >= 24 && y < 24 + n) return;
     const sh = y < 24 ? Math.round(lean * clamp(1 - (y - 12) / 12, 0, 1)) : 0;
     if (!sh) return rows.push(r);
@@ -1861,21 +2174,24 @@ function buildCampLevels() {
 }
 const CAMP_LEVELS = buildCampLevels();
 
-function newCamp(lv) {
+function newCamp(lv, who = CHARS.mike) {
   const def = CAMP_LEVELS[lv];
+  const speed = def.speed * who.speedMul; // l'Agilità del personaggio scala la velocità del livello
   return {
     lv,
     def,
+    who,
     len: def.len,
-    speed: def.speed,
-    obs: def.obs.map((o) => ({ ...o })),
+    speed,
+    obs: tunePresses(def.obs.map((o) => ({ ...o })), speed), // le presse si risincronizzano sul ritmo di chi gioca
     pick: def.pick.map((p) => ({ ...p, got: false })),
     x: 0,
     pf: 0, // altezza dei piedi dal pavimento
     vy: 0,
     duck: false,
     duckA: 0, // 0..1: profondità grafica dell'abbassamento
-    hearts: MAX_LIVES,
+    hearts: who.hearts,
+    maxHearts: who.hearts,
     inv: 0,
     jumpBuf: 0,
     score: 0,
@@ -1974,7 +2290,7 @@ function campStep(c, dt, inp) {
       if (p.k === 'coil') {
         c.score += 5;
         ev.push({ k: 'coil', x: p.x, h: p.h });
-      } else if (c.hearts < MAX_LIVES) {
+      } else if (c.hearts < c.maxHearts) {
         c.hearts += 1;
         ev.push({ k: 'wrench', life: true, x: p.x, h: p.h });
       } else {
@@ -2562,13 +2878,6 @@ function launchGame({ fx = null } = {}) {
   homeScr.inner.style.position = 'relative';
   homeScr.inner.style.zIndex = '1';
   homeScr.scr.style.paddingTop = 'calc(env(safe-area-inset-top, 0px) + 5vh)';
-  const charCv = mk('canvas', { position: 'absolute', left: '0', bottom: '0', imageRendering: 'pixelated', cursor: 'pointer', touchAction: 'manipulation', zIndex: '0' });
-  charCv.width = CHAR_W;
-  charCv.height = CHAR_H;
-  charCv.setAttribute('role', 'img');
-  charCv.setAttribute('aria-label', 'Il custode del magazzino');
-  const charCtx = charCv.getContext('2d');
-  homeScr.scr.append(charCv);
 
   // Rush (pesca i barattoli)
   const rushScr = mkScreen('rgba(5,8,20,.5)');
@@ -2582,12 +2891,22 @@ function launchGame({ fx = null } = {}) {
   rushBtns.append(newGameBtn, scoresBtn, rushBackBtn);
   rushScr.inner.append(rushTitle, homeBest, rushBtns);
 
+  // Campagna: scelta del personaggio
+  const charsScr = mkScreen('rgba(5,8,20,.5)');
+  const charsTitle = mk('div', { ...titleStyle, fontSize: '46px' }, 'Campagna');
+  const charsSub = mk('div', { fontSize: '20px', fontWeight: '600', letterSpacing: '.08em', color: '#cbd5e8' }, 'Scegli il personaggio');
+  const charsList = mk('div', { display: 'flex', flexDirection: 'column', gap: '10px', width: '100%' });
+  const charsBackBtn = quietBtn(wide(pixelButton('Indietro', false)));
+  charsScr.inner.style.maxWidth = '340px';
+  charsScr.inner.append(charsTitle, charsSub, charsList, charsBackBtn);
+
   // Campagna: scelta del livello
   const levelsScr = mkScreen('rgba(5,8,20,.5)');
   const levelsTitle = mk('div', { ...titleStyle, fontSize: '46px' }, 'Campagna');
+  const levelsWho = mk('div', { fontSize: '20px', fontWeight: '600', letterSpacing: '.08em', color: '#f4cf55', marginTop: '-8px' }, '');
   const levelsList = mk('div', { display: 'flex', flexDirection: 'column', gap: '10px', width: '100%' });
   const levelsBackBtn = quietBtn(wide(pixelButton('Indietro', false)));
-  levelsScr.inner.append(levelsTitle, levelsList, levelsBackBtn);
+  levelsScr.inner.append(levelsTitle, levelsWho, levelsList, levelsBackBtn);
 
   // Classifica
   const scoresScr = mkScreen('rgba(5,8,20,.82)');
@@ -2755,7 +3074,7 @@ function launchGame({ fx = null } = {}) {
   card.append(menuTitle, hapticsRow, soundRow, bgLabel, bgSeg, legend, resumeBtn, quitBtn, backBtn);
   menu.append(card);
 
-  wrap.append(canvas, hint, pauseBtn, homeScr.scr, rushScr.scr, levelsScr.scr, scoresScr.scr, panel, menu);
+  wrap.append(canvas, hint, pauseBtn, homeScr.scr, rushScr.scr, charsScr.scr, levelsScr.scr, scoresScr.scr, panel, menu);
   overlay.append(wrap);
   document.body.append(overlay);
 
@@ -3676,6 +3995,115 @@ function launchGame({ fx = null } = {}) {
       levelsList.append(b);
     });
   }
+  // Scelta del personaggio (prima dei livelli): nome, cuori e barre delle statistiche
+  let selChar = CHARS.mike;
+  const statBar = (value, pen) => {
+    const row = mk('div', { display: 'flex', alignItems: 'center', gap: '3px' });
+    for (let i = 0; i < 5; i++) row.append(mk('div', { width: '12px', height: '10px', background: i < Math.min(value, 5) ? '#f4cf55' : 'rgba(255,255,255,.2)', boxShadow: i < Math.min(value, 5) ? 'inset 0 -3px 0 rgba(0,0,0,.25)' : 'none' }));
+    if (value > 5 && pen) {
+      // la sesta tacca è "disegnata a penna": scarabocchio blu biro con tratteggio, un po' storto
+      const ns = 'http://www.w3.org/2000/svg';
+      const s = document.createElementNS(ns, 'svg');
+      s.setAttribute('viewBox', '0 0 18 16');
+      s.setAttribute('width', '19');
+      s.setAttribute('height', '17');
+      s.setAttribute('aria-hidden', 'true');
+      s.style.display = 'block';
+      s.style.overflow = 'visible';
+      s.style.transform = 'rotate(-7deg) translateY(-1px)';
+      const mkP = (d, w) => {
+        const p = document.createElementNS(ns, 'path');
+        p.setAttribute('d', d);
+        p.setAttribute('fill', 'none');
+        p.setAttribute('stroke', '#3b5bff');
+        p.setAttribute('stroke-width', w);
+        p.setAttribute('stroke-linecap', 'round');
+        p.setAttribute('stroke-linejoin', 'round');
+        s.append(p);
+      };
+      mkP('M1.5 3.2 L15.8 1.8 L16.6 13.4 L0.8 14.6 L1.2 2.4', '1.7');
+      mkP('M3 5.6 L14 4.4 M2.6 8.4 L15 7.2 M3.2 11.2 L14.4 10 M5 13.4 L12 12.6', '1.3');
+      mkP('M17.6 3.6 L19.4 3.2', '1.3');
+      row.append(s);
+    }
+    return row;
+  };
+  const statRow = (label, content) => {
+    const r = mk('div', { display: 'flex', alignItems: 'center', gap: '8px', minHeight: '16px' });
+    r.append(mk('div', { width: '68px', fontSize: '13px', fontWeight: '700', letterSpacing: '.08em', color: '#9fb4e8' }, label), content);
+    return r;
+  };
+  function renderChars() {
+    charsList.replaceChildren();
+    CHAR_LIST.forEach((ch) => {
+      const on = ch === selChar;
+      const b = mk('button', {
+        display: 'flex',
+        alignItems: 'center',
+        gap: '12px',
+        width: '100%',
+        padding: '10px 12px',
+        boxSizing: 'border-box',
+        borderRadius: '10px',
+        border: `2px solid ${on ? '#f4cf55' : 'rgba(255,255,255,.35)'}`,
+        background: on ? 'rgba(244,207,85,.16)' : 'rgba(255,255,255,.06)',
+        color: '#fff',
+        fontFamily: FONT_UI,
+        textTransform: 'uppercase',
+        textAlign: 'left',
+        cursor: 'pointer',
+      });
+      b.type = 'button';
+      b.setAttribute('aria-label', `Gioca con ${ch.name}`);
+      // ritratto: busto della posa frontale
+      const grid = buildFrontFrame({}, ch);
+      const face = document.createElement('canvas');
+      face.width = CHAR_W;
+      face.height = 30;
+      const fx = face.getContext('2d');
+      grid.slice(0, 30).forEach((row, y) =>
+        row.forEach((c, x) => {
+          if (c === '.') return;
+          fx.fillStyle = CHAR_PAL[c];
+          fx.fillRect(x, y, 1, 1);
+        })
+      );
+      face.style.cssText = `width:${CHAR_W * 3}px;height:90px;image-rendering:pixelated;flex:none;background:rgba(255,255,255,.08);border-radius:8px`;
+      const txt = mk('div', { flex: '1', display: 'flex', flexDirection: 'column', gap: '3px', minWidth: '0' });
+      const hearts = mk('div', { display: 'flex', gap: '2px', alignItems: 'center' });
+      for (let i = 0; i < ch.hearts; i++) hearts.append(svgIcon(HEART, { X: '#e5383b' }, 2));
+      txt.append(
+        mk('div', { fontSize: '26px', fontWeight: '700', letterSpacing: '.05em', color: '#f4cf55', lineHeight: '1' }, ch.name),
+        statRow('Cuori', hearts),
+        statRow('Agilità', statBar(ch.agi, false)),
+        statRow('Potere', statBar(ch.pow, true)),
+        statRow('Carisma', statBar(ch.cha, true))
+      );
+      b.append(face, txt);
+      b.addEventListener('click', () => {
+        if (screen !== 'chars') return;
+        selChar = ch;
+        feel('click', HAP.tap);
+        goLevels();
+      });
+      charsList.append(b);
+    });
+  }
+  function goChars() {
+    releaseSub();
+    if (audio) audio.stopMusic();
+    camp = null;
+    g.mode = 'camp';
+    g.state = 'home';
+    campReleaseInput();
+    clearTimeout(hintTimer);
+    hint.style.opacity = '0';
+    renderChars();
+    showScreen('chars');
+    pushSub(() => goHome());
+    last = 0;
+  }
+
   function goLevels() {
     releaseSub();
     if (audio) audio.stopMusic();
@@ -3685,9 +4113,10 @@ function launchGame({ fx = null } = {}) {
     campReleaseInput();
     clearTimeout(hintTimer);
     hint.style.opacity = '0';
+    levelsWho.textContent = `con ${selChar.name}`;
     renderLevels();
     showScreen('levels');
-    pushSub(() => goHome());
+    pushSub(() => goChars());
     last = 0;
   }
 
@@ -3695,7 +4124,7 @@ function launchGame({ fx = null } = {}) {
     if (!campUnlocked(campProg, lv)) return;
     releaseSub();
     feel('start', HAP.launch);
-    camp = newCamp(lv);
+    camp = newCamp(lv, selChar);
     g.mode = 'camp';
     g.hurt = 0;
     g.flashT = 0;
@@ -3854,18 +4283,20 @@ function launchGame({ fx = null } = {}) {
 
   // ----- Disegno della Campagna -----
   function playerFrame(c) {
-    if (c.state === 'dead' || (c.state === 'run' && c.inv > C_INV - 0.55)) return charFrame('hurt', buildHurtFrame); // stordito dopo un colpo
-    if (g.state === 'intro') return charFrame('front', () => buildFrontFrame({}));
+    const ch = c.who;
+    const fr = (key, build) => charFrame(`${ch.id}:${key}`, build);
+    if (c.state === 'dead' || (c.state === 'run' && c.inv > C_INV - 0.55)) return fr('hurt', () => buildHurtFrame(ch)); // stordito dopo un colpo
+    if (g.state === 'intro') return fr('front', () => buildFrontFrame({}, ch));
     const k = Math.floor(((c.walkD % (CHAR_STEP * 2)) / (CHAR_STEP * 2)) * CHAR_CYCLE) % CHAR_CYCLE;
     if (c.pf > 0) {
-      // in aria: la posa segue l'arco (vy da +C_JUMP a -C_JUMP): stacco, apice, discesa verso il contatto
+      // in aria: la posa segue l'arco (vy da +C_JUMP a -C_JUMP): stacco, apice, discesa
       const s = clamp((C_JUMP - c.vy) / (2 * C_JUMP), 0, 1);
       const j = Math.min(JUMP_FRAMES - 1, Math.floor(s * JUMP_FRAMES));
-      return charFrame(`j${j}`, () => buildJumpFrame(j));
+      return fr(`j${j}`, () => buildJumpFrame(j, ch));
     }
     const n = CROUCH_STEPS[Math.round(c.duckA * (CROUCH_STEPS.length - 1))]; // 0 = in piedi, 10 = tutto abbassato
-    if (n > 0) return charFrame(`c${k}_${n}`, () => buildCrouchFrame(k, n)); // stessa fase k: i piedi non si muovono
-    return charFrame(`w${k}`, () => buildWalkFrame(k));
+    if (n > 0) return fr(`c${k}_${n}`, () => buildCrouchFrame(k, n, ch)); // stessa fase k: i piedi non si muovono
+    return fr(`w${k}`, () => buildWalkFrame(k, ch));
   }
 
   function drawObstacle(o, sx, fy) {
@@ -4071,7 +4502,7 @@ function launchGame({ fx = null } = {}) {
     const winT = c.endT - WIN_CHEER; // dopo l'esultanza: di schiena verso la porta
     if (c.state !== 'win' || winT < WIN_WALK) {
       const frame =
-        c.state === 'win' ? (winT < 0 ? charFrame('cheer', buildCheerFrame) : charFrame('back', buildBackFrame)) : playerFrame(c);
+        c.state === 'win' ? (winT < 0 ? charFrame(`${c.who.id}:cheer`, () => buildCheerFrame(c.who)) : charFrame(`${c.who.id}:back`, () => buildBackFrame(c.who))) : playerFrame(c);
       const blink = c.inv > 0 && c.state === 'run' && c.inv <= C_INV - 0.55 && Math.floor(c.t * 14) % 2 === 0;
       if (!blink) {
         const feet = fy - Math.round(c.pf);
@@ -4134,7 +4565,7 @@ function launchGame({ fx = null } = {}) {
     ctx.globalAlpha = 1;
 
     // HUD: cuori, bobine e avanzamento
-    for (let i = 0; i < MAX_LIVES; i++) heart(5 + i * (HW + 3), topPad, i < c.hearts);
+    for (let i = 0; i < c.maxHearts; i++) heart(5 + i * (HW + 3), topPad, i < c.hearts);
     textWithShadow(String(c.score), W - 5, topPad, 2, '#ffffff');
     const bx = Math.round(W * 0.42);
     const bw = W - 5 - bx;
@@ -4266,8 +4697,62 @@ function launchGame({ fx = null } = {}) {
     }
     return cv;
   };
-  // mode: idle (di fronte) | walk (di profilo) | turn (di schiena, al bordo) | watch (di fronte, guarda l'orologio)
-  const cs = { x: 8, dir: 1, mode: 'idle', t: 0, until: 0.8, walked: 0, watchIn: 4, z: 2, maxX: 0, shown: '', tic: 0 };
+  // I due rivali della home. mode: idle (di fronte) | walk (di profilo) | turn (di schiena, al bordo) | watch (di fronte, guarda
+  // l'orologio) | spat (fermi di profilo, uno di fronte all'altro, mentre si sfottono). Ognuno ha la sua tela e il suo passo:
+  // Porkogerry (Agilità 1) cammina più piano di Mike.
+  const cs = { z: 2, maxX: 0 }; // zoom e limite destro, uguali per entrambi
+  const mkWalker = (ch, x, dir) => {
+    const cv = mk('canvas', { position: 'absolute', left: '0', bottom: '0', imageRendering: 'pixelated', cursor: 'pointer', touchAction: 'manipulation', zIndex: '0' });
+    cv.width = CHAR_W;
+    cv.height = CHAR_H;
+    cv.setAttribute('role', 'img');
+    cv.setAttribute('aria-label', ch.name);
+    homeScr.scr.append(cv);
+    const w = { ch, cv, ctx: cv.getContext('2d'), x, dir, mode: 'idle', t: 0, until: 0.8 + Math.random() * 0.8, walked: 0, watchIn: 4 + Math.random() * 6, tic: 0, shown: '' };
+    cv.addEventListener('click', () => walkerWatch(w, true));
+    return w;
+  };
+  const walkers = [mkWalker(CHARS.mike, 8, 1), mkWalker(CHARS.pork, 9999, -1)]; // Porkogerry parte dal bordo destro (layoutChar lo riporta dentro)
+
+  // Nuvoletta di testo (box nitido a bordo spesso, ombra dura, codina verso chi parla)
+  const bubble = mk('div', {
+    position: 'absolute',
+    zIndex: '3',
+    display: 'none',
+    boxSizing: 'border-box',
+    maxWidth: '190px',
+    padding: '6px 10px',
+    background: '#fffdf2',
+    color: '#1a1a2e',
+    border: '3px solid #1a1a2e',
+    borderRadius: '4px',
+    boxShadow: '3px 3px 0 rgba(0,0,0,.45)',
+    fontFamily: FONT_UI,
+    fontWeight: '700',
+    fontSize: '16px',
+    lineHeight: '1.1',
+    letterSpacing: '.04em',
+    textAlign: 'center',
+    pointerEvents: 'none',
+  });
+  const bubbleTxt = mk('span', null, '');
+  const bubbleTail = mk('div', { position: 'absolute', bottom: '-9px', width: '10px', height: '10px', background: '#fffdf2', borderRight: '3px solid #1a1a2e', borderBottom: '3px solid #1a1a2e', transform: 'translateX(-50%) rotate(45deg)' });
+  bubble.append(bubbleTxt, bubbleTail);
+  homeScr.scr.append(bubble);
+
+  // Battute (scambi brevi e innocui: si sfottono sul lavoro, non sul fisico)
+  const BANTER = [
+    [['mike', 'Ancora tu?'], ['pork', 'Spostati, sto lavorando.'], ['mike', 'Tu? Lavorare?']],
+    [['pork', 'Hai sbagliato magazzino.'], ['mike', 'No, hai sbagliato mestiere.']],
+    [['mike', 'Quella scatola è storta.'], ['pork', 'Come le tue idee.'], ['mike', 'Almeno io ne ho.']],
+    [['pork', 'Sei lento come un muletto scarico.'], ['mike', 'E tu ti perdi nei corridoi.']],
+    [['mike', 'Chi ha perso l\'inventario?'], ['pork', 'Io no. Tu hai perso la strada.']],
+    [['pork', 'Il solito pignolo.'], ['mike', 'Il solito presuntuoso.']],
+    [['mike', 'Il caffè l\'ho finito io.'], ['pork', 'Lo sapevo. Maleducato!']],
+    [['pork', 'Il capo mi adora.'], ['mike', 'Il capo non sa chi sei.']],
+  ];
+  const spat = { on: false, cool: 0.5, pick: 0, line: 0, t: 0, script: null };
+  const LINE_S = 2.1; // secondi per battuta
 
   function layoutChar() {
     if (screen !== 'home') return;
@@ -4276,112 +4761,183 @@ function launchGame({ fx = null } = {}) {
     const groundTop = wr.height - GROUND_H * scale;
     const avail = groundTop - (ir.bottom - wr.top) - 6;
     cs.z = clamp(Math.floor(avail / CHAR_H), 1, Math.min(scale, 3)); // al massimo ~144 px di altezza
-    charCv.style.width = `${CHAR_W * cs.z}px`;
-    charCv.style.height = `${CHAR_H * cs.z}px`;
-    charCv.style.bottom = `${GROUND_H * scale - scale}px`; // i piedi poggiano sul bordo del suolo
     cs.maxX = Math.max(0, Math.floor(wr.width / cs.z) - CHAR_W);
-    cs.x = clamp(cs.x, 0, cs.maxX);
-    cs.shown = '';
+    for (const w of walkers) {
+      w.cv.style.width = `${CHAR_W * cs.z}px`;
+      w.cv.style.height = `${CHAR_H * cs.z}px`;
+      w.cv.style.bottom = `${GROUND_H * scale - scale}px`; // i piedi poggiano sul bordo del suolo
+      w.x = clamp(w.x, 0, cs.maxX);
+      w.shown = '';
+    }
   }
 
-  function charSet(mode, dur) {
-    cs.mode = mode;
-    cs.t = 0;
-    cs.until = dur;
+  function walkerSet(w, mode, dur) {
+    w.mode = mode;
+    w.t = 0;
+    w.until = dur;
   }
-  function charWatch(byTap) {
-    if (cs.mode === 'watch') return;
-    charSet('watch', 2.6);
-    cs.tic = 0;
-    cs.watchIn = 8 + Math.random() * 6;
+  function walkerWatch(w, byTap) {
+    if (w.mode === 'watch' || w.mode === 'spat') return;
+    walkerSet(w, 'watch', 2.6);
+    w.tic = 0;
+    w.watchIn = 8 + Math.random() * 6;
     if (audio) audio.auto(); // tic-tac d'orologio: lo stesso dell'opzione Auto dello sfondo
     if (byTap) vib(HAP.auto, 2);
   }
-  charCv.addEventListener('click', () => charWatch(true));
 
-  function charTick(dt) {
-    if (screen !== 'home') return;
-    cs.t += dt;
-    cs.watchIn -= dt;
+  // Quando si avvicinano si fermano di profilo, uno di fronte all'altro, e si insultano a turno; poi ognuno se ne va per la sua strada
+  function spatTick(dt) {
+    if (reduceMotion && !spat.on) return;
+    const [a, b] = walkers[0].x <= walkers[1].x ? [walkers[0], walkers[1]] : [walkers[1], walkers[0]]; // a = quello a sinistra
+    if (!spat.on) {
+      spat.cool -= dt;
+      const free = (w) => w.mode === 'walk' || w.mode === 'idle';
+      if (spat.cool > 0 || !free(a) || !free(b) || b.x - a.x > CHAR_W + 14) return;
+      let pick = Math.floor(Math.random() * BANTER.length);
+      if (pick === spat.pick) pick = (pick + 1) % BANTER.length;
+      spat.pick = pick;
+      spat.script = BANTER[pick];
+      spat.on = true;
+      spat.line = 0;
+      spat.t = 0;
+      const mid = (a.x + b.x) / 2;
+      a.x = clamp(mid - 15, 0, cs.maxX);
+      b.x = clamp(a.x + 30, 0, cs.maxX);
+      a.dir = 1;
+      b.dir = -1;
+      walkerSet(a, 'spat', 99);
+      walkerSet(b, 'spat', 99);
+      return;
+    }
+    spat.t += dt;
+    if (spat.t >= LINE_S) {
+      spat.t = 0;
+      spat.line += 1;
+    }
+    if (spat.line >= spat.script.length) {
+      // fine: si danno le spalle e se ne vanno
+      spat.on = false;
+      spat.cool = 12 + Math.random() * 8;
+      bubble.style.display = 'none';
+      a.dir = -1;
+      b.dir = 1;
+      for (const w of [a, b]) walkerSet(w, 'walk', 3 + Math.random() * 3);
+      if (a.x <= 0) a.dir = 1;
+      if (b.x >= cs.maxX) b.dir = -1;
+      return;
+    }
+    const [who, text] = spat.script[spat.line];
+    const sp = walkers.find((w) => w.ch.id === who);
+    if (bubbleTxt.textContent !== text) bubbleTxt.textContent = text;
+    bubble.style.display = 'block';
+    const wr = wrap.getBoundingClientRect();
+    const bw = bubble.offsetWidth;
+    const cx = (sp.x + CHAR_W / 2) * cs.z;
+    const left = clamp(cx - bw / 2, 4, Math.max(4, wr.width - bw - 4));
+    bubble.style.left = `${Math.round(left)}px`;
+    bubble.style.bottom = `${GROUND_H * scale - scale + CHAR_H * cs.z + 12}px`;
+    bubbleTail.style.left = `${Math.round(clamp(cx - left, 12, bw - 12))}px`;
+  }
+
+  function walkerStep(w, dt) {
+    const ch = w.ch;
+    w.t += dt;
+    w.watchIn -= dt;
     let key;
     let build;
     let flip = false;
-    if (cs.mode === 'walk') {
-      cs.x += cs.dir * (CHAR_STEP / 0.6) * dt; // un passo ogni 0,6 s
-      cs.walked += (CHAR_STEP / 0.6) * dt;
-      const atEdge = (cs.dir < 0 && cs.x <= 0) || (cs.dir > 0 && cs.x >= cs.maxX);
+    const sp = (CHAR_STEP / 0.6) * ch.speedMul; // un passo ogni 0,6 s (Porkogerry: più lento)
+    if (w.mode === 'walk') {
+      w.x += w.dir * sp * dt;
+      w.walked += sp * dt;
+      const atEdge = (w.dir < 0 && w.x <= 0) || (w.dir > 0 && w.x >= cs.maxX);
       if (atEdge) {
-        cs.x = clamp(cs.x, 0, cs.maxX);
-        charSet('turn', 0.7); // al bordo si gira di schiena prima di tornare indietro
-      } else if (cs.t >= cs.until) charSet('idle', 0.7 + Math.random() * 0.9);
+        w.x = clamp(w.x, 0, cs.maxX);
+        walkerSet(w, 'turn', 0.7); // al bordo si gira di schiena prima di tornare indietro
+      } else if (w.t >= w.until) walkerSet(w, 'idle', 0.7 + Math.random() * 0.9);
     }
-    if (cs.mode === 'walk') {
-      const k = Math.floor(((cs.walked % (CHAR_STEP * 2)) / (CHAR_STEP * 2)) * CHAR_CYCLE) % CHAR_CYCLE;
-      key = `w${k}`;
-      build = () => buildWalkFrame(k);
-      flip = cs.dir < 0;
-    } else if (cs.mode === 'turn') {
-      if (cs.t >= cs.until) {
-        cs.dir = cs.x <= 0 ? 1 : -1;
-        charSet('walk', 3 + Math.random() * 3);
+    if (w.mode === 'walk') {
+      const k = Math.floor(((w.walked % (CHAR_STEP * 2)) / (CHAR_STEP * 2)) * CHAR_CYCLE) % CHAR_CYCLE;
+      key = `${ch.id}:w${k}`;
+      build = () => buildWalkFrame(k, ch);
+      flip = w.dir < 0;
+    } else if (w.mode === 'turn') {
+      if (w.t >= w.until) {
+        w.dir = w.x <= 0 ? 1 : -1;
+        walkerSet(w, 'walk', 3 + Math.random() * 3);
       }
-      key = 'back';
-      build = buildBackFrame;
-    } else if (cs.mode === 'idle') {
-      if (cs.t >= cs.until) {
-        if (cs.watchIn <= 0) charWatch(false);
-        else if (reduceMotion) charSet('idle', 1.5);
+      key = `${ch.id}:back`;
+      build = () => buildBackFrame(ch);
+    } else if (w.mode === 'idle') {
+      if (w.t >= w.until) {
+        if (w.watchIn <= 0) walkerWatch(w, false);
+        else if (reduceMotion) walkerSet(w, 'idle', 1.5);
         else {
-          cs.dir = cs.x < cs.maxX * 0.25 ? 1 : cs.x > cs.maxX * 0.75 ? -1 : Math.random() < 0.5 ? 1 : -1;
-          charSet('walk', 3 + Math.random() * 3);
+          w.dir = w.x < cs.maxX * 0.25 ? 1 : w.x > cs.maxX * 0.75 ? -1 : Math.random() < 0.5 ? 1 : -1;
+          walkerSet(w, 'walk', 3 + Math.random() * 3);
         }
       }
-      key = 'front';
-      build = () => buildFrontFrame({});
+      key = `${ch.id}:front`;
+      build = () => buildFrontFrame({}, ch);
     }
-    if (cs.mode === 'watch') {
+    if (w.mode === 'watch') {
       // alza il braccio (0,3 s), guarda l'orologio con un luccichio, poi riabbassa
-      if (cs.t >= cs.until) {
-        charSet('idle', 0.6);
-        key = 'front';
-        build = () => buildFrontFrame({});
+      if (w.t >= w.until) {
+        walkerSet(w, 'idle', 0.6);
+        key = `${ch.id}:front`;
+        build = () => buildFrontFrame({}, ch);
       } else {
-        const up = cs.t < 0.3 || cs.t > cs.until - 0.3;
-        const glint = !up && Math.floor(cs.t * 4) % 2 ? 1 : 0;
-        key = `watch${glint}`;
-        build = () => buildFrontFrame({ watch: 1, glint });
-        if (audio && cs.t > 1.3 && cs.tic === 0) {
-          cs.tic = 1;
+        const up = w.t < 0.3 || w.t > w.until - 0.3;
+        const glint = !up && Math.floor(w.t * 4) % 2 ? 1 : 0;
+        key = `${ch.id}:watch${glint}`;
+        build = () => buildFrontFrame({ watch: 1, glint }, ch);
+        if (audio && w.t > 1.3 && w.tic === 0) {
+          w.tic = 1;
           audio.auto(); // secondo tic a metà occhiata
         }
       }
     }
-    if (!key) return;
-    const left = Math.round(cs.x);
-    const sig = `${left}|${cs.z}|${key}|${flip}`;
-    if (sig === cs.shown) return;
-    cs.shown = sig;
-    charCtx.clearRect(0, 0, CHAR_W, CHAR_H);
-    charCtx.save();
-    if (flip) {
-      charCtx.translate(CHAR_W, 0);
-      charCtx.scale(-1, 1);
+    if (w.mode === 'spat') {
+      const speaking = spat.on && spat.script && spat.script[spat.line] && spat.script[spat.line][0] === ch.id;
+      const talk = speaking && Math.floor(spat.t * 5) % 2 ? 1 : 0; // la testa va avanti e indietro mentre parla
+      key = `${ch.id}:s${talk}`;
+      build = () => buildStandFrame(ch, talk);
+      flip = w.dir < 0;
     }
-    charCtx.drawImage(charFrame(key, build), 0, 0);
-    charCtx.restore();
-    charCv.style.transform = `translateX(${left * cs.z}px)`;
+    if (!key) return;
+    const left = Math.round(w.x);
+    const sig = `${left}|${cs.z}|${key}|${flip}`;
+    if (sig === w.shown) return;
+    w.shown = sig;
+    w.ctx.clearRect(0, 0, CHAR_W, CHAR_H);
+    w.ctx.save();
+    if (flip) {
+      w.ctx.translate(CHAR_W, 0);
+      w.ctx.scale(-1, 1);
+    }
+    w.ctx.drawImage(charFrame(key, build), 0, 0);
+    w.ctx.restore();
+    w.cv.style.transform = `translateX(${left * cs.z}px)`;
+  }
+
+  function charTick(dt) {
+    if (screen !== 'home') return;
+    for (const w of walkers) walkerStep(w, dt);
+    spatTick(dt);
   }
 
   function showScreen(name) {
     screen = name;
     homeScr.scr.style.display = name === 'home' ? 'flex' : 'none';
     rushScr.scr.style.display = name === 'rush' ? 'flex' : 'none';
+    charsScr.scr.style.display = name === 'chars' ? 'flex' : 'none';
     levelsScr.scr.style.display = name === 'levels' ? 'flex' : 'none';
     scoresScr.scr.style.display = name === 'scores' ? 'flex' : 'none';
     panel.style.display = name === 'over' ? 'flex' : 'none';
     pauseBtn.style.display = name === null ? 'flex' : 'none';
     if (name !== 'settings') menu.style.display = 'none';
     if (name === 'home') layoutChar();
+    else bubble.style.display = 'none';
   }
   const locked = () => performance.now() < lockUntil;
   const feel = (soundName, pattern, prio = 2) => {
@@ -4618,7 +5174,12 @@ function launchGame({ fx = null } = {}) {
   campBtn.addEventListener('click', () => {
     if (screen !== 'home') return;
     feel('pauseOpen', HAP.tap);
-    goLevels();
+    goChars();
+  });
+  charsBackBtn.addEventListener('click', () => {
+    if (screen !== 'chars') return;
+    feel('back', HAP.back);
+    goHome();
   });
   rushBackBtn.addEventListener('click', () => {
     if (screen !== 'rush') return;
@@ -4628,7 +5189,7 @@ function launchGame({ fx = null } = {}) {
   levelsBackBtn.addEventListener('click', () => {
     if (screen !== 'levels') return;
     feel('back', HAP.back);
-    goHome();
+    goChars();
   });
   newGameBtn.addEventListener('click', newGame);
   scoresBtn.addEventListener('click', () => {
