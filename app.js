@@ -21,7 +21,6 @@ import { processTransaction, adjustCachedProductQuantity, bumpProductsVersion } 
 import { toastSuccess, toastError } from './toast.js';
 import { closeAllOverlays } from './ui-utils.js';
 import { initNavHistory, pushLayer, resetLayers } from './nav-history.js';
-import { initMinigame } from './minigame.js'; // easter egg: pressione lunga (5 s) sul tasto Magazzino
 import { getPdfCacheInfo, clearPdfCache } from './pdf-cache.js';
 import { confirmDialog } from './ui-modal.js';
 import './input-clear.js'; // tasto X in ogni campo di testo (si aggancia da solo)
@@ -75,7 +74,6 @@ function onAuthed(profile) {
     initHistoryAdmin();
     initNavHistory();
     initNav();
-    initMinigame();
     initFeedbackSettings();
     initSettingsRefreshButton();
     initPdfCacheButton();
