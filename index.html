@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content">
 <title>MATE - Magazzino e Tecnica</title>
 <meta name="description" content="MATE - Magazzino e Tecnica. Tutto ciò che serve al reparto, a portata di mano.">
-<meta name="theme-color" content="#2f4f92">
+<meta name="theme-color" content="#0a3a6e">
 
 <!-- PWA: manifest e icone -->
 <link rel="manifest" href="./manifest.json">
@@ -60,22 +60,16 @@
 <!-- =================== VISTA LOGIN =================== -->
 <div id="auth-view" class="min-h-screen flex flex-col items-center justify-center px-6">
   <div class="w-full max-w-sm">
-    <!-- Marchio MATE (Magazzino + Tecnica) con intro animata: vedi blocco ".mate-" in style.css.
-         Sequenza: MATE -> "Magazzino • Tecnica" -> MA/Ma si illuminano -> TE/Te si illuminano
-         -> fascio di luce dietro MATE -> payoff a macchina da scrivere. -->
-    <div class="mate-brand mb-6">
-      <h1 class="mate-title" aria-label="MATE, Magazzino e Tecnica">
+    <!-- Testata login: scheda blu con il logo (scudo "M") e "Magazzino Tecnico".
+         Stili: blocco ".mate-" in style.css. -->
+    <div class="mate-brand mb-5">
+      <h1 class="mate-title" aria-label="MATE, Magazzino Tecnico">
         <span class="mate-beam" aria-hidden="true"></span>
-        <span class="mate-word" aria-hidden="true"><span class="mate-ma">MA</span><span class="mate-te">TE</span></span>
+        <img class="mate-logo" src="./icons/logo-mate.png" alt="" width="359" height="420" decoding="async">
       </h1>
       <p class="mate-sub" aria-hidden="true">
-        <span class="mate-sub-1"><span class="mate-sub-ma">Ma</span>gazzino</span>
-        <span class="mate-dot">&bull;</span>
-        <span class="mate-sub-2"><span class="mate-sub-te">Te</span>cnica</span>
-      </p>
-      <p class="mate-payoff">
-        <span class="mate-line mate-line-1">Tutto ciò che serve al reparto,</span>
-        <span class="mate-line mate-line-2">a portata di mano.</span>
+        <span class="mate-sub-1">Magazzino</span>
+        <span class="mate-sub-2">Tecnico</span>
       </p>
     </div>
   </div>
@@ -86,7 +80,7 @@
   </div>
 
   <div class="w-full max-w-sm">
-    <form id="login-form" class="card-plate rounded-xl p-5 space-y-4">
+    <form id="login-form" class="login-card card-plate rounded-2xl p-5 space-y-4">
       <div>
         <label for="login-email" class="block text-xs font-display font-semibold uppercase tracking-wide text-graphite-400 mb-1.5">Email</label>
         <input id="login-email" type="email" required autocomplete="username"
@@ -103,7 +97,7 @@
       <p id="login-error" class="hidden text-sm text-rose-700 bg-rose-500/10 border border-rose-500/30 rounded-lg px-3 py-2"></p>
 
       <button id="login-submit" type="submit"
-        class="press-spring w-full rounded-lg bg-amber-400 hover:bg-amber-300 text-white font-display font-bold uppercase tracking-wide py-3">
+        class="login-btn press-spring w-full rounded-lg text-white font-display font-bold uppercase tracking-wide py-3">
         <span class="btn-label">Accedi</span>
       </button>
     </form>
