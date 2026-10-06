@@ -1914,29 +1914,39 @@ input:disabled + .input-clear { display: none; }
   display: flex;
   justify-content: center;
 }
-.mate-logo {
+.mate-logo-wrap {
   position: relative;
-  z-index: 1;
   display: block;
-  width: auto;
   height: clamp(8.5rem, 34vw, 10.5rem);
   filter: drop-shadow(0 6px 10px rgba(0, 0, 0, 0.45));
+}
+.mate-logo {
+  display: block;
+  width: auto;
+  height: 100%;
   -webkit-user-drag: none;
   user-select: none;
 }
+/* Strato della luce: stessa sagoma (alpha) del logo con la scritta MATE, quindi la luce si vede
+   solo su scudo e lettere e mai sullo sfondo blu. */
+.mate-shine {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  -webkit-mask: url("./icons/logo-mate.png") center / 100% 100% no-repeat;
+  mask: url("./icons/logo-mate.png") center / 100% 100% no-repeat;
+}
 .mate-beam {
   position: absolute;
-  top: -10%;
-  bottom: -10%;
-  left: -20%;
-  width: 36%;
-  z-index: 2;                       /* sopra il logo: riflesso che attraversa l'acciaio */
-  pointer-events: none;
+  top: -5%;
+  bottom: -5%;
+  left: -40%;
+  width: 40%;
   opacity: 0;
-  mix-blend-mode: soft-light;
-  background: linear-gradient(100deg, transparent 0%, rgba(255, 255, 255, 0.55) 45%, rgba(255, 255, 255, 0.95) 50%, rgba(255, 255, 255, 0.55) 55%, transparent 100%);
-  filter: blur(3px);
-  transform: translateX(-120%) skewX(-18deg);
+  background: linear-gradient(100deg, transparent 0%, rgba(255, 255, 255, 0.45) 40%, rgba(255, 255, 255, 0.95) 50%, rgba(255, 255, 255, 0.45) 60%, transparent 100%);
+  filter: blur(2px);
+  transform: translateX(0) skewX(-18deg);
 }
 .mate-sub {
   display: flex;
@@ -1952,7 +1962,7 @@ input:disabled + .input-clear { display: none; }
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  .mate-logo  { animation: mate-logo-in 0.8s cubic-bezier(0.2, 0.7, 0.2, 1) 0.1s both; }
+  .mate-logo-wrap { animation: mate-logo-in 0.8s cubic-bezier(0.2, 0.7, 0.2, 1) 0.1s both; }
   .mate-sub-1 { animation: mate-rise 0.5s ease-out 0.8s both; }
   .mate-sub-2 { animation: mate-rise 0.5s ease-out 1.5s both; }
   .mate-beam  { animation: mate-beam 1.3s ease-in-out 2.2s both; }
@@ -1967,10 +1977,10 @@ input:disabled + .input-clear { display: none; }
   to   { opacity: 1; transform: translateY(0); }
 }
 @keyframes mate-beam {
-  0%   { opacity: 0; transform: translateX(-120%) skewX(-18deg); }
+  0%   { opacity: 0; transform: translateX(0) skewX(-18deg); }
   15%  { opacity: 1; }
   85%  { opacity: 1; }
-  100% { opacity: 0; transform: translateX(420%) skewX(-18deg); }
+  100% { opacity: 0; transform: translateX(400%) skewX(-18deg); }
 }
 
 /* ---- Carosello: cornice in acciaio spazzolato scuro attorno a ogni foto ---- */
