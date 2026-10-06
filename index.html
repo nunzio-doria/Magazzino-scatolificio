@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content">
-<title>Magazzino - Scatolificio Sarno</title>
-<meta name="description" content="Gestione magazzino ricambi industriali - Scatolificio Sarno">
+<title>MATE - Magazzino e Tecnica</title>
+<meta name="description" content="MATE - Magazzino e Tecnica. Tutto ciò che serve al reparto, a portata di mano.">
 <meta name="theme-color" content="#2f4f92">
 
 <!-- PWA: manifest e icone -->
@@ -16,11 +16,11 @@
 <link rel="apple-touch-icon" sizes="180x180" href="./icons/apple-touch-icon.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Magazzino">
+<meta name="apple-mobile-web-app-title" content="MATE">
 
 <!-- Font -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600;700&family=Courier+Prime:wght@400;700&display=swap" rel="stylesheet">
 
 <!-- Tailwind CSS (CDN). NOTA: qui era stata provata una versione "pinnata"
      (https://cdn.tailwindcss.com/3.4.17) per evitare che un aggiornamento
@@ -60,8 +60,23 @@
 <!-- =================== VISTA LOGIN =================== -->
 <div id="auth-view" class="min-h-screen flex flex-col items-center justify-center px-6">
   <div class="w-full max-w-sm">
-    <div class="flex flex-col items-center mb-6">
-      <h1 class="font-display font-bold text-2xl uppercase tracking-wide text-graphite-100 text-center">Magazzino<br>Scatolificio Sarno</h1>
+    <!-- Marchio MATE (Magazzino + Tecnica) con intro animata: vedi blocco ".mate-" in style.css.
+         Sequenza: MATE -> "Magazzino • Tecnica" -> MA/Ma si illuminano -> TE/Te si illuminano
+         -> fascio di luce dietro MATE -> payoff a macchina da scrivere. -->
+    <div class="mate-brand mb-6">
+      <h1 class="mate-title" aria-label="MATE, Magazzino e Tecnica">
+        <span class="mate-beam" aria-hidden="true"></span>
+        <span class="mate-word" aria-hidden="true"><span class="mate-ma">MA</span><span class="mate-te">TE</span></span>
+      </h1>
+      <p class="mate-sub" aria-hidden="true">
+        <span class="mate-sub-1"><span class="mate-sub-ma">Ma</span>gazzino</span>
+        <span class="mate-dot">&bull;</span>
+        <span class="mate-sub-2"><span class="mate-sub-te">Te</span>cnica</span>
+      </p>
+      <p class="mate-payoff">
+        <span class="mate-line mate-line-1">Tutto ciò che serve al reparto,</span>
+        <span class="mate-line mate-line-2">a portata di mano.</span>
+      </p>
     </div>
   </div>
 

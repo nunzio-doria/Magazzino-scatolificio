@@ -1,4 +1,4 @@
-# Magazzino Ricambi Industriali
+# MATE — Magazzino e Tecnica
 
 App mobile-first per la gestione di un magazzino ricambi, con scanner barcode da fotocamera, deposito/prelievo in tempo reale, anagrafica articoli con stampa etichette PDF e reportistica consumi per l'admin.
 
@@ -9,7 +9,7 @@ Frontend: HTML/CSS/JS vanilla (nessuna build necessaria), Tailwind via CDN.
 
 ```
 index.html            Shell dell'app, tutte le viste (login, scanner, magazzino, dashboard, impostazioni)
-style.css              Tema chiaro "Scatolificio Sarno", animazioni, transizioni glass, skeleton loading
+style.css              Tema chiaro (blu del logo), marchio MATE animato nel login, animazioni, transizioni glass, skeleton loading
 tailwind.config.js     Palette/font del tema (script esterno, caricato dopo il CDN Tailwind)
 manifest.json           Web App Manifest per l'installazione PWA
 service-worker.js        Service worker minimo (cache della shell statica, installabilità)
