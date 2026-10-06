@@ -37,7 +37,9 @@ export async function startCamera(containerId, onDetected, ui = {}) {
     await loadLib('qr'); // libreria scanner: caricata solo al primo avvio fotocamera
     if (isStale()) return null;
     // eslint-disable-next-line no-undef
-    instance = new Html5Qrcode(containerId);
+    // BarcodeDetector nativo (se il browser lo ha) è più rapido e preciso della decodifica
+    // in JavaScript; dove non c'è (es. iOS) la libreria ripiega da sola su ZXing.
+    instance = new Html5Qrcode(containerId, { experimentalFeatures: { useBarCodeDetectorIfSupported: true } });
     html5Qrcode = instance;
     activeContainerId = containerId;
     await ensureCameraList();
@@ -45,15 +47,34 @@ export async function startCamera(containerId, onDetected, ui = {}) {
 
     const chosen = availableCameras[activeCameraIndex];
     const cameraConfig = chosen ? { deviceId: { exact: chosen.id } } : { facingMode: 'environment' };
-    const scanConfig = { fps: 12, qrbox: { width: 240, height: 80 }, aspectRatio: 1.6 };
+    // Niente `qrbox`: con quell'opzione la libreria ritaglia il fotogramma e decodifica solo
+    // il rettangolo centrale. Senza, analizza TUTTA l'inquadratura, anche la parte che
+    // l'object-fit:cover del riquadro non mostra a schermo.
+    const scanConfig = { fps: 12, aspectRatio: 1.6 };
+    // Risoluzione alta (almeno 1280x720 se la fotocamera la supporta): con un video
+    // a bassa risoluzione i codici piccoli o lontani non hanno abbastanza pixel per
+    // essere decodificati. "ideal" = se non c'è, il browser ripiega sul massimo disponibile.
+    const hiRes = { width: { ideal: 1280 }, height: { ideal: 720 } };
+    const attempts = [
+      [cameraConfig, { ...scanConfig, videoConstraints: { ...hiRes, ...cameraConfig } }],
+      [{ facingMode: 'environment' }, { ...scanConfig, videoConstraints: { ...hiRes, facingMode: 'environment' } }],
+      [{ facingMode: 'environment' }, scanConfig], // ultima spiaggia: configurazione base
+    ];
 
-    try {
-      await instance.start(cameraConfig, scanConfig, (decodedText) => onDetected(decodedText), () => {});
-    } catch (startErr) {
-      if (isStale()) return null;
-      console.warn('Avvio con deviceId fallito, riprovo con facingMode.', startErr);
-      await instance.start({ facingMode: 'environment' }, scanConfig, (decodedText) => onDetected(decodedText), () => {});
+    let started = false;
+    let lastErr = null;
+    for (const [camera, config] of attempts) {
+      try {
+        await instance.start(camera, config, (decodedText) => onDetected(decodedText), () => {});
+        started = true;
+        break;
+      } catch (startErr) {
+        if (isStale()) return null;
+        lastErr = startErr;
+        console.warn('Avvio fotocamera fallito, provo la configurazione successiva.', startErr);
+      }
     }
+    if (!started) throw lastErr;
 
     if (isStale()) {
       // Nel frattempo è stata chiusa (o riavviata altrove): lo stream appena
