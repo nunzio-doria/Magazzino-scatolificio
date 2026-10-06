@@ -1,7 +1,7 @@
 {
-  "name": "MATE - Magazzino e Tecnica",
+  "name": "MATE - Magazzino Tecnico",
   "short_name": "MATE",
-  "description": "MATE - Magazzino e Tecnica. Tutto ciò che serve al reparto, a portata di mano.",
+  "description": "MATE - Magazzino Tecnico",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
