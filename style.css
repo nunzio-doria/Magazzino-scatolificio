@@ -1962,11 +1962,14 @@ input:disabled + .input-clear { display: none; }
   height: 55.08%;
 }
 .mate-gear-shadow {
+  /* Una sola ombra: ovale lieve e morbido sotto il punto di appoggio, segue l'ingranaggio senza ruotare */
   position: absolute;
-  inset: 0;
+  left: 10%;
+  top: 92%;
+  width: 80%;
+  height: 12%;
   pointer-events: none;
-  transform: translate(0.5%, 2.8%);
-  background: radial-gradient(circle closest-side at 50% 50%, rgba(2, 12, 30, 0) 62%, rgba(2, 12, 30, 0.5) 71%, rgba(2, 12, 30, 0.5) 91%, rgba(2, 12, 30, 0) 101%);
+  background: radial-gradient(closest-side, rgba(2, 12, 30, 0.3) 0%, rgba(2, 12, 30, 0.16) 55%, rgba(2, 12, 30, 0) 100%);
 }
 .mate-gear {
   display: block;
