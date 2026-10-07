@@ -1,4 +1,4 @@
-# MATE — Magazzino e Tecnica
+# MATE - Magazzino Tecnico
 
 App mobile-first per la gestione di un magazzino ricambi, con scanner barcode da fotocamera, deposito/prelievo in tempo reale, anagrafica articoli con stampa etichette PDF e reportistica consumi per l'admin.
 
