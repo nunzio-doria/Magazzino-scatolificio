@@ -77,7 +77,29 @@ function initLoginCarousel() {
   requestAnimationFrame(measure);
 
   const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
-  const autoSpeed = () => (reduceMotion.matches ? 0 : -SPEED); // negativo = verso sinistra
+  // Il carosello resta fermo e non si può trascinare finché non inizia a girare l'ingranaggio del logo
+  // (con "riduci animazioni" non c'è sequenza da aspettare: nessuna attesa).
+  let started = reduceMotion.matches;
+  const setStarted = (v) => {
+    started = v;
+    host.classList.toggle('is-locked', !v);
+  };
+  setStarted(started);
+  const view = document.getElementById('auth-view');
+  if (view && !reduceMotion.matches) {
+    view.addEventListener('animationstart', (e) => {
+      if (e.target === view && e.animationName === 'auth-neon') {
+        setStarted(false);               // nuova presentazione della schermata: di nuovo fermo e bloccato
+        vel = 0;
+      } else if (e.animationName === 'mate-gear-start') {
+        setStarted(true);                // l'ingranaggio inizia a girare: parte il carosello
+      }
+    });
+    // Se la sequenza era già arrivata alla rotazione prima che questo codice partisse, non aspetta oltre
+    const gearAnim = view.querySelector('.mate-gear')?.getAnimations?.().find((a) => a.animationName === 'mate-gear-start');
+    if (gearAnim && gearAnim.currentTime > 0) setStarted(true);
+  }
+  const autoSpeed = () => (reduceMotion.matches || !started ? 0 : -SPEED); // negativo = verso sinistra
 
   let x = 0;                 // spostamento del nastro (px)
   let vel = autoSpeed();     // velocità attuale (px/s)
@@ -108,6 +130,7 @@ function initLoginCarousel() {
   };
 
   host.addEventListener('pointerdown', (e) => {
+    if (!started) return;
     if (e.pointerType === 'mouse' && e.button !== 0) return;
     dragging = true;
     pointerId = e.pointerId;
@@ -154,9 +177,9 @@ initLoginCarousel();
 
 // =============================================================
 // Luce neon della schermata di accesso (variabile CSS --neon: 0 spento, 1 acceso).
-// Quando l'ingranaggio inizia a girare la luce si accende in 2 secondi con un lampeggio
-// diverso a ogni apertura della pagina: pochi tentativi sempre più lunghi e luminosi,
-// poi sale piano a piena luce. Se questo non parte, resta il lampeggio base in style.css.
+// È la prima cosa che succede alla comparsa della schermata: la luce si accende in 2 secondi con un
+// lampeggio diverso a ogni apertura della pagina (pochi tentativi sempre più lunghi e luminosi,
+// poi sale piano a piena luce). Se questo non parte, resta il lampeggio base in style.css.
 // =============================================================
 const NEON_MS = 2000;
 
@@ -182,11 +205,10 @@ function neonKeyframes() {
 
 function initLoginNeon() {
   const view = document.getElementById('auth-view');
-  const gear = view && view.querySelector('.mate-gear');
-  if (!view || !gear || typeof view.animate !== 'function') return;
-  // "animationstart" scatta quando l'ingranaggio inizia a girare (a ogni presentazione della schermata)
-  gear.addEventListener('animationstart', (e) => {
-    if (e.animationName !== 'mate-gear-start') return;
+  if (!view || typeof view.animate !== 'function') return;
+  // "animationstart" dell'accensione base scatta a ogni presentazione della schermata
+  view.addEventListener('animationstart', (e) => {
+    if (e.target !== view || e.animationName !== 'auth-neon') return;
     try {
       view.animate(neonKeyframes(), { duration: NEON_MS, easing: 'linear', fill: 'none' });
     } catch (_) { /* resta il lampeggio base in CSS */ }
