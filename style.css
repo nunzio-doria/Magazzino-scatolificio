@@ -1893,8 +1893,9 @@ input:disabled + .input-clear { display: none; }
    Schermata di accesso — scheda blu con carta millimetrata e logo MATE a livelli.
    Stato di base = stato finale (tutto visibile, ingranaggio fermo): è quello che vede chi ha
    "riduci animazioni" attivo. L'animazione gira solo nella media query "no-preference".
-   Cronologia (s): 0.15 ingranaggio rotola da sinistra, frena e si centra · 1.3 la M si posa · 1.8 tagli ·
-   2.1 l'ingranaggio (alto e basso) inizia a girare · 2.2 MATE · 2.5 Magazzino Tecnico · 3.1 luce
+   Cronologia (s): 0.15 ingranaggio rotola da sinistra, frena e si centra · 1.25 la M cade dall'alto (già opaca) mentre
+   MATE compare e "Magazzino" (da sinistra) e "Tecnico" (da destra) convergono · 1.55 impatto e rimbalzo secco ·
+   1.77 tagli · 2.02 l'ingranaggio (alto e basso) inizia a girare · 2.55 luce
    Coordinate dei livelli (px della sorgente 1350x1525): finestre ingranaggio: basso x 720-1400 y da 760, alto x 700-1420 y 200-430 (in alto e in basso il taglio lo fa la M, che sta davanti).
    ============================================================= */
 .mate-brand {
@@ -1999,27 +2000,35 @@ input:disabled + .input-clear { display: none; }
   transform: translateX(0) skewX(-18deg);
 }
 
+/* "Magazzino Tecnico": due ritagli della stessa immagine, uno per parola (spazio tra le parole a x 57.6%) */
+.mate-sub-l { clip-path: inset(0 42.4% 0 0); }
+.mate-sub-r { clip-path: inset(0 0 0 57.6%); }
+/* La M cade da un punto fuori dalla scheda: l'origine dello squash è sul suo bordo inferiore */
+.mate-m { transform-origin: 50% 68%; }
+
 @media (prefers-reduced-motion: no-preference) {
   /* Carta millimetrata e sfondo blu sono già presenti da subito (nessuna animazione) */
   /* 1) L'ingranaggio intero arriva rotolando da sinistra, frena oltre il centro e torna a centrarsi */
   .mate-gear-pop { animation: mate-gear-roll 1.1s linear 0.15s both; }
-  /* 2) La M si posa sull'ingranaggio */
-  .mate-m        { animation: mate-logo-in 0.45s cubic-bezier(0.2, 0.8, 0.2, 1) 1.3s both; }
-  /* 3) Tagli: le finestre si restringono e tolgono le parti dell'ingranaggio nascoste dalla M;
+  /* 2) Finito il rotolamento la M cade dall'alto (opacità piena da subito), impatto secco e rimbalzo breve;
+        nello stesso tempo MATE compare e le due parole convergono verso il centro */
+  .mate-m        { animation: mate-m-drop 0.52s linear 1.25s both; }
+  .mate-text     { animation: mate-rise 0.3s ease-out 1.25s both; }
+  .mate-sub-l    { animation: mate-word-l 0.3s cubic-bezier(0.2, 0.7, 0.3, 1) 1.25s both; }
+  .mate-sub-r    { animation: mate-word-r 0.3s cubic-bezier(0.2, 0.7, 0.3, 1) 1.25s both; }
+  /* 3) Tagli (a rimbalzo concluso): le finestre si restringono e tolgono le parti dell'ingranaggio nascoste dalla M;
         restano parte superiore e inferiore, nella stessa posizione */
-  .mate-gear-win-t { animation: mate-gear-cut-t 0.3s ease-in-out 1.8s both; }
-  .mate-gear-win-b { animation: mate-gear-cut-b 0.3s ease-in-out 1.8s both; }
+  .mate-gear-win-t { animation: mate-gear-cut-t 0.25s ease-in-out 1.77s both; }
+  .mate-gear-win-b { animation: mate-gear-cut-b 0.25s ease-in-out 1.77s both; }
   /* 4) Subito dopo l'ingranaggio (entrambe le parti) parte piano e poi gira a velocità costante */
   .mate-gear {
     animation:
       mate-gear-roll-rot 1.1s linear 0.15s both,
-      mate-gear-start 0.8s cubic-bezier(0.4, 0, 1, 1) 2.1s forwards,
-      mate-gear-run 14s linear 2.9s infinite;
+      mate-gear-start 0.8s cubic-bezier(0.4, 0, 1, 1) 2.02s forwards,
+      mate-gear-run 14s linear 2.82s infinite;
   }
-  /* 5) Poi MATE, Magazzino Tecnico e infine la luce */
-  .mate-text     { animation: mate-rise 0.45s ease-out 2.2s both; }
-  .mate-sub      { animation: mate-rise 0.45s ease-out 2.5s both; }
-  .mate-beam     { animation: mate-beam 1.1s ease-in-out 3.1s both; }
+  /* 5) Infine la luce */
+  .mate-beam     { animation: mate-beam 1.1s ease-in-out 2.55s both; }
 }
 
 /* Rotolamento senza slittamento: 288% della larghezza = 360 gradi (1% = 1.25 gradi).
@@ -2042,9 +2051,24 @@ input:disabled + .input-clear { display: none; }
   from { clip-path: inset(-300% -300% -300% -300%); }
   to   { clip-path: inset(42.95% 25.19% 34.75% 24.44%); }
 }
-@keyframes mate-logo-in {
-  from { opacity: 0; transform: translateY(-14px) scale(1.04); }
-  to   { opacity: 1; transform: translateY(0) scale(1); }
+/* M pesante: caduta in accelerazione, impatto con piccolo schiacciamento, rimbalzo netto e secco
+   (corto, senza rallentare) e un micro-rimbalzo di assestamento. 0.52s totali, impatto a 0.30s. */
+@keyframes mate-m-drop {
+  0%     { transform: translateY(-85%); animation-timing-function: cubic-bezier(0.55, 0, 1, 0.45); }
+  57.69% { transform: translateY(0) scale(1.012, 0.982); animation-timing-function: cubic-bezier(0.1, 0.8, 0.3, 1); }
+  71.15% { transform: translateY(-3.2%) scale(1); animation-timing-function: cubic-bezier(0.6, 0, 1, 0.6); }
+  84.62% { transform: translateY(0) scale(1.006, 0.992); animation-timing-function: cubic-bezier(0.1, 0.8, 0.3, 1); }
+  92.31% { transform: translateY(-0.9%) scale(1); animation-timing-function: cubic-bezier(0.6, 0, 1, 0.6); }
+  100%   { transform: translateY(0) scale(1); }
+}
+/* Le due parole partono da fuori scheda e convergono verso il centro fino alla loro posizione */
+@keyframes mate-word-l {
+  from { transform: translateX(-115%); }
+  to   { transform: translateX(0); }
+}
+@keyframes mate-word-r {
+  from { transform: translateX(115%); }
+  to   { transform: translateX(0); }
 }
 @keyframes mate-rise {
   from { opacity: 0; transform: translateY(6px); }

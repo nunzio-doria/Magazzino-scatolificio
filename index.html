@@ -61,7 +61,7 @@
 <div id="auth-view" class="min-h-screen flex flex-col items-center justify-center px-6">
   <div class="w-full max-w-sm">
     <!-- Testata login: scheda blu con carta millimetrata e logo MATE a livelli (ingranaggio, M, corona,
-         MATE, Magazzino Tecnico) che compaiono in sequenza, poi luce e ingranaggio in rotazione.
+         MATE, Magazzino Tecnico) che compaiono in sequenza (la M cade e rimbalza mentre le due parole convergono), poi luce e ingranaggio in rotazione.
          Stili: blocco ".mate-" in style.css. Il logo è ritagliato dallo screenshot dell'utente. -->
     <div class="mate-brand mb-5">
       <h1 class="mate-title" aria-label="MATE, Magazzino Tecnico">
@@ -72,7 +72,9 @@
           <span class="mate-gear-win mate-gear-win-b" aria-hidden="true"><span class="mate-gear-pop"><span class="mate-gear-shadow"></span><img class="mate-gear" src="./icons/logo-gear.png" alt="" width="560" height="560" decoding="async"></span></span>
           <img class="mate-layer mate-m" src="./icons/logo-m.png" alt="" width="743" height="839" decoding="async">
           <img class="mate-layer mate-text" src="./icons/logo-text.png" alt="" width="743" height="839" decoding="async">
-          <img class="mate-layer mate-sub" src="./icons/logo-sub.png" alt="" width="743" height="839" decoding="async">
+          <!-- "Magazzino" e "Tecnico": stessa immagine due volte, ognuna ritagliata su una parola (taglio nello spazio tra le due) -->
+          <img class="mate-layer mate-sub mate-sub-l" src="./icons/logo-sub.png" alt="" width="743" height="839" decoding="async">
+          <img class="mate-layer mate-sub mate-sub-r" src="./icons/logo-sub.png" alt="" width="743" height="839" decoding="async">
           <!-- Luce che scorre: ritagliata con la sagoma dell'intero logo, non tocca lo sfondo -->
           <span class="mate-shine" aria-hidden="true"><span class="mate-beam"></span></span>
         </span>
