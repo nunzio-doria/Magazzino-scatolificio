@@ -1895,7 +1895,7 @@ input:disabled + .input-clear { display: none; }
    "riduci animazioni" attivo. L'animazione gira solo nella media query "no-preference".
    Cronologia (s): 0.15 ingranaggio rotola da sinistra, frena e si centra · 1.3 la M si posa · 1.8 tagli ·
    2.1 l'ingranaggio (alto e basso) inizia a girare · 2.2 MATE · 2.5 Magazzino Tecnico · 3.1 luce
-   Coordinate dei livelli (px della sorgente 1350x1525): finestre ingranaggio: basso x 851-1268 y da 806, alto x 895-1225 y 200-420.
+   Coordinate dei livelli (px della sorgente 1350x1525): finestre ingranaggio: basso x 851-1268 y da 806, alto x 700-1420 y 200-430 (il taglio lo fa il bordo della M).
    ============================================================= */
 .mate-brand {
   position: relative;
@@ -1952,7 +1952,7 @@ input:disabled + .input-clear { display: none; }
   position: absolute;
   inset: 0;
 }
-.mate-gear-win-t { clip-path: inset(6.23% 38.15% 79.34% 37.41%); }
+.mate-gear-win-t { clip-path: inset(6.23% 23.70% 78.69% 22.96%); }
 .mate-gear-win-b { clip-path: inset(45.97% 34.96% 34.75% 34.15%); }
 .mate-gear-pop {
   position: absolute;
@@ -2026,7 +2026,7 @@ input:disabled + .input-clear { display: none; }
 }
 @keyframes mate-gear-cut-t {
   from { clip-path: inset(-300% -300% -300% -300%); }
-  to   { clip-path: inset(6.23% 38.15% 79.34% 37.41%); }
+  to   { clip-path: inset(6.23% 23.70% 78.69% 22.96%); }
 }
 @keyframes mate-gear-cut-b {
   from { clip-path: inset(-300% -300% -300% -300%); }
