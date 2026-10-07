@@ -1890,22 +1890,41 @@ input:disabled + .input-clear { display: none; }
 
 
 /* =============================================================
-   Schermata di accesso — testata blu con il logo (scudo "M")
-   Stato di base = stato finale (tutto visibile): è quello che vede chi ha
-   "riduci animazioni" attivo. L'animazione gira solo nella media query
-   "no-preference". Cronologia (s): 0.1 logo · 0.8 Magazzino · 1.5 Tecnico ·
-   2.2 fascio di luce sul logo
+   Schermata di accesso — scheda blu con carta millimetrata e logo MATE a livelli.
+   Stato di base = stato finale (tutto visibile, ingranaggio fermo): è quello che vede chi ha
+   "riduci animazioni" attivo. L'animazione gira solo nella media query "no-preference".
+   Cronologia (s): 0.1 carta millimetrata · 1.0 ingranaggio · 1.6 M · 2.3 corona · 2.7 MATE ·
+   3.3 Magazzino Tecnico · 4.1 fascio di luce · 5.4 l'ingranaggio inizia a girare
+   Coordinate dei livelli (px della sorgente 1350x1525): finestra ingranaggio x 851-1268, y da 806.
    ============================================================= */
 .mate-brand {
   position: relative;
   overflow: hidden;
+  isolation: isolate;
   text-align: center;
-  padding: 1.6rem 1.25rem 1.75rem;
+  padding: 0.9rem 1rem;
   border-radius: 1.6rem;
   color: #fff;
-  background: radial-gradient(120% 90% at 50% 0%, #0d4a86 0%, #0a3a6e 50%, #072a52 100%);
+  background: radial-gradient(90% 85% at 50% 42%, #0f58a6 0%, #0a4082 52%, #062c58 100%);
   border: 1px solid #0b2f5a;
   box-shadow: 0 14px 30px -12px rgba(7, 30, 62, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.14);
+}
+/* Carta millimetrata: quadretti fini, riga marcata ogni 5 e croce centrale */
+.mate-brand::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    linear-gradient(rgba(200, 225, 255, 0.14), rgba(200, 225, 255, 0.14)) center / 100% 1px no-repeat,
+    linear-gradient(rgba(200, 225, 255, 0.14), rgba(200, 225, 255, 0.14)) center / 1px 100% no-repeat,
+    linear-gradient(rgba(190, 220, 255, 0.11) 1px, transparent 1px) center / 50px 50px,
+    linear-gradient(90deg, rgba(190, 220, 255, 0.11) 1px, transparent 1px) center / 50px 50px,
+    linear-gradient(rgba(190, 220, 255, 0.05) 1px, transparent 1px) center / 10px 10px,
+    linear-gradient(90deg, rgba(190, 220, 255, 0.05) 1px, transparent 1px) center / 10px 10px;
+  -webkit-mask-image: radial-gradient(85% 85% at 50% 45%, #000 35%, rgba(0, 0, 0, 0.4) 100%);
+  mask-image: radial-gradient(85% 85% at 50% 45%, #000 35%, rgba(0, 0, 0, 0.4) 100%);
 }
 .mate-title {
   position: relative;
@@ -1917,18 +1936,38 @@ input:disabled + .input-clear { display: none; }
 .mate-logo-wrap {
   position: relative;
   display: block;
-  height: clamp(8.5rem, 34vw, 10.5rem);
-  filter: drop-shadow(0 6px 10px rgba(0, 0, 0, 0.45));
+  height: clamp(11.5rem, 54vw, 13.5rem);
+  aspect-ratio: 1350 / 1525;
 }
-.mate-logo {
-  display: block;
-  width: auto;
+.mate-layer {
+  position: absolute;
+  inset: 0;
+  width: 100%;
   height: 100%;
   -webkit-user-drag: none;
   user-select: none;
 }
-/* Strato della luce: stessa sagoma (alpha) del logo con la scritta MATE, quindi la luce si vede
-   solo su scudo e lettere e mai sullo sfondo blu. */
+/* Ingranaggio: la finestra mostra solo la parte che spunta sotto la V della M */
+.mate-gear-win {
+  position: absolute;
+  inset: 0;
+  clip-path: inset(45.97% 34.96% 34.75% 34.15%);
+}
+.mate-gear-pop {
+  position: absolute;
+  left: 22.22%;
+  top: 12.94%;
+  width: 54.81%;
+  height: 48.52%;
+}
+.mate-gear {
+  display: block;
+  width: 100%;
+  height: 100%;
+  will-change: transform;
+}
+/* Strato della luce: stessa sagoma (alpha) di tutto il logo, quindi la luce si vede
+   solo su M, ingranaggio e scritte e mai sullo sfondo blu. */
 .mate-shine {
   position: absolute;
   inset: 0;
@@ -1948,28 +1987,33 @@ input:disabled + .input-clear { display: none; }
   filter: blur(2px);
   transform: translateX(0) skewX(-18deg);
 }
-.mate-sub {
-  display: flex;
-  justify-content: center;
-  gap: 0.6rem;
-  margin: 1.1rem 0 0;
-  font-family: 'Space Grotesk', 'Inter', sans-serif;
-  font-weight: 700;
-  font-size: 1.2rem;
-  letter-spacing: 0.17em;
-  color: #fff;
-  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.3);
-}
 
 @media (prefers-reduced-motion: no-preference) {
-  .mate-logo-wrap { animation: mate-logo-in 0.8s cubic-bezier(0.2, 0.7, 0.2, 1) 0.1s both; }
-  .mate-sub-1 { animation: mate-rise 0.5s ease-out 0.8s both; }
-  .mate-sub-2 { animation: mate-rise 0.5s ease-out 1.5s both; }
-  .mate-beam  { animation: mate-beam 1.3s ease-in-out 2.2s both; }
+  .mate-brand::before { animation: mate-grid-in 0.9s ease-out 0.1s both; }
+  .mate-gear-pop { animation: mate-gear-in 0.6s cubic-bezier(0.2, 0.7, 0.2, 1) 1s both; }
+  .mate-m        { animation: mate-logo-in 0.7s cubic-bezier(0.2, 0.7, 0.2, 1) 1.6s both; }
+  .mate-crown    { animation: mate-rise 0.45s ease-out 2.3s both; }
+  .mate-text     { animation: mate-rise 0.6s ease-out 2.7s both; }
+  .mate-sub      { animation: mate-rise 0.6s ease-out 3.3s both; }
+  .mate-beam     { animation: mate-beam 1.3s ease-in-out 4.1s both; }
+  /* Dopo la luce l'ingranaggio parte piano e poi gira a velocità costante */
+  .mate-gear {
+    animation:
+      mate-gear-start 1.6s cubic-bezier(0.4, 0, 1, 1) 5.4s both,
+      mate-gear-run 14s linear 7s infinite;
+  }
 }
 
+@keyframes mate-grid-in {
+  from { opacity: 0; clip-path: circle(0% at 50% 50%); }
+  to   { opacity: 1; clip-path: circle(80% at 50% 50%); }
+}
+@keyframes mate-gear-in {
+  from { opacity: 0; transform: scale(0.82); }
+  to   { opacity: 1; transform: scale(1); }
+}
 @keyframes mate-logo-in {
-  from { opacity: 0; transform: translateY(8px) scale(0.94); }
+  from { opacity: 0; transform: translateY(-10px) scale(0.95); }
   to   { opacity: 1; transform: translateY(0) scale(1); }
 }
 @keyframes mate-rise {
@@ -1981,6 +2025,14 @@ input:disabled + .input-clear { display: none; }
   15%  { opacity: 1; }
   85%  { opacity: 1; }
   100% { opacity: 0; transform: translateX(400%) skewX(-18deg); }
+}
+@keyframes mate-gear-start {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(24deg); }
+}
+@keyframes mate-gear-run {
+  from { transform: rotate(24deg); }
+  to   { transform: rotate(384deg); }
 }
 
 /* ---- Carosello: cornice in acciaio spazzolato scuro attorno a ogni foto ---- */

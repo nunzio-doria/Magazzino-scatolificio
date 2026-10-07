@@ -60,20 +60,36 @@
 <!-- =================== VISTA LOGIN =================== -->
 <div id="auth-view" class="min-h-screen flex flex-col items-center justify-center px-6">
   <div class="w-full max-w-sm">
-    <!-- Testata login: scheda blu con il logo (scudo "M") e "Magazzino Tecnico".
-         Stili: blocco ".mate-" in style.css. -->
+    <!-- Testata login: scheda blu con carta millimetrata e logo MATE a livelli (ingranaggio, M, corona,
+         MATE, Magazzino Tecnico) che compaiono in sequenza, poi luce e ingranaggio in rotazione.
+         Stili: blocco ".mate-" in style.css. Il logo è ritagliato dallo screenshot dell'utente. -->
     <div class="mate-brand mb-5">
       <h1 class="mate-title" aria-label="MATE, Magazzino Tecnico">
         <span class="mate-logo-wrap">
-          <img class="mate-logo" src="./icons/logo-mate.png" alt="" width="486" height="600" decoding="async">
-          <!-- Luce che scorre: ritagliata con la sagoma del logo (scudo + scritta MATE), non tocca lo sfondo -->
+          <!-- Ingranaggio: vettoriale, dietro alla M; la finestra ritaglia solo la parte visibile sotto la V -->
+          <span class="mate-gear-win" aria-hidden="true"><span class="mate-gear-pop">
+            <svg class="mate-gear" viewBox="-370 -370 740 740" focusable="false">
+              <defs>
+                <radialGradient id="mate-gear-fill" cx="0" cy="0" r="360" gradientUnits="userSpaceOnUse">
+                  <stop offset="0.66" stop-color="#8d9aa9"/><stop offset="0.7" stop-color="#6d7377"/>
+                  <stop offset="0.74" stop-color="#5b6065"/><stop offset="0.8" stop-color="#7b8084"/>
+                  <stop offset="0.87" stop-color="#72777b"/><stop offset="1" stop-color="#7f858a"/>
+                </radialGradient>
+              </defs>
+              <path fill="url(#mate-gear-fill)" fill-rule="evenodd" stroke="#4b5156" stroke-width="5" stroke-linejoin="round"
+                d="M-61,305 -50,307 -41,308 -30,357 30,357 41,308 52,307 61,305 71,303 80,301 109,341 164,318 156,269 165,263 173,259 182,252 189,247 231,273 273,231 247,189 254,180 259,173 264,164 269,156 318,164 341,109 301,80 303,69 305,61 307,50 308,41 357,30 357,-30 308,-41 307,-52 305,-61 303,-71 301,-80 341,-109 318,-164 269,-156 263,-165 259,-173 252,-182 247,-189 273,-231 231,-273 189,-247 180,-254 173,-259 164,-264 156,-269 164,-318 109,-341 80,-301 69,-303 61,-305 50,-307 41,-308 30,-357 -30,-357 -41,-308 -52,-307 -61,-305 -71,-303 -80,-301 -109,-341 -164,-318 -156,-269 -165,-263 -173,-259 -182,-252 -189,-247 -231,-273 -273,-231 -247,-189 -254,-180 -259,-173 -264,-164 -269,-156 -318,-164 -341,-109 -301,-80 -303,-69 -305,-61 -307,-50 -308,-41 -357,-30 -357,30 -308,41 -307,52 -305,61 -303,71 -301,80 -341,109 -318,164 -269,156 -263,165 -259,173 -252,182 -247,189 -273,231 -231,273 -189,247 -180,254 -173,259 -164,264 -156,269 -164,318 -109,341 -80,301 -69,303 Z M0,-241 A241,241 0 1,0 0,241 A241,241 0 1,0 0,-241 Z"/>
+              <circle r="245" fill="none" stroke="#a3b5ca" stroke-width="9" opacity="0.9"/>
+              <circle r="262" fill="none" stroke="#4a4f54" stroke-width="6" opacity="0.8"/>
+            </svg>
+          </span></span>
+          <img class="mate-layer mate-m" src="./icons/logo-m.png" alt="" width="743" height="839" decoding="async">
+          <img class="mate-layer mate-crown" src="./icons/logo-crown.png" alt="" width="743" height="839" decoding="async">
+          <img class="mate-layer mate-text" src="./icons/logo-text.png" alt="" width="743" height="839" decoding="async">
+          <img class="mate-layer mate-sub" src="./icons/logo-sub.png" alt="" width="743" height="839" decoding="async">
+          <!-- Luce che scorre: ritagliata con la sagoma dell'intero logo, non tocca lo sfondo -->
           <span class="mate-shine" aria-hidden="true"><span class="mate-beam"></span></span>
         </span>
       </h1>
-      <p class="mate-sub" aria-hidden="true">
-        <span class="mate-sub-1">Magazzino</span>
-        <span class="mate-sub-2">Tecnico</span>
-      </p>
     </div>
   </div>
 
