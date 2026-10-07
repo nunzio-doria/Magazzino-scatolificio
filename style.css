@@ -1893,8 +1893,8 @@ input:disabled + .input-clear { display: none; }
    Schermata di accesso — scheda blu con carta millimetrata e logo MATE a livelli.
    Stato di base = stato finale (tutto visibile, ingranaggio fermo): è quello che vede chi ha
    "riduci animazioni" attivo. L'animazione gira solo nella media query "no-preference".
-   Cronologia (s): 0.1 carta millimetrata · 1.0 ingranaggio · 1.6 M · 2.3 corona · 2.7 MATE ·
-   3.3 Magazzino Tecnico · 4.1 fascio di luce · 5.4 l'ingranaggio inizia a girare
+   Cronologia (s): 0.15 ingranaggio rotola da sinistra, frena e si centra · 1.3 la M si posa · 1.8 tagli ·
+   2.1 l'ingranaggio inizia a girare · 2.15 corona · 2.4 MATE · 2.75 Magazzino Tecnico · 3.3 luce
    Coordinate dei livelli (px della sorgente 1350x1525): finestra ingranaggio x 851-1268, y da 806.
    ============================================================= */
 .mate-brand {
@@ -1989,31 +1989,45 @@ input:disabled + .input-clear { display: none; }
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  .mate-brand::before { animation: mate-grid-in 0.9s ease-out 0.1s both; }
-  .mate-gear-pop { animation: mate-gear-in 0.6s cubic-bezier(0.2, 0.7, 0.2, 1) 1s both; }
-  .mate-m        { animation: mate-logo-in 0.7s cubic-bezier(0.2, 0.7, 0.2, 1) 1.6s both; }
-  .mate-crown    { animation: mate-rise 0.45s ease-out 2.3s both; }
-  .mate-text     { animation: mate-rise 0.6s ease-out 2.7s both; }
-  .mate-sub      { animation: mate-rise 0.6s ease-out 3.3s both; }
-  .mate-beam     { animation: mate-beam 1.3s ease-in-out 4.1s both; }
-  /* Dopo la luce l'ingranaggio parte piano e poi gira a velocità costante */
+  /* Carta millimetrata e sfondo blu sono già presenti da subito (nessuna animazione) */
+  /* 1) L'ingranaggio intero arriva rotolando da sinistra, frena oltre il centro e torna a centrarsi */
+  .mate-gear-pop { animation: mate-gear-roll 1.1s linear 0.15s both; }
+  /* 2) La M si posa sull'ingranaggio */
+  .mate-m        { animation: mate-logo-in 0.45s cubic-bezier(0.2, 0.8, 0.2, 1) 1.3s both; }
+  /* 3) Tagli: la finestra si restringe e toglie le parti dell'ingranaggio nascoste dalla M */
+  .mate-gear-win { animation: mate-gear-cut 0.3s ease-in-out 1.8s both; }
+  /* 4) Subito dopo l'ingranaggio parte piano e poi gira a velocità costante */
   .mate-gear {
     animation:
-      mate-gear-start 1.6s cubic-bezier(0.4, 0, 1, 1) 5.4s both,
-      mate-gear-run 14s linear 7s infinite;
+      mate-gear-roll-rot 1.1s linear 0.15s both,
+      mate-gear-start 0.8s cubic-bezier(0.4, 0, 1, 1) 2.1s forwards,
+      mate-gear-run 14s linear 2.9s infinite;
   }
+  /* 5) Poi corona, MATE, Magazzino Tecnico e infine la luce */
+  .mate-crown    { animation: mate-rise 0.35s ease-out 2.15s both; }
+  .mate-text     { animation: mate-rise 0.45s ease-out 2.4s both; }
+  .mate-sub      { animation: mate-rise 0.45s ease-out 2.75s both; }
+  .mate-beam     { animation: mate-beam 1.1s ease-in-out 3.3s both; }
 }
 
-@keyframes mate-grid-in {
-  from { opacity: 0; clip-path: circle(0% at 50% 50%); }
-  to   { opacity: 1; clip-path: circle(80% at 50% 50%); }
+/* Rotolamento senza slittamento: 1% di traslazione = 1.272 gradi di rotazione (283% = 360 gradi).
+   Le due animazioni hanno gli stessi tempi e le stesse curve, quindi restano sincronizzate. */
+@keyframes mate-gear-roll {
+  0%   { transform: translateX(-283%); animation-timing-function: cubic-bezier(0.45, 0.45, 0.55, 1); }
+  80%  { transform: translateX(7%);    animation-timing-function: ease-in-out; }
+  100% { transform: translateX(0); }
 }
-@keyframes mate-gear-in {
-  from { opacity: 0; transform: scale(0.82); }
-  to   { opacity: 1; transform: scale(1); }
+@keyframes mate-gear-roll-rot {
+  0%   { transform: rotate(0deg);     animation-timing-function: cubic-bezier(0.45, 0.45, 0.55, 1); }
+  80%  { transform: rotate(368.9deg); animation-timing-function: ease-in-out; }
+  100% { transform: rotate(360deg); }
+}
+@keyframes mate-gear-cut {
+  from { clip-path: inset(-300% -300% -300% -300%); }
+  to   { clip-path: inset(45.97% 34.96% 34.75% 34.15%); }
 }
 @keyframes mate-logo-in {
-  from { opacity: 0; transform: translateY(-10px) scale(0.95); }
+  from { opacity: 0; transform: translateY(-14px) scale(1.04); }
   to   { opacity: 1; transform: translateY(0) scale(1); }
 }
 @keyframes mate-rise {
@@ -2027,12 +2041,12 @@ input:disabled + .input-clear { display: none; }
   100% { opacity: 0; transform: translateX(400%) skewX(-18deg); }
 }
 @keyframes mate-gear-start {
-  from { transform: rotate(0deg); }
-  to   { transform: rotate(24deg); }
+  from { transform: rotate(360deg); }
+  to   { transform: rotate(380deg); }
 }
 @keyframes mate-gear-run {
-  from { transform: rotate(24deg); }
-  to   { transform: rotate(384deg); }
+  from { transform: rotate(380deg); }
+  to   { transform: rotate(740deg); }
 }
 
 /* ---- Carosello: cornice in acciaio spazzolato scuro attorno a ogni foto ---- */
