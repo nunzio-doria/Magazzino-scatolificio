@@ -1907,16 +1907,20 @@ input:disabled + .input-clear { display: none; }
   padding: 0.9rem 1rem;
   border-radius: 1.6rem;
   color: #fff;
-  /* Tema scuro: fondo nero; con la luce neon (--neon da 0 a 1) si accende un alone blu dal centro */
-  background:
-    radial-gradient(90% 85% at 50% 42%, rgba(130, 150, 178, calc(0.1 + 0.4 * var(--neon))) 0%, rgba(44, 52, 66, calc(0.45 * var(--neon))) 55%, rgba(0, 0, 0, 0) 100%),
-    #000;
-  border: 1px solid rgba(205, 218, 235, calc(0.2 + 0.5 * var(--neon)));
+  /* Carta millimetrata blu, rialzata come una targa: bordo alto chiaro, spessore e ombra sotto.
+     La luce neon sta SOTTO il perimetro della scheda: si vede solo il bagliore che esce dai bordi;
+     il blu, il logo e le scritte dentro non cambiano mai. */
+  background: radial-gradient(90% 85% at 50% 42%, #0f58a6 0%, #0a4082 52%, #062c58 100%);
+  border: 1px solid #0b2f5a;
   box-shadow:
-    0 0 calc(30px * var(--neon)) calc(1px * var(--neon)) rgba(238, 244, 255, calc(0.4 * var(--neon))),
-    inset 0 0 calc(26px * var(--neon)) rgba(238, 244, 255, calc(0.16 * var(--neon))),
-    0 14px 30px -12px rgba(0, 0, 0, 0.8),
-    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+    inset 0 1px 0 rgba(255, 255, 255, 0.3),
+    inset 0 -2px 0 rgba(0, 0, 0, 0.28),
+    inset 1px 0 0 rgba(255, 255, 255, 0.08),
+    inset -1px 0 0 rgba(0, 0, 0, 0.18),
+    0 5px 0 -1px #05213f,
+    0 7px 0 -1px #020e1c,
+    0 0 calc(38px * var(--neon)) calc(3px * var(--neon)) rgba(244, 248, 255, calc(0.6 * var(--neon))),
+    0 16px 26px -8px rgba(0, 0, 0, 0.75);
 }
 /* Carta millimetrata: quadretti fini, riga marcata ogni 5 e croce centrale */
 .mate-brand::before {
@@ -1934,7 +1938,6 @@ input:disabled + .input-clear { display: none; }
     linear-gradient(90deg, rgba(190, 220, 255, 0.05) 1px, transparent 1px) center / 10px 10px;
   -webkit-mask-image: radial-gradient(85% 85% at 50% 45%, #000 35%, rgba(0, 0, 0, 0.4) 100%);
   mask-image: radial-gradient(85% 85% at 50% 45%, #000 35%, rgba(0, 0, 0, 0.4) 100%);
-  opacity: calc(0.3 + 0.7 * var(--neon));
 }
 .mate-title {
   position: relative;
@@ -1948,10 +1951,6 @@ input:disabled + .input-clear { display: none; }
   display: block;
   height: clamp(11.5rem, 54vw, 13.5rem);
   aspect-ratio: 1350 / 1525;
-  /* Il metallo si illumina e prende un alone blu con la luce neon */
-  filter:
-    brightness(calc(0.72 + 0.28 * var(--neon)))
-    drop-shadow(0 0 calc(12px * var(--neon)) rgba(242, 247, 255, calc(0.6 * var(--neon))));
 }
 .mate-layer {
   position: absolute;
@@ -2103,8 +2102,9 @@ input:disabled + .input-clear { display: none; }
 }
 
 /* ---- Tema scuro della schermata di accesso e luce neon ---------------------------
-   --neon (0 = spento, 1 = acceso) pilota tutta la luce: testata, logo, cornici e foto del carosello,
-   ombre sotto le schede, scheda del modulo. Stato di base = 1 (acceso: è quello che vede chi ha
+   --neon (0 = spento, 1 = acceso) pilota la luce: bagliore dal perimetro della scheda blu (la sorgente è
+   SOTTO la scheda) e velo di luce sulle foto del carosello (illuminate solo dall'alto). Logo, scritte,
+   scheda del modulo e pulsante non sono toccati dalla luce. Stato di base = 1 (acceso: è quello che vede chi ha
    "riduci animazioni"). È la PRIMA cosa che succede: dopo 0.4 s la luce si accende in 2 secondi
    lampeggiando, poi parte l'animazione del logo e, all'inizio della rotazione dell'ingranaggio, il carosello.
    Qui sotto c'è il lampeggio base (sempre uguale), poi login-carousel.js lo sostituisce
@@ -2137,9 +2137,10 @@ body:has(#auth-view:not(.hidden))::before { background-color: #000; background-i
   100% { --neon: 1; }
 }
 
-/* ---- Carosello: cornice in acciaio scuro; la luce neon accende cornici, foto e ombre sotto ---- */
-/* Più spazio sopra e sotto perché l'alone non venga tagliato (margini compensati: stesso ingombro di prima) */
-#auth-view .login-carousel { padding: 0.9rem 0 2.2rem; margin-top: -0.55rem; margin-bottom: -0.6rem; }
+/* ---- Carosello: cornice in acciaio scuro. L'unica sorgente di luce è il neon sotto la scheda blu: arriva
+   dall'alto e al centro, quindi le foto al centro sono le più illuminate, quelle ai lati e in basso meno.
+   Sotto il carosello non c'è nessuna luce: ombre normali, nere. ---- */
+#auth-view .login-carousel { position: relative; padding: 0.35rem 0 1rem; margin-bottom: 0.6rem; }
 #auth-view .login-carousel-tile {
   position: relative;
   width: 220px;
@@ -2148,49 +2149,55 @@ body:has(#auth-view:not(.hidden))::before { background-color: #000; background-i
   border-radius: 22px;
   border: 5px solid transparent;
   background:
-    linear-gradient(#0a0c10, #0a0c10) padding-box,
+    linear-gradient(#fff, #fff) padding-box,
     linear-gradient(145deg, #8f949a 0%, #3b3e43 28%, #6a6e74 52%, #2f3237 78%, #5b5f65 100%) border-box;
-  /* La luce colpisce tutta la scheda: foto e cornice si scuriscono da spente e si illuminano da accese */
-  filter: brightness(calc(0.38 + 0.62 * var(--neon))) saturate(calc(0.7 + 0.3 * var(--neon)));
   box-shadow:
-    0 0 0 1px rgba(255, 255, 255, calc(0.55 * var(--neon))),
-    0 0 calc(16px * var(--neon)) rgba(238, 244, 255, calc(0.5 * var(--neon))),
-    0 calc(16px * var(--neon)) calc(26px * var(--neon)) -8px rgba(228, 238, 255, calc(0.6 * var(--neon))),
-    0 10px 16px -8px rgba(0, 0, 0, 0.85);
+    0 10px 16px -8px rgba(0, 0, 0, 0.85),
+    0 3px 6px -2px rgba(0, 0, 0, 0.6);
 }
 #auth-view .login-carousel-tile img { border-radius: 16px; }
+/* Velo di luce sopra tutto il carosello (le schede scorrono sotto di lui): da spento è quasi nero;
+   da acceso lascia libero il centro in alto e resta scuro ai lati e in basso */
+#auth-view .login-carousel::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  background:
+    radial-gradient(80% 140% at 50% 0%,
+      rgba(0, 0, 0, calc(0.92 - 0.92 * var(--neon))) 0%,
+      rgba(0, 0, 0, calc(0.92 - 0.74 * var(--neon))) 40%,
+      rgba(0, 0, 0, calc(0.92 - 0.04 * var(--neon))) 100%);
+}
 /* Fermo e non trascinabile finché non parte da solo (login-carousel.js) */
 .login-carousel.is-locked { cursor: default; }
 
-/* ---- Scheda del modulo: acciaio scuro, bordo che si accende con la luce ---- */
+/* ---- Scheda del modulo: sempre bianca ---- */
 #auth-view .login-card {
-  background: linear-gradient(180deg, #151a21 0%, #0c0f13 100%);
-  border-color: rgba(205, 218, 235, calc(0.18 + 0.3 * var(--neon)));
+  border-color: #d5d9df;
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.08),
-    0 0 calc(22px * var(--neon)) rgba(238, 244, 255, calc(0.16 * var(--neon))),
-    0 10px 24px -10px rgba(0, 0, 0, 0.9);
+    inset 0 2px 0 #fff,
+    0 10px 24px -10px rgba(13, 17, 23, 0.3),
+    0 3px 7px -3px rgba(13, 17, 23, 0.15);
 }
-#auth-view .login-card label { color: #aab4c0; }
 #auth-view .login-card input {
-  background: #07090c;
-  border: 1.5px solid #3a424c;
+  background: #fff;
+  border: 1.5px solid #9aa1ab;
   border-radius: 0.8rem;
   padding: 0.8rem 1rem;
-  color: #e8eff7;
+  color: #1c2530;
 }
-#auth-view .login-card input:focus { border-color: #dbe5f1; box-shadow: 0 0 0 3px rgba(238, 244, 255, 0.2); }
+#auth-view .login-card input:focus { border-color: #0a3a6e; box-shadow: 0 0 0 3px rgba(10, 58, 110, 0.16); }
+/* Testi fuori dalla scheda bianca, ora su sfondo nero */
 #auth-view .text-graphite-500 { color: #7d8793; }
-#auth-view #login-error { color: #fda4af; background: rgba(244, 63, 94, 0.12); border-color: rgba(244, 63, 94, 0.4); }
+#auth-view #login-status { color: #d6e4ff; background: rgba(255, 255, 255, 0.08); border-color: rgba(255, 255, 255, 0.22); }
 
 /* ---- Pulsante ACCEDI: blu metallico con riflesso centrale ---- */
 #auth-view .login-btn {
   background: linear-gradient(90deg, #0a2a52 0%, #1a4d86 50%, #0a2a52 100%);
-  border: 1px solid #0d3a6e;
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.22),
-    0 0 calc(14px * var(--neon)) rgba(238, 244, 255, calc(0.35 * var(--neon))),
-    0 6px 12px -5px rgba(0, 0, 0, 0.8);
+  border: 1px solid #082444;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22), 0 6px 12px -5px rgba(7, 30, 62, 0.65);
   text-shadow: 0 1px 1px rgba(0, 0, 0, 0.35);
 }
 #auth-view .login-btn:hover { filter: brightness(1.12); }
