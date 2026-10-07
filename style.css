@@ -1907,9 +1907,16 @@ input:disabled + .input-clear { display: none; }
   padding: 0.9rem 1rem;
   border-radius: 1.6rem;
   color: #fff;
-  background: radial-gradient(90% 85% at 50% 42%, #0f58a6 0%, #0a4082 52%, #062c58 100%);
-  border: 1px solid #0b2f5a;
-  box-shadow: 0 14px 30px -12px rgba(7, 30, 62, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.14);
+  /* Tema scuro: fondo nero; con la luce neon (--neon da 0 a 1) si accende un alone blu dal centro */
+  background:
+    radial-gradient(90% 85% at 50% 42%, rgba(15, 88, 166, calc(0.1 + 0.4 * var(--neon))) 0%, rgba(6, 40, 84, calc(0.45 * var(--neon))) 55%, rgba(0, 0, 0, 0) 100%),
+    #000;
+  border: 1px solid rgba(70, 150, 230, calc(0.2 + 0.5 * var(--neon)));
+  box-shadow:
+    0 0 calc(30px * var(--neon)) calc(1px * var(--neon)) rgba(56, 170, 255, calc(0.4 * var(--neon))),
+    inset 0 0 calc(26px * var(--neon)) rgba(56, 170, 255, calc(0.16 * var(--neon))),
+    0 14px 30px -12px rgba(0, 0, 0, 0.8),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
 }
 /* Carta millimetrata: quadretti fini, riga marcata ogni 5 e croce centrale */
 .mate-brand::before {
@@ -1927,6 +1934,7 @@ input:disabled + .input-clear { display: none; }
     linear-gradient(90deg, rgba(190, 220, 255, 0.05) 1px, transparent 1px) center / 10px 10px;
   -webkit-mask-image: radial-gradient(85% 85% at 50% 45%, #000 35%, rgba(0, 0, 0, 0.4) 100%);
   mask-image: radial-gradient(85% 85% at 50% 45%, #000 35%, rgba(0, 0, 0, 0.4) 100%);
+  opacity: calc(0.3 + 0.7 * var(--neon));
 }
 .mate-title {
   position: relative;
@@ -1940,6 +1948,10 @@ input:disabled + .input-clear { display: none; }
   display: block;
   height: clamp(11.5rem, 54vw, 13.5rem);
   aspect-ratio: 1350 / 1525;
+  /* Il metallo si illumina e prende un alone blu con la luce neon */
+  filter:
+    brightness(calc(0.72 + 0.28 * var(--neon)))
+    drop-shadow(0 0 calc(12px * var(--neon)) rgba(60, 170, 255, calc(0.6 * var(--neon))));
 }
 .mate-layer {
   position: absolute;
@@ -2090,8 +2102,43 @@ input:disabled + .input-clear { display: none; }
   to   { transform: rotate(740deg); }
 }
 
-/* ---- Carosello: cornice in acciaio spazzolato scuro attorno a ogni foto ---- */
-#auth-view .login-carousel { padding: 0.35rem 0 1rem; margin-bottom: 0.6rem; }
+/* ---- Tema scuro della schermata di accesso e luce neon ---------------------------
+   --neon (0 = spento, 1 = acceso) pilota tutta la luce: testata, logo, cornici e foto del carosello,
+   ombre sotto le schede, scheda del modulo. Stato di base = 1 (acceso: è quello che vede chi ha
+   "riduci animazioni"). Quando l'ingranaggio inizia a girare la luce si accende in 2 secondi
+   lampeggiando: qui sotto c'è la versione base (sempre uguale), poi login-carousel.js la sostituisce
+   con un lampeggio diverso a ogni apertura della pagina. */
+@property --neon {
+  syntax: '<number>';
+  inherits: true;
+  initial-value: 1;
+}
+/* Sfondo nero pieno (niente lamiera forata) finché è visibile la schermata di accesso */
+body:has(#auth-view:not(.hidden)) { background-color: #000; }
+body:has(#auth-view:not(.hidden))::before { background-color: #000; background-image: none; }
+#auth-view { --neon: 1; color-scheme: dark; }
+@media (prefers-reduced-motion: no-preference) {
+  #auth-view { animation: auth-neon 2s linear 2.67s both; } /* 2.67s = inizio rotazione ingranaggio */
+}
+@keyframes auth-neon {
+  0%   { --neon: 0; }
+  8%   { --neon: 0; }
+  10%  { --neon: 0.55; }
+  14%  { --neon: 0.05; }
+  26%  { --neon: 0.7; }
+  29%  { --neon: 0.1; }
+  33%  { --neon: 0.85; }
+  45%  { --neon: 0.2; }
+  50%  { --neon: 0.9; }
+  56%  { --neon: 0.35; }
+  66%  { --neon: 0.95; }
+  74%  { --neon: 0.6; }
+  100% { --neon: 1; }
+}
+
+/* ---- Carosello: cornice in acciaio scuro; la luce neon accende cornici, foto e ombre sotto ---- */
+/* Più spazio sopra e sotto perché l'alone non venga tagliato (margini compensati: stesso ingombro di prima) */
+#auth-view .login-carousel { padding: 0.9rem 0 2.2rem; margin-top: -0.55rem; margin-bottom: -0.6rem; }
 #auth-view .login-carousel-tile {
   position: relative;
   width: 220px;
@@ -2100,36 +2147,47 @@ input:disabled + .input-clear { display: none; }
   border-radius: 22px;
   border: 5px solid transparent;
   background:
-    linear-gradient(#fff, #fff) padding-box,
+    linear-gradient(#0a0c10, #0a0c10) padding-box,
     linear-gradient(145deg, #8f949a 0%, #3b3e43 28%, #6a6e74 52%, #2f3237 78%, #5b5f65 100%) border-box;
+  /* La luce colpisce tutta la scheda: foto e cornice si scuriscono da spente e si illuminano da accese */
+  filter: brightness(calc(0.38 + 0.62 * var(--neon))) saturate(calc(0.7 + 0.3 * var(--neon)));
   box-shadow:
-    0 10px 16px -8px rgba(13, 17, 23, 0.55),
-    0 3px 6px -2px rgba(13, 17, 23, 0.3);
+    0 0 0 1px rgba(120, 200, 255, calc(0.55 * var(--neon))),
+    0 0 calc(16px * var(--neon)) rgba(56, 170, 255, calc(0.5 * var(--neon))),
+    0 calc(16px * var(--neon)) calc(26px * var(--neon)) -8px rgba(40, 150, 255, calc(0.6 * var(--neon))),
+    0 10px 16px -8px rgba(0, 0, 0, 0.85);
 }
 #auth-view .login-carousel-tile img { border-radius: 16px; }
 
-/* ---- Scheda del modulo: più arrotondata e morbida ---- */
+/* ---- Scheda del modulo: acciaio scuro, bordo che si accende con la luce ---- */
 #auth-view .login-card {
-  border-color: #d5d9df;
+  background: linear-gradient(180deg, #151a21 0%, #0c0f13 100%);
+  border-color: rgba(70, 150, 230, calc(0.18 + 0.3 * var(--neon)));
   box-shadow:
-    inset 0 2px 0 #fff,
-    0 10px 24px -10px rgba(13, 17, 23, 0.3),
-    0 3px 7px -3px rgba(13, 17, 23, 0.15);
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 0 calc(22px * var(--neon)) rgba(56, 170, 255, calc(0.16 * var(--neon))),
+    0 10px 24px -10px rgba(0, 0, 0, 0.9);
 }
+#auth-view .login-card label { color: #9db3cc; }
 #auth-view .login-card input {
-  background: #fff;
-  border: 1.5px solid #9aa1ab;
+  background: #07090c;
+  border: 1.5px solid #3a424c;
   border-radius: 0.8rem;
   padding: 0.8rem 1rem;
-  color: #1c2530;
+  color: #e8eff7;
 }
-#auth-view .login-card input:focus { border-color: #0a3a6e; box-shadow: 0 0 0 3px rgba(10, 58, 110, 0.16); }
+#auth-view .login-card input:focus { border-color: #38aaff; box-shadow: 0 0 0 3px rgba(56, 170, 255, 0.22); }
+#auth-view .text-graphite-500 { color: #74869b; }
+#auth-view #login-error { color: #fda4af; background: rgba(244, 63, 94, 0.12); border-color: rgba(244, 63, 94, 0.4); }
 
 /* ---- Pulsante ACCEDI: blu metallico con riflesso centrale ---- */
 #auth-view .login-btn {
   background: linear-gradient(90deg, #0a2a52 0%, #1a4d86 50%, #0a2a52 100%);
-  border: 1px solid #082444;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22), 0 6px 12px -5px rgba(7, 30, 62, 0.65);
+  border: 1px solid #0d3a6e;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.22),
+    0 0 calc(14px * var(--neon)) rgba(56, 170, 255, calc(0.35 * var(--neon))),
+    0 6px 12px -5px rgba(0, 0, 0, 0.8);
   text-shadow: 0 1px 1px rgba(0, 0, 0, 0.35);
 }
 #auth-view .login-btn:hover { filter: brightness(1.12); }

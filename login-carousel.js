@@ -151,3 +151,46 @@ function initLoginCarousel() {
 }
 
 initLoginCarousel();
+
+// =============================================================
+// Luce neon della schermata di accesso (variabile CSS --neon: 0 spento, 1 acceso).
+// Quando l'ingranaggio inizia a girare la luce si accende in 2 secondi con un lampeggio
+// diverso a ogni apertura della pagina: pochi tentativi sempre più lunghi e luminosi,
+// poi sale piano a piena luce. Se questo non parte, resta il lampeggio base in style.css.
+// =============================================================
+const NEON_MS = 2000;
+
+function neonKeyframes() {
+  const r = (a, b) => a + Math.random() * (b - a);
+  const rampMs = r(380, 520);                 // ultimo tratto: sale piano a piena luce
+  const flickMs = NEON_MS - rampMs;
+  const hold = 'steps(1, end)';               // lampeggio netto: il valore resta fino al passo dopo
+  const kf = [{ offset: 0, '--neon': '0', easing: hold }];
+  let t = r(60, 320);                         // buio iniziale
+  let on = true;
+  while (t < flickMs - 40) {
+    const p = t / flickMs;                    // 0 → 1: i lampi diventano più forti e lunghi
+    const level = on ? r(0.3 + 0.35 * p, 0.65 + 0.35 * p) : r(0, 0.14);
+    kf.push({ offset: t / NEON_MS, '--neon': level.toFixed(2), easing: hold });
+    t += on ? r(35, 80 + 130 * p) : r(45, 230 - 120 * p);
+    on = !on;
+  }
+  kf.push({ offset: flickMs / NEON_MS, '--neon': r(0.5, 0.75).toFixed(2), easing: 'ease-out' });
+  kf.push({ offset: 1, '--neon': '1' });
+  return kf;
+}
+
+function initLoginNeon() {
+  const view = document.getElementById('auth-view');
+  const gear = view && view.querySelector('.mate-gear');
+  if (!view || !gear || typeof view.animate !== 'function') return;
+  // "animationstart" scatta quando l'ingranaggio inizia a girare (a ogni presentazione della schermata)
+  gear.addEventListener('animationstart', (e) => {
+    if (e.animationName !== 'mate-gear-start') return;
+    try {
+      view.animate(neonKeyframes(), { duration: NEON_MS, easing: 'linear', fill: 'none' });
+    } catch (_) { /* resta il lampeggio base in CSS */ }
+  });
+}
+
+initLoginNeon();
