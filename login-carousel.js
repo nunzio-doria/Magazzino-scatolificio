@@ -63,7 +63,25 @@ function initLoginCarousel() {
 
   // Larghezza di un giro completo = distanza tra la prima scheda e la sua copia.
   let setWidth = oneSet.length * step;
+  // Luce del neon: ogni scheda è tanto più illuminata quanto più è vicina al centro dello schermo.
+  // Si scrive in --d (0 centro, 1 lati) la distanza della scheda dal centro, a ogni spostamento del nastro.
+  let tiles = [];
+  let centers = [];
+  const refreshTiles = () => {
+    tiles = Array.from(track.children);
+    centers = tiles.map((t) => t.offsetLeft + t.offsetWidth / 2);
+  };
+  const light = () => {
+    const half = host.clientWidth / 2;
+    if (!half) return;
+    for (let i = 0; i < tiles.length; i++) {
+      const d = Math.min(1, Math.abs(centers[i] + x - half) / (half * 1.15));
+      tiles[i].style.setProperty('--d', d.toFixed(3));
+    }
+  };
   const measure = () => {
+    refreshTiles();
+    light();
     if (firstDup && firstDup.isConnected && firstDup.offsetLeft > 0) setWidth = firstDup.offsetLeft;
   };
   // Se un'immagine non si carica, la scheda (e la sua copia) sparisce senza lasciare buchi rotti
@@ -125,6 +143,7 @@ function initLoginCarousel() {
       x += vel * dt;
       wrap();
       track.style.transform = `translate3d(${x}px,0,0)`;
+      light();
     }
     requestAnimationFrame(frame);
   };
@@ -149,6 +168,7 @@ function initLoginCarousel() {
     x += dx;
     wrap();
     track.style.transform = `translate3d(${x}px,0,0)`;
+    light();
     // velocità istantanea lisciata, per un lancio fedele al gesto
     dragVel = dragVel * 0.6 + ((dx / dtMs) * 1000) * 0.4;
     lastX = e.clientX;

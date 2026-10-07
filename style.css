@@ -2101,7 +2101,7 @@ input:disabled + .input-clear { display: none; }
   to   { transform: rotate(740deg); }
 }
 
-/* ---- Tema scuro della schermata di accesso e luce neon ---------------------------
+/* ---- Luce neon della schermata di accesso ---------------------------
    --neon (0 = spento, 1 = acceso) pilota la luce: bagliore dal perimetro della scheda blu (la sorgente è
    SOTTO la scheda) e velo di luce sulle foto del carosello (illuminate solo dall'alto). Logo, scritte,
    scheda del modulo e pulsante non sono toccati dalla luce. Stato di base = 1 (acceso: è quello che vede chi ha
@@ -2114,10 +2114,7 @@ input:disabled + .input-clear { display: none; }
   inherits: true;
   initial-value: 1;
 }
-/* Sfondo nero pieno (niente lamiera forata) finché è visibile la schermata di accesso */
-body:has(#auth-view:not(.hidden)) { background-color: #000; }
-body:has(#auth-view:not(.hidden))::before { background-color: #000; background-image: none; }
-#auth-view { --neon: 1; color-scheme: dark; }
+#auth-view { --neon: 1; }
 @media (prefers-reduced-motion: no-preference) {
   #auth-view { animation: auth-neon 2s linear 0.4s both; }
 }
@@ -2139,8 +2136,9 @@ body:has(#auth-view:not(.hidden))::before { background-color: #000; background-i
 
 /* ---- Carosello: cornice in acciaio scuro. L'unica sorgente di luce è il neon sotto la scheda blu: arriva
    dall'alto e al centro, quindi le foto al centro sono le più illuminate, quelle ai lati e in basso meno.
-   Sotto il carosello non c'è nessuna luce: ombre normali, nere. ---- */
-#auth-view .login-carousel { position: relative; padding: 0.35rem 0 1rem; margin-bottom: 0.6rem; }
+   login-carousel.js scrive in --d di ogni scheda la distanza dal centro dello schermo (0 centro, 1 lati).
+   Sotto il carosello non c'è nessuna luce: ombre normali. ---- */
+#auth-view .login-carousel { padding: 0.35rem 0 1rem; margin-bottom: 0.6rem; }
 #auth-view .login-carousel-tile {
   position: relative;
   width: 220px;
@@ -2152,23 +2150,20 @@ body:has(#auth-view:not(.hidden))::before { background-color: #000; background-i
     linear-gradient(#fff, #fff) padding-box,
     linear-gradient(145deg, #8f949a 0%, #3b3e43 28%, #6a6e74 52%, #2f3237 78%, #5b5f65 100%) border-box;
   box-shadow:
-    0 10px 16px -8px rgba(0, 0, 0, 0.85),
-    0 3px 6px -2px rgba(0, 0, 0, 0.6);
+    0 10px 16px -8px rgba(13, 17, 23, 0.55),
+    0 3px 6px -2px rgba(13, 17, 23, 0.3);
+  /* Spenta: quasi nera. Accesa: piena al centro (--d = 0), più scura verso i lati (--d = 1) */
+  filter: brightness(calc(0.08 + var(--neon) * (0.92 - 0.7 * var(--d, 0))));
 }
 #auth-view .login-carousel-tile img { border-radius: 16px; }
-/* Velo di luce sopra tutto il carosello (le schede scorrono sotto di lui): da spento è quasi nero;
-   da acceso lascia libero il centro in alto e resta scuro ai lati e in basso */
-#auth-view .login-carousel::after {
+/* La luce viene dall'alto: la parte bassa della foto è un po' meno illuminata */
+#auth-view .login-carousel-tile::after {
   content: '';
   position: absolute;
   inset: 0;
-  z-index: 2;
+  border-radius: inherit;
   pointer-events: none;
-  background:
-    radial-gradient(80% 140% at 50% 0%,
-      rgba(0, 0, 0, calc(0.92 - 0.92 * var(--neon))) 0%,
-      rgba(0, 0, 0, calc(0.92 - 0.74 * var(--neon))) 40%,
-      rgba(0, 0, 0, calc(0.92 - 0.04 * var(--neon))) 100%);
+  background: linear-gradient(to bottom, rgba(0, 0, 0, 0) 25%, rgba(0, 0, 0, calc(0.5 * var(--neon))) 100%);
 }
 /* Fermo e non trascinabile finché non parte da solo (login-carousel.js) */
 .login-carousel.is-locked { cursor: default; }
@@ -2189,9 +2184,6 @@ body:has(#auth-view:not(.hidden))::before { background-color: #000; background-i
   color: #1c2530;
 }
 #auth-view .login-card input:focus { border-color: #0a3a6e; box-shadow: 0 0 0 3px rgba(10, 58, 110, 0.16); }
-/* Testi fuori dalla scheda bianca, ora su sfondo nero */
-#auth-view .text-graphite-500 { color: #7d8793; }
-#auth-view #login-status { color: #d6e4ff; background: rgba(255, 255, 255, 0.08); border-color: rgba(255, 255, 255, 0.22); }
 
 /* ---- Pulsante ACCEDI: blu metallico con riflesso centrale ---- */
 #auth-view .login-btn {
