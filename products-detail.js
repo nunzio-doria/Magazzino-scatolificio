@@ -5,7 +5,7 @@
 // in un file più piccolo.
 // =============================================================
 
-import { createProduct, updateProduct, deleteProduct, listDistinctMacchine, createMachine, listDistinctLocazioni, createShelf, SHELF_AREAS, DEFAULT_SHELF_AREA, getProductBarcodes, getProductLocations } from './supabase.js';
+import { createProduct, updateProduct, deleteProduct, listDistinctMacchine, createMachine, listDistinctLocazioni, createShelf, areaOfShelf, SHELF_AREAS, DEFAULT_SHELF_AREA, getProductBarcodes, getProductLocations } from './supabase.js';
 import { getManualForMachineName, openManualForMachineName, refreshManualsCache } from './manuals.js';
 import { toastSuccess, toastError } from './toast.js';
 import { isAdmin } from './auth.js';
@@ -542,6 +542,12 @@ function editFromDetail() {
   closeOverlay(els.detailModal);
 }
 
+/** Piccola etichetta con l'area dello scaffale (Magazzino / Ufficio tecnico), accanto al nome */
+function detailAreaChip(locazione) {
+  const area = areaOfShelf(locazione);
+  return ` <span class="shelf-area${area === 'Ufficio tecnico' ? ' shelf-area--ufficio' : ''} ml-1.5 align-middle whitespace-nowrap">${escapeHtml(area)}</span>`;
+}
+
 function detailValueHtml(value, { mono = false } = {}) {
   const text = value === null || value === undefined ? '' : String(value).trim();
   if (!text) return '<span class="detail-row-value detail-row-value--empty">—</span>';
@@ -560,14 +566,14 @@ function renderDetail(p) {
       .map(
         (l) => `
         <div class="flex items-center justify-between gap-2">
-          <span class="min-w-0 break-words${l.locazione ? '' : ' text-graphite-400'}">${escapeHtml(l.locazione || 'Senza scaffale')}</span>
+          <span class="min-w-0 break-words${l.locazione ? '' : ' text-graphite-400'}">${escapeHtml(l.locazione || 'Senza scaffale')}${l.locazione ? detailAreaChip(l.locazione) : ''}</span>
           <span class="shrink-0 inline-block px-2 py-0.5 rounded-full bg-graphite-700 text-graphite-200 font-mono text-sm font-bold">${l.quantita}</span>
         </div>`
       )
       .join('');
   } else {
     const locazione = (locs[0]?.locazione || '').trim();
-    els.detailLocazione.innerHTML = `<p class="${locazione ? '' : 'text-graphite-400'}">${escapeHtml(locazione || '—')}</p>`;
+    els.detailLocazione.innerHTML = `<p class="${locazione ? '' : 'text-graphite-400'}">${escapeHtml(locazione || '—')}${locazione ? detailAreaChip(locazione) : ''}</p>`;
   }
   els.detailLocazioneLabel.textContent = multiple ? 'Locazioni magazzino' : 'Locazione magazzino';
   els.detailQuantitaLabel.textContent = multiple ? 'Quantità totale' : 'Quantità disponibile';

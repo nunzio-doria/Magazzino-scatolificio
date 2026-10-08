@@ -538,6 +538,27 @@ export async function deleteMachine({ id, nome }) {
 export const SHELF_AREAS = ['Magazzino', 'Ufficio tecnico'];
 export const DEFAULT_SHELF_AREA = 'Magazzino';
 
+// Area di ogni scaffale (nome in minuscolo -> area), tenuta in memoria per mostrarla negli elenchi.
+// Gli scaffali non registrati o senza area risultano in Magazzino.
+const shelfAreas = new Map();
+export function areaOfShelf(nome) {
+  return shelfAreas.get(normalizeMachineName(nome || '').toLowerCase()) || DEFAULT_SHELF_AREA;
+}
+/** Rilegge le aree dal database; in caso di errore (rete, migrazione mancante) resta quanto già in memoria */
+export async function loadShelfAreas() {
+  try {
+    const { data, error } = await supabase.from('shelves').select('nome, area');
+    if (error || !data) return;
+    shelfAreas.clear();
+    data.forEach((r) => {
+      const n = normalizeMachineName(r.nome);
+      if (n && SHELF_AREAS.includes(r.area)) shelfAreas.set(n.toLowerCase(), r.area);
+    });
+  } catch (err) {
+    console.warn('Impossibile leggere le aree degli scaffali.', err);
+  }
+}
+
 /** True se l'errore indica che manca la colonna `area` nella tabella `shelves` (migrazione non ancora eseguita) */
 function isMissingAreaColumn(error) {
   const msg = `${error?.message || ''} ${error?.details || ''}`;
@@ -626,6 +647,7 @@ export async function createShelf(nome, area = DEFAULT_SHELF_AREA) {
     }
     throw error;
   }
+  shelfAreas.set(clean.toLowerCase(), area);
   return data;
 }
 
@@ -645,6 +667,7 @@ export async function setShelfArea({ id, nome }, area) {
     throw error;
   }
   if (!data || data.length === 0) throw new Error('Non è stato possibile cambiare l\'area (solo un amministratore può farlo).');
+  shelfAreas.set(normalizeMachineName(nome).toLowerCase(), area);
   return data[0];
 }
 

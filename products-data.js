@@ -4,7 +4,7 @@
 // logica, stesso comportamento, solo riorganizzato in un file più piccolo.
 // =============================================================
 
-import { listProducts, createProduct, updateProduct, deleteProduct, bulkUpsertProducts, getProductsVersion, getProductLocations } from './supabase.js';
+import { listProducts, createProduct, updateProduct, deleteProduct, bulkUpsertProducts, getProductsVersion, getProductLocations, loadShelfAreas } from './supabase.js';
 import { toastSuccess, toastError, toastWarning } from './toast.js';
 import feedback from './feedback.js';
 import { replayAnimation, openOverlay, closeOverlay, loadLib } from './ui-utils.js';
@@ -182,7 +182,7 @@ export function resetProducts() {
 async function silentRefresh() {
   const seq = ++refreshSeq;
   try {
-    const list = await fetchCurrentList();
+    const [list] = await Promise.all([fetchCurrentList(), loadShelfAreas()]);
     if (seq !== refreshSeq) return;
     state.currentList = list;
     setListStatic(true);
@@ -201,7 +201,7 @@ export async function refresh() {
   els.machineView.classList.add('hidden');
   els.emptyState.classList.add('hidden');
   try {
-    const list = await fetchCurrentList();
+    const [list] = await Promise.all([fetchCurrentList(), loadShelfAreas()]);
     if (seq !== refreshSeq) return; // nel frattempo è partita una richiesta più recente
     state.currentList = list;
     renderCurrentList();
