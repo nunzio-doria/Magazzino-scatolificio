@@ -48,6 +48,7 @@ Ogni articolo può avere **più codici a barre**, ciascuno con il **produttore**
 - **Scanner e ricerca**: l'articolo si trova da qualsiasi suo codice (anche offline, dalla cache).
 - **Salvataggio**: avviene con la funzione `set_product_barcodes` (atomica), così scambiare principale e secondario non genera conflitti.
 - Migrazione: `sql/product_barcodes_multipli.sql` (già applicata su Supabase).
+- Aree degli scaffali (Magazzino / Ufficio tecnico): `sql/add_shelves_area.sql` (da eseguire una volta su Supabase; tutti gli scaffali esistenti restano in Magazzino).
 
 ## Novità di questa sessione
 

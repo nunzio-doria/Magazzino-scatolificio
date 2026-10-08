@@ -534,6 +534,16 @@ export async function deleteMachine({ id, nome }) {
 // "storici" usati solo dagli articoli continuano a comparire negli elenchi anche se non sono
 // (ancora) nella tabella `shelves`.
 
+/** Aree in cui si trovano gli scaffali (colonna `shelves.area`, vedi sql/add_shelves_area.sql) */
+export const SHELF_AREAS = ['Magazzino', 'Ufficio tecnico'];
+export const DEFAULT_SHELF_AREA = 'Magazzino';
+
+/** True se l'errore indica che manca la colonna `area` nella tabella `shelves` (migrazione non ancora eseguita) */
+function isMissingAreaColumn(error) {
+  const msg = `${error?.message || ''} ${error?.details || ''}`;
+  return error?.code === '42703' || error?.code === 'PGRST204' || (/area/.test(msg) && /column|schema cache/i.test(msg));
+}
+
 /** True se l'errore indica che la tabella `shelves` non esiste (ancora) sul database */
 function isMissingShelvesTable(error) {
   const msg = `${error?.message || ''} ${error?.details || ''}`;
@@ -567,33 +577,47 @@ export async function listDistinctLocazioni() {
  */
 export async function listShelvesWithCounts() {
   const [registered, products] = await Promise.all([
-    supabase.from('shelves').select('id, nome'),
+    supabase.from('shelves').select('id, nome, area'),
     supabase.from('product_locations').select('locazione').not('locazione', 'is', null),
   ]);
   if (products.error) throw products.error;
+  // Senza la colonna `area` (migrazione non ancora eseguita) si rilegge senza e tutto risulta in Magazzino
+  let areaMissing = false;
+  if (registered.error && isMissingAreaColumn(registered.error)) {
+    areaMissing = true;
+    const retry = await supabase.from('shelves').select('id, nome');
+    registered.data = retry.data;
+    registered.error = retry.error;
+  }
   const tableMissing = !!registered.error && isMissingShelvesTable(registered.error);
   if (registered.error && !tableMissing) throw registered.error;
 
   const byKey = new Map();
-  const add = (raw, countIt, id = null) => {
+  const add = (raw, countIt, id = null, area = DEFAULT_SHELF_AREA) => {
     const nome = normalizeMachineName(raw);
     if (!nome) return;
     const key = nome.toLowerCase();
-    if (!byKey.has(key)) byKey.set(key, { id, nome, articoli: 0 });
+    if (!byKey.has(key)) byKey.set(key, { id, nome, area: SHELF_AREAS.includes(area) ? area : DEFAULT_SHELF_AREA, articoli: 0 });
     if (id && !byKey.get(key).id) byKey.get(key).id = id;
     if (countIt) byKey.get(key).articoli += 1;
   };
-  (registered.data || []).forEach((r) => add(r.nome, false, r.id));
+  (registered.data || []).forEach((r) => add(r.nome, false, r.id, r.area));
   products.data.forEach((r) => add(r.locazione, true));
   const shelves = Array.from(byKey.values()).sort((a, b) => a.nome.localeCompare(b.nome, 'it', { numeric: true, sensitivity: 'base' }));
-  return { shelves, tableMissing };
+  return { shelves, tableMissing, areaMissing };
 }
 
-export async function createShelf(nome) {
+export async function createShelf(nome, area = DEFAULT_SHELF_AREA) {
   const clean = normalizeMachineName(nome);
   if (!clean) throw new Error('Scrivi il nome dello scaffale.');
   if (clean.length > 60) throw new Error('Il nome è troppo lungo (massimo 60 caratteri).');
-  const { data, error } = await supabase.from('shelves').insert({ nome: clean }).select('id, nome').single();
+  if (!SHELF_AREAS.includes(area)) throw new Error('Area non valida.');
+  let { data, error } = await supabase.from('shelves').insert({ nome: clean, area }).select('id, nome').single();
+  if (error && isMissingAreaColumn(error)) {
+    // Migrazione dell'area non ancora eseguita: in Magazzino si salva comunque (è l'area predefinita), altrimenti si avvisa
+    if (area !== DEFAULT_SHELF_AREA) throw new Error('Per usare le aree serve prima eseguire sql/add_shelves_area.sql su Supabase.');
+    ({ data, error } = await supabase.from('shelves').insert({ nome: clean }).select('id, nome').single());
+  }
   if (error) {
     if (error.code === '23505') throw new Error(`Lo scaffale "${clean}" è già presente.`);
     if (error.code === '42501') throw new Error('Solo un amministratore può aggiungere scaffali.');
@@ -603,6 +627,25 @@ export async function createShelf(nome) {
     throw error;
   }
   return data;
+}
+
+/**
+ * Cambia l'area di uno scaffale. Uno scaffale "storico" non ancora registrato (id nullo, esiste solo
+ * negli articoli) viene registrato adesso con l'area scelta.
+ * @param {{ id: string|null, nome: string }} shelf
+ * @param {string} area
+ */
+export async function setShelfArea({ id, nome }, area) {
+  if (!SHELF_AREAS.includes(area)) throw new Error('Area non valida.');
+  if (!id) return createShelf(nome, area);
+  const { data, error } = await supabase.from('shelves').update({ area }).eq('id', id).select('id, nome');
+  if (error) {
+    if (isMissingAreaColumn(error)) throw new Error('Per usare le aree serve prima eseguire sql/add_shelves_area.sql su Supabase.');
+    if (error.code === '42501') throw new Error('Solo un amministratore può cambiare l\'area degli scaffali.');
+    throw error;
+  }
+  if (!data || data.length === 0) throw new Error('Non è stato possibile cambiare l\'area (solo un amministratore può farlo).');
+  return data[0];
 }
 
 /**

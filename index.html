@@ -904,12 +904,18 @@
           </button>
         </div>
         <div class="flex-1 overflow-y-auto px-5 py-4">
-          <p class="text-xs text-graphite-500 mb-2">Gli scaffali registrati qui compaiono nella tendina "Locazione magazzino" del form articolo.</p>
+          <p class="text-xs text-graphite-500 mb-2">Gli scaffali registrati qui compaiono nella tendina "Locazione magazzino" del form articolo. Ogni scaffale sta in un'area: tocca l'area di uno scaffale per cambiarla.</p>
           <p id="shelves-notice" class="hidden text-xs rounded-lg px-3 py-2 mb-2 bg-rose-500/10 text-rose-700">La tabella degli scaffali non è ancora stata creata sul database: finché non viene creata non si possono aggiungere scaffali.</p>
-          <form id="shelf-form" class="flex gap-2 mb-3">
-            <input id="shelf-name-input" type="text" maxlength="60" autocomplete="off" placeholder="Nome del nuovo scaffale"
-              class="flex-1 min-w-0 rounded-lg bg-graphite-800 border border-graphite-700 px-3.5 py-2.5 text-sm focus:border-amber-400 outline-none transition-colors">
-            <button id="shelf-add-btn" type="submit" class="press-spring shrink-0 rounded-lg bg-amber-400 hover:bg-amber-300 text-white font-display font-semibold uppercase tracking-wide text-xs px-4 min-h-[44px]">Aggiungi</button>
+          <form id="shelf-form" class="mb-3 space-y-2">
+            <div class="flex gap-2">
+              <input id="shelf-name-input" type="text" maxlength="60" autocomplete="off" placeholder="Nome del nuovo scaffale"
+                class="flex-1 min-w-0 rounded-lg bg-graphite-800 border border-graphite-700 px-3.5 py-2.5 text-sm focus:border-amber-400 outline-none transition-colors">
+              <button id="shelf-add-btn" type="submit" class="press-spring shrink-0 rounded-lg bg-amber-400 hover:bg-amber-300 text-white font-display font-semibold uppercase tracking-wide text-xs px-4 min-h-[44px]">Aggiungi</button>
+            </div>
+            <div id="shelf-area-toggle" role="group" aria-label="Area del nuovo scaffale" class="flex gap-2">
+              <button type="button" data-area="Magazzino" aria-pressed="true" class="shelf-area-opt flex-1 rounded-lg border px-3 py-2 text-xs font-display font-semibold uppercase tracking-wide min-h-[44px] transition-colors">Magazzino</button>
+              <button type="button" data-area="Ufficio tecnico" aria-pressed="false" class="shelf-area-opt flex-1 rounded-lg border px-3 py-2 text-xs font-display font-semibold uppercase tracking-wide min-h-[44px] transition-colors">Ufficio tecnico</button>
+            </div>
           </form>
           <div id="shelves-list-skeleton" class="space-y-2">
             <div class="skeleton h-12 w-full"></div>

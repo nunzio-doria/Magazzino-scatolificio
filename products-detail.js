@@ -5,12 +5,12 @@
 // in un file più piccolo.
 // =============================================================
 
-import { createProduct, updateProduct, deleteProduct, listDistinctMacchine, createMachine, listDistinctLocazioni, createShelf, getProductBarcodes, getProductLocations } from './supabase.js';
+import { createProduct, updateProduct, deleteProduct, listDistinctMacchine, createMachine, listDistinctLocazioni, createShelf, SHELF_AREAS, DEFAULT_SHELF_AREA, getProductBarcodes, getProductLocations } from './supabase.js';
 import { getManualForMachineName, openManualForMachineName, refreshManualsCache } from './manuals.js';
 import { toastSuccess, toastError } from './toast.js';
 import { isAdmin } from './auth.js';
 import { startCamera, stopCamera, switchCamera as switchCameraShared, toggleTorch } from './camera.js';
-import { attachFieldDropdown } from './picker.js';
+import { attachFieldDropdown, openPicker } from './picker.js';
 import { loadIdlePanel } from './scanner.js';
 import { confirmDialog } from './ui-modal.js';
 import { enhanceSelect } from './ui-select.js';
@@ -297,15 +297,23 @@ function addShelfRow({ locazione = '', quantita = 0 } = {}, { focus = false } = 
         return [];
       }
     },
-    // Si può scrivere il nome di uno scaffale nuovo e aggiungerlo: viene registrato nella
-    // tabella degli scaffali (solo admin, come tutto il form articolo) e selezionato.
+    // Si può scrivere il nome di uno scaffale nuovo e aggiungerlo: si sceglie anche la sua area
+    // (Magazzino / Ufficio tecnico), poi viene registrato nella tabella degli scaffali
+    // (solo admin, come tutto il form articolo) e selezionato.
     allowCustom: true,
     hideSearch: false,
     onCreate: async (nome) => {
+      const area = await openPicker({
+        title: `In quale area si trova "${nome}"?`,
+        options: SHELF_AREAS,
+        allowCustom: false,
+        currentValue: DEFAULT_SHELF_AREA,
+      });
+      if (!area) return null; // annullato: lo scaffale non viene creato
       try {
-        const shelf = await createShelf(nome);
+        const shelf = await createShelf(nome, area);
         feedback.confirmAction();
-        toastSuccess(`Scaffale "${shelf.nome}" aggiunto.`);
+        toastSuccess(`Scaffale "${shelf.nome}" aggiunto in ${area}.`);
         return shelf.nome;
       } catch (err) {
         feedback.errorAction();
