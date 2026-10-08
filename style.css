@@ -2194,3 +2194,42 @@ input:disabled + .input-clear { display: none; }
 }
 #auth-view .login-btn:hover { filter: brightness(1.12); }
 #auth-view .login-btn:disabled { opacity: 0.75; }
+
+/* ---- Calendario a intervallo (date-range-modal.js) -------------------------------------
+   Griglia del mese nei colori dell'app: giorni di inizio/fine in blu pieno, giorni in mezzo
+   con tinta opaca (niente trasparenze: sotto c'è lo sfondo forato), oggi con un filo blu. */
+.cal-box { transition: border-color var(--dur-fast) ease, background-color var(--dur-fast) ease; }
+.cal-box-active { border-color: var(--accent-edge); background-color: var(--accent-tint-soft); }
+.cal-nav {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.5rem;
+  color: #5c6672;
+  transition: background-color var(--dur-fast) ease, color var(--dur-fast) ease;
+}
+.cal-nav:active { background-color: var(--accent-tint); color: var(--accent-dark); }
+.cal-day {
+  height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.875rem;
+  color: var(--ink);
+  border-radius: 0.5rem;
+  background: transparent;
+  transition: background-color var(--dur-fast) ease, color var(--dur-fast) ease;
+}
+.cal-day:disabled { color: #b4bbc6; }
+.cal-day-today { box-shadow: inset 0 0 0 1px var(--accent-edge); }
+.cal-day-in { background-color: var(--accent-tint); border-radius: 0; }
+.cal-day-edge { background-color: var(--accent); color: #fff; font-weight: 600; }
+.cal-slide-next { animation: cal-slide-next var(--dur-base) var(--ease-out); }
+.cal-slide-prev { animation: cal-slide-prev var(--dur-base) var(--ease-out); }
+@keyframes cal-slide-next { from { opacity: 0; transform: translateX(18px); } to { opacity: 1; transform: none; } }
+@keyframes cal-slide-prev { from { opacity: 0; transform: translateX(-18px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) {
+  .cal-slide-next, .cal-slide-prev { animation-duration: 1ms; }
+}

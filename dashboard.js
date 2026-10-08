@@ -1,73 +1,116 @@
 // =============================================================
-// dashboard.js — Reportistica consumi (vista Admin)
+// dashboard.js — Report (vista Admin)
+//
+// Contiene solo due cose, entrambe filtrate dallo stesso periodo:
+//   1. Vita utile dei ricambi (lifespan.js)
+//   2. Elenco dei movimenti diviso in due tab, Depositi e Prelievi, con lo stesso
+//      controllo segmentato e lo stesso scambio animato di Cuscinetti/Cinghie/Ricambi.
+//      Toccando una riga si espande la scheda con tutti i dettagli del movimento.
+//
+// Periodi: ultimi 7 / 30 giorni, 3 / 6 / 12 mesi, tutto lo storico, oppure un
+// intervallo scelto con il calendario dell'app (date-range-modal.js).
 // =============================================================
 
-import { getConsumptionStats, listTransactions, getProductsVersion } from './supabase.js';
+import { listTransactionsRange, getProductsVersion } from './supabase.js';
 import { toastError, toastSuccess, toastWarning } from './toast.js';
 import { enhanceSelect } from './ui-select.js';
-import { loadLib, animateNumber, animateRing, emptyStateHtml, openOverlay, closeOverlay, enableSheetDrag, staggerIndex, animatePanelHeight } from './ui-utils.js';
+import { loadLib, emptyStateHtml, staggerIndex, syncSegIndicator } from './ui-utils.js';
+import { animateFluidSwap } from './app.js';
+import { pickDateRange } from './date-range-modal.js';
+import { CATEGORY_LABELS } from './products-shared.js';
 import feedback from './feedback.js';
 import { refreshLifespan, resetLifespan } from './lifespan.js';
 
-const els = {};
-let currentFrom = null;
-let currentPeriodLabel = '30d';
-let lastStats = [];
-let lastHistory = [];
-let hasLoadedOnce = false; // true dopo il primo caricamento riuscito, per distinguere "dati vuoti" da "mai caricato"
-
-// --- Caricamento: completo solo una volta per accesso, come il Magazzino ---
-// Un deposito/prelievo (anche offline, sincronizzato più tardi) fa scattare la stessa
-// "versione" del Magazzino: se cambia, o se il periodo selezionato è diverso da quello
-// mostrato, al rientro nel Report si aggiorna in silenzio, senza caricamento animato.
+const TABS = ['deposito', 'prelievo'];
+const PAGE_SIZE = 40; // righe mostrate per volta; "Mostra altri" ne aggiunge altre
 const REVALIDATE_MS = 10 * 60 * 1000;
+const CUSTOM_PLACEHOLDER = 'Personalizzato…';
+
+const els = {};
+let periodUi = null; // controllo del <select> personalizzato (ui-select.js)
+let customRange = null; // { from: Date, to: Date } dell'ultimo periodo personalizzato scelto
+let currentPeriod = '30d'; // periodo mostrato adesso
+let data = { deposito: [], prelievo: [] };
+let shown = { deposito: PAGE_SIZE, prelievo: PAGE_SIZE };
+let openId = { deposito: null, prelievo: null }; // riga con il dettaglio aperto (una per elenco)
+let activeTab = 'deposito';
+let hasLoadedOnce = false;
+let swapBusy = false; // true mentre lo scambio animato tra i due elenchi è in corso
+let queuedTab = null;
+
+// Caricamento: completo solo la prima volta; poi, al rientro nel Report, si aggiorna in
+// silenzio se è cambiato il periodo, il Magazzino (stessa "versione" dei prodotti) o è
+// passato troppo tempo.
 let reportLoadedOnce = false;
 let seenProductsVersion = 0;
 let lastLoadedAt = 0;
 let refreshSeq = 0;
-let articleHistoryCache = [];
-let articleHistoryFilter = 'tutti'; // 'tutti' | 'deposito' | 'prelievo'
 
 export function initDashboard() {
   els.periodSelect = document.getElementById('dash-period-select');
-  enhanceSelect(els.periodSelect);
-  els.statsWrap = document.getElementById('dash-consumption-list');
-  els.statsSkeleton = document.getElementById('dash-consumption-skeleton');
-  els.historyWrap = document.getElementById('dash-history-list');
-  els.historySkeleton = document.getElementById('dash-history-skeleton');
-  els.totalDeposits = document.getElementById('dash-kpi-depositi');
-  els.totalWithdrawals = document.getElementById('dash-kpi-prelievi');
-  els.totalMovements = document.getElementById('dash-kpi-movimenti');
-  els.ringDepositi = document.getElementById('dash-ring-depositi');
-  els.ringPrelievi = document.getElementById('dash-ring-prelievi');
+  periodUi = enhanceSelect(els.periodSelect);
   els.exportBtn = document.getElementById('dash-export-btn');
+  els.seg = document.getElementById('report-seg');
+  els.tabs = document.querySelectorAll('[data-report-tab]');
+  els.skeleton = document.getElementById('report-skeleton');
+  els.lists = document.getElementById('report-lists');
+  els.listDeposito = document.getElementById('report-list-deposito');
+  els.listPrelievo = document.getElementById('report-list-prelievo');
 
-  // Modale storico articolo
-  els.articleModal = document.getElementById('article-history-modal');
-  enableSheetDrag(els.articleModal.querySelector('.modal-panel'), () => closeArticleHistory());
-  els.articleModalTitle = document.getElementById('article-history-title');
-  els.articleModalClose = document.getElementById('article-history-close');
-  els.articleModalList = document.getElementById('article-history-list');
-  els.articleModalTabs = document.querySelectorAll('[data-history-tab]');
-
-  els.periodSelect.addEventListener('change', refresh);
+  els.periodSelect.addEventListener('change', onPeriodChange);
   els.exportBtn?.addEventListener('click', exportReport);
-  els.articleModalClose.addEventListener('click', closeArticleHistory);
-  els.articleModal.addEventListener('click', (e) => {
-    if (e.target === els.articleModal) closeArticleHistory();
-  });
-  els.articleModalTabs.forEach((btn) => {
-    btn.addEventListener('click', () => {
-      articleHistoryFilter = btn.dataset.historyTab;
-      els.articleModalTabs.forEach((b) => b.classList.toggle('history-tab-active', b === btn));
-      animatePanelHeight(els.articleModal.querySelector('.modal-panel'), renderArticleHistory);
-    });
-  });
+  els.tabs.forEach((btn) => btn.addEventListener('click', () => selectTab(btn.dataset.reportTab)));
 
   refresh();
 }
 
-/** Con `list-static` sulla vista i numeri/anelli/barre/righe compaiono già al valore finale (niente animazione). */
+// --- Periodo --------------------------------------------------------
+
+/** { from, to } in formato ISO (o null) per il periodo indicato. */
+function periodRange(period) {
+  const now = new Date();
+  const d = new Date(now);
+  if (period === '7d') d.setDate(now.getDate() - 7);
+  else if (period === '30d') d.setDate(now.getDate() - 30);
+  else if (period === '3m') d.setMonth(now.getMonth() - 3);
+  else if (period === '6m') d.setMonth(now.getMonth() - 6);
+  else if (period === '12m') d.setFullYear(now.getFullYear() - 1);
+  else if (period === 'custom' && customRange) return { from: customRange.from.toISOString(), to: customRange.to.toISOString() };
+  else return { from: null, to: null };
+  return { from: d.toISOString(), to: null };
+}
+
+const fmtShort = (d) => d.toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', year: '2-digit' });
+
+function updateCustomOptionLabel() {
+  const opt = els.periodSelect.querySelector('option[value="custom"]');
+  if (!opt) return;
+  opt.textContent = customRange ? `${fmtShort(customRange.from)} – ${fmtShort(customRange.to)}` : CUSTOM_PLACEHOLDER;
+  periodUi?.rebuild();
+}
+
+async function onPeriodChange() {
+  const value = els.periodSelect.value;
+  if (value === 'custom') {
+    const range = await pickDateRange({ from: customRange?.from, to: customRange?.to });
+    if (!range) {
+      // Annullato: si torna al periodo che era già mostrato.
+      els.periodSelect.value = currentPeriod;
+      periodUi?.sync();
+      return;
+    }
+    customRange = range;
+    updateCustomOptionLabel();
+    periodUi?.sync();
+  } else if (value === currentPeriod) {
+    return;
+  }
+  refresh();
+}
+
+// --- Caricamento ----------------------------------------------------
+
+/** Con `list-static` sulla vista le righe compaiono già finali (niente animazione a cascata). */
 function setReportStatic(on) {
   document.getElementById('view-dashboard')?.classList.toggle('list-static', on);
 }
@@ -80,8 +123,8 @@ function markReportLoaded() {
 
 /** Chiamata da app.js ogni volta che si entra nel Report. */
 export function enterDashboard() {
-  if (!reportLoadedOnce) return refresh(); // primo ingresso: caricamento completo
-  const periodChanged = els.periodSelect.value !== currentPeriodLabel;
+  if (!reportLoadedOnce) return refresh();
+  const periodChanged = els.periodSelect.value !== currentPeriod;
   const changed = getProductsVersion() !== seenProductsVersion;
   const old = Date.now() - lastLoadedAt > REVALIDATE_MS;
   if (periodChanged || changed || old) return silentRefresh();
@@ -93,217 +136,257 @@ export function resetDashboard() {
   reportLoadedOnce = false;
   seenProductsVersion = 0;
   lastLoadedAt = 0;
-  lastStats = [];
-  lastHistory = [];
+  data = { deposito: [], prelievo: [] };
   hasLoadedOnce = false;
   refreshSeq += 1;
   resetLifespan();
 }
 
-/** Aggiorna Report senza caricamento e senza animazioni; se la rete non c'è restano i dati attuali. */
+async function fetchMovements(range) {
+  const rows = await listTransactionsRange({ from: range.from, to: range.to });
+  return {
+    deposito: rows.filter((r) => r.tipo === 'deposito'),
+    prelievo: rows.filter((r) => r.tipo === 'prelievo'),
+  };
+}
+
+function applyData(next, range) {
+  data = next;
+  shown = { deposito: PAGE_SIZE, prelievo: PAGE_SIZE };
+  openId = { deposito: null, prelievo: null };
+  hasLoadedOnce = true;
+  renderList('deposito');
+  renderList('prelievo');
+  markReportLoaded();
+  refreshLifespan(range.from, range.to);
+}
+
+/** Aggiorna senza scheletro e senza animazioni; se la rete manca restano i dati attuali. */
 async function silentRefresh() {
   const seq = ++refreshSeq;
-  currentFrom = periodToFromDate(els.periodSelect.value);
-  currentPeriodLabel = els.periodSelect.value;
+  const period = els.periodSelect.value;
+  const range = periodRange(period);
   try {
-    const [stats, history] = await Promise.all([
-      getConsumptionStats({ from: currentFrom }),
-      listTransactions({ from: currentFrom, limit: 100 }),
-    ]);
+    const next = await fetchMovements(range);
     if (seq !== refreshSeq) return;
-    lastStats = stats;
-    lastHistory = history;
-    hasLoadedOnce = true;
+    currentPeriod = period;
     setReportStatic(true);
-    renderKpis(history);
-    renderStats(stats);
-    renderHistory(history);
-    markReportLoaded();
-    refreshLifespan(currentFrom);
+    applyData(next, range);
   } catch (err) {
     console.warn("Aggiornamento silenzioso del Report non riuscito, resta l'ultimo caricato.", err);
   }
 }
 
-function periodToFromDate(period) {
-  const now = new Date();
-  const d = new Date(now);
-  if (period === '7d') d.setDate(now.getDate() - 7);
-  else if (period === '30d') d.setDate(now.getDate() - 30);
-  else if (period === '90d') d.setDate(now.getDate() - 90);
-  else return null;
-  return d.toISOString();
-}
-
 export async function refresh() {
   const seq = ++refreshSeq;
-  currentFrom = periodToFromDate(els.periodSelect.value);
-  currentPeriodLabel = els.periodSelect.value;
-  setReportStatic(false); // caricamento "vero": numeri, anelli e barre animano da zero
+  const period = els.periodSelect.value;
+  const range = periodRange(period);
+  setReportStatic(false); // caricamento "vero": le righe compaiono a cascata
 
-  els.statsSkeleton.classList.remove('hidden');
-  els.statsWrap.classList.add('hidden');
-  els.historySkeleton.classList.remove('hidden');
-  els.historyWrap.classList.add('hidden');
+  els.skeleton.classList.remove('hidden');
+  els.lists.classList.add('hidden');
 
   try {
-    const [stats, history] = await Promise.all([
-      getConsumptionStats({ from: currentFrom }),
-      listTransactions({ from: currentFrom, limit: 100 }),
-    ]);
+    const next = await fetchMovements(range);
     if (seq !== refreshSeq) return;
-    lastStats = stats;
-    lastHistory = history;
-    hasLoadedOnce = true;
-
-    renderKpis(history);
-    renderStats(stats);
-    renderHistory(history);
-    markReportLoaded();
-    refreshLifespan(currentFrom);
+    currentPeriod = period;
+    applyData(next, range);
   } catch (err) {
     if (seq !== refreshSeq) return;
     console.error(err);
-    // Se avevamo già dati da un caricamento precedente (lastStats/lastHistory
-    // non sono più il valore iniziale), meglio ri-mostrare quelli con un
-    // avviso che lasciare le card vuote senza spiegazione o, peggio,
-    // nascoste del tutto.
     if (hasLoadedOnce) {
-      renderKpis(lastHistory);
-      renderStats(lastStats);
-      renderHistory(lastHistory);
+      // Meglio mostrare gli ultimi dati con un avviso che lasciare l'elenco vuoto senza spiegazione.
+      renderList('deposito');
+      renderList('prelievo');
       toastWarning('Connessione assente: mostro gli ultimi dati caricati.');
     } else {
-      els.statsWrap.innerHTML = emptyStateHtml('wifi-off', 'Connessione assente', 'Controlla la rete e riprova.');
-      els.historyWrap.innerHTML = emptyStateHtml('wifi-off', 'Connessione assente', 'Controlla la rete e riprova.');
+      const offline = emptyStateHtml('wifi-off', 'Connessione assente', 'Controlla la rete e riprova.');
+      els.listDeposito.innerHTML = offline;
+      els.listPrelievo.innerHTML = offline;
+      window.lucide?.createIcons();
       toastError('Errore nel caricamento della reportistica.');
     }
+    // Il periodo mostrato resta quello precedente: la tendina lo rispecchia.
+    els.periodSelect.value = currentPeriod;
+    periodUi?.sync();
   } finally {
-    if (seq !== refreshSeq) return;
-    els.statsSkeleton.classList.add('hidden');
-    els.statsWrap.classList.remove('hidden');
-    els.historySkeleton.classList.add('hidden');
-    els.historyWrap.classList.remove('hidden');
+    if (seq === refreshSeq) {
+      els.skeleton.classList.add('hidden');
+      els.lists.classList.remove('hidden');
+      syncSegIndicator(els.seg);
+    }
   }
 }
 
-function renderKpis(history) {
-  const depositi = history.filter((h) => h.tipo === 'deposito').length;
-  const prelievi = history.filter((h) => h.tipo === 'prelievo').length;
-  const totale = history.length;
+// --- Tab Depositi / Prelievi ---------------------------------------
 
-  animateNumber(els.totalDeposits, depositi);
-  animateNumber(els.totalWithdrawals, prelievi);
-  animateNumber(els.totalMovements, totale);
+const listEl = (tab) => (tab === 'prelievo' ? els.listPrelievo : els.listDeposito);
 
-  animateRing(els.ringDepositi, totale ? (depositi / totale) * 100 : 0);
-  animateRing(els.ringPrelievi, totale ? (prelievi / totale) * 100 : 0);
+function selectTab(tab) {
+  if (swapBusy) {
+    // Scambio in corso: si ricorda l'ultimo tocco e lo si applica appena finisce.
+    queuedTab = tab === activeTab ? null : tab;
+    return;
+  }
+  if (tab === activeTab) return;
+  const previous = activeTab;
+  activeTab = tab;
+  els.tabs.forEach((btn) => btn.classList.toggle('category-tab-active', btn.dataset.reportTab === tab));
+  syncSegIndicator(els.seg); // il rettangolo blu scorre lateralmente sul nuovo pulsante
+
+  // L'elenco entrante anima già da sé: niente cascata delle righe sopra lo scambio.
+  setReportStatic(true);
+  swapBusy = true;
+  const forward = TABS.indexOf(tab) > TABS.indexOf(previous);
+  animateFluidSwap(
+    listEl(previous),
+    listEl(tab),
+    forward,
+    () => {
+      swapBusy = false;
+      if (queuedTab) {
+        const next = queuedTab;
+        queuedTab = null;
+        if (next !== activeTab) selectTab(next);
+      }
+    },
+    { flat: true }
+  );
 }
 
-function renderStats(stats) {
-  els.statsWrap.innerHTML = '';
-  if (stats.length === 0) {
-    els.statsWrap.innerHTML = emptyStateHtml('trending-down', 'Nessun prelievo', 'Non risultano prelievi nel periodo selezionato.');
+// --- Elenchi --------------------------------------------------------
+
+function renderList(tab) {
+  const host = listEl(tab);
+  const rows = data[tab];
+  host.innerHTML = '';
+  if (rows.length === 0) {
+    host.innerHTML =
+      tab === 'deposito'
+        ? emptyStateHtml('package-plus', 'Nessun deposito', 'Non risultano depositi nel periodo selezionato.')
+        : emptyStateHtml('package-minus', 'Nessun prelievo', 'Non risultano prelievi nel periodo selezionato.');
     window.lucide?.createIcons();
     return;
   }
-  const max = Math.max(...stats.map((s) => s.totale));
-  stats.slice(0, 15).forEach((s, i) => {
-    const pct = Math.max(6, Math.round((s.totale / max) * 100));
-    const row = document.createElement('button');
-    row.type = 'button';
-    row.className = 'list-item-in w-full text-left py-2 hover:bg-graphite-700/30 rounded-lg px-2 -mx-2 transition-colors';
-    row.style.setProperty('--i', staggerIndex(i));
-    row.innerHTML = `
-      <div class="flex justify-between text-sm mb-1">
-        <span class="text-graphite-200 truncate pr-2 font-medium">${escapeHtml(s.codice_articolo)}</span>
-        <span class="font-mono font-semibold text-amber-400 shrink-0">${s.totale}</span>
-      </div>
-      <div class="h-2 rounded-full bg-graphite-800 overflow-hidden">
-        <div class="h-full rounded-full bg-gradient-to-r from-amber-300 to-amber-400 bar-grow" style="--target-width:${pct}%; --i:${i}"></div>
-      </div>
-    `;
-    row.addEventListener('click', () => openArticleHistory(s.product_id, s.codice_articolo));
-    els.statsWrap.appendChild(row);
-  });
+  const count = Math.min(shown[tab], rows.length);
+  for (let i = 0; i < count; i++) host.appendChild(movementRow(rows[i], i, tab));
+  if (rows.length > count) host.appendChild(moreButton(tab, rows.length - count));
+  window.lucide?.createIcons();
 }
 
-function renderHistory(history) {
-  els.historyWrap.innerHTML = '';
-  if (history.length === 0) {
-    els.historyWrap.innerHTML = emptyStateHtml('inbox', 'Nessun movimento', 'Non risultano depositi o prelievi nel periodo selezionato.');
+function moreButton(tab, remaining) {
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.dataset.role = 'more';
+  btn.className =
+    'w-full mt-1 rounded-lg py-3 font-display font-semibold uppercase tracking-wide text-xs text-graphite-400 hover:text-graphite-200 hover:bg-graphite-800 transition-colors';
+  btn.textContent = `Mostra altri (${remaining})`;
+  btn.addEventListener('click', () => {
+    const host = listEl(tab);
+    const start = Math.min(shown[tab], data[tab].length);
+    shown[tab] = start + PAGE_SIZE;
+    const end = Math.min(shown[tab], data[tab].length);
+    btn.remove();
+    for (let i = start; i < end; i++) host.appendChild(movementRow(data[tab][i], i - start, tab));
+    if (data[tab].length > end) host.appendChild(moreButton(tab, data[tab].length - end));
     window.lucide?.createIcons();
-    return;
-  }
-  history.forEach((h, i) => {
-    els.historyWrap.appendChild(historyRow(h, i));
   });
+  return btn;
 }
 
-function historyRow(h, i = 0) {
-  const date = new Date(h.data_ora);
-  const row = document.createElement('div');
-  row.className = 'list-item-in flex items-center justify-between gap-3 py-2.5 border-b border-graphite-800 last:border-0';
-  row.style.setProperty('--i', staggerIndex(i));
-  row.innerHTML = `
-    <div class="min-w-0">
-      <p class="text-sm text-graphite-100 truncate font-medium">${escapeHtml(h.products?.codice_articolo || '—')}</p>
-      <p class="text-xs text-graphite-500 mt-0.5">${escapeHtml(h.profiles?.full_name || 'Utente')} · ${escapeHtml(
-    [h.locazione, h.linea, h.macchinario, h.punto_utilizzo_specifico].filter(Boolean).join(' · ') || '—'
-  )} · ${date.toLocaleString('it-IT', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' })}</p>
+const LINEA_LABELS = { L1: 'Linea 1', L2: 'Linea 2' };
+
+function movementRow(r, i, tab) {
+  const date = new Date(r.data_ora);
+  const wrap = document.createElement('div');
+  wrap.className = 'list-item-in border-b border-graphite-800 last:border-0';
+  wrap.style.setProperty('--i', staggerIndex(i));
+
+  const head = document.createElement('button');
+  head.type = 'button';
+  head.setAttribute('aria-expanded', 'false');
+  head.className = 'w-full flex items-center gap-3 py-2.5 px-1 text-left';
+  head.innerHTML = `
+    <div class="min-w-0 flex-1">
+      <p class="text-sm text-graphite-100 truncate font-medium">${escapeHtml(r.products?.codice_articolo || '—')}</p>
+      <p class="ui-note text-graphite-500 mt-0.5 truncate">${escapeHtml(r.profiles?.full_name || 'Utente')} · ${date.toLocaleString('it-IT', {
+    day: '2-digit',
+    month: '2-digit',
+    year: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  })}</p>
     </div>
     <span class="shrink-0 font-mono text-sm font-semibold px-2.5 py-1 rounded-full ${
-      h.tipo === 'deposito' ? 'bg-emerald-500/15 text-emerald-700' : 'bg-amber-500/15 text-amber-300'
-    }">${h.tipo === 'deposito' ? '+' : '−'}${h.quantita}</span>
+      r.tipo === 'deposito' ? 'bg-emerald-500/15 text-emerald-700' : 'bg-amber-500/15 text-amber-300'
+    }">${r.tipo === 'deposito' ? '+' : '−'}${r.quantita}</span>
+    <i data-lucide="chevron-down" class="movement-chev w-4 h-4 text-graphite-500 shrink-0 transition-transform"></i>
   `;
-  return row;
-}
 
-// --- Storico dettagliato per singolo articolo (modale) --------------
+  const track = document.createElement('div');
+  track.className = 'acc-track';
+  const inner = document.createElement('div');
+  inner.className = 'acc-inner';
+  inner.innerHTML = detailCard(r);
+  track.appendChild(inner);
 
-async function openArticleHistory(productId, codiceArticolo) {
-  els.articleModalTitle.textContent = codiceArticolo;
-  articleHistoryFilter = 'tutti';
-  els.articleModalTabs.forEach((b) => b.classList.toggle('history-tab-active', b.dataset.historyTab === 'tutti'));
-  els.articleModalList.innerHTML = '<div class="skeleton h-12 w-full mb-2"></div><div class="skeleton h-12 w-full mb-2"></div><div class="skeleton h-12 w-full"></div>';
-
-  openOverlay(els.articleModal);
-
-  try {
-    articleHistoryCache = await listTransactions({ from: currentFrom, productId, limit: 500 });
-    renderArticleHistory();
-  } catch (err) {
-    console.error(err);
-    els.articleModalList.innerHTML = '<p class="text-center text-sm text-rose-700 py-6">Errore nel caricamento dello storico.</p>';
-  }
-}
-
-function renderArticleHistory() {
-  const filtered =
-    articleHistoryFilter === 'tutti' ? articleHistoryCache : articleHistoryCache.filter((h) => h.tipo === articleHistoryFilter);
-
-  els.articleModalList.innerHTML = '';
-  if (!filtered.length) {
-    els.articleModalList.innerHTML = emptyStateHtml('inbox', 'Nessun movimento', 'Nessun movimento trovato per questo filtro.');
-    window.lucide?.createIcons();
-    return;
-  }
-  filtered.forEach((h, i) => {
-    els.articleModalList.appendChild(historyRow(h, i));
+  head.addEventListener('click', () => {
+    const host = listEl(tab);
+    const willOpen = openId[tab] !== r.id;
+    openId[tab] = willOpen ? r.id : null;
+    // Un solo dettaglio aperto alla volta per elenco.
+    host.querySelectorAll('.acc-track.acc-open').forEach((t) => t.classList.remove('acc-open'));
+    host.querySelectorAll('.movement-chev').forEach((c) => c.classList.remove('rotate-180'));
+    host.querySelectorAll('[aria-expanded="true"]').forEach((b) => b.setAttribute('aria-expanded', 'false'));
+    if (willOpen) {
+      track.classList.add('acc-open');
+      head.querySelector('.movement-chev')?.classList.add('rotate-180');
+      head.setAttribute('aria-expanded', 'true');
+    }
   });
+
+  wrap.append(head, track);
+  return wrap;
 }
 
-function closeArticleHistory() {
-  closeOverlay(els.articleModal);
+/** Scheda di dettaglio: tutte le informazioni registrate per il movimento. */
+function detailCard(r) {
+  const date = new Date(r.data_ora);
+  const p = r.products || {};
+  const isDeposito = r.tipo === 'deposito';
+  const fields = [
+    ['Articolo', p.codice_articolo],
+    ['Descrizione', p.punto_utilizzo_standard],
+    ['Categoria', CATEGORY_LABELS[p.categoria] || ''],
+    ['Quantità', `${isDeposito ? '+' : '−'}${r.quantita}`],
+    ['Data e ora', date.toLocaleString('it-IT', { weekday: 'short', day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })],
+    ['Operatore', r.profiles?.full_name || 'Utente'],
+    ['Scaffale', r.locazione],
+    ['Linea', LINEA_LABELS[r.linea] || r.linea],
+    ['Macchinario', r.macchinario],
+    ['Punto di utilizzo', r.punto_utilizzo_specifico],
+    ['Note', r.note],
+  ].filter(([, v]) => v);
+  return `
+    <div class="report-detail rounded-lg bg-graphite-800 border border-graphite-700 mx-1 mb-3 mt-0.5 px-3 py-2.5 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5">
+      ${fields
+        .map(
+          ([label, val]) =>
+            `<span class="ui-note text-graphite-500">${escapeHtml(label)}</span><span class="text-sm text-graphite-100 text-right break-words min-w-0">${escapeHtml(val)}</span>`
+        )
+        .join('')}
+    </div>`;
 }
 
 function escapeHtml(str) {
   return String(str).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
-/** Esporta lo storico e i consumi per articolo del periodo corrente in un file Excel */
+// --- Esportazione ---------------------------------------------------
+
+/** Esporta in Excel i movimenti del periodo corrente: un foglio per i depositi e uno per i prelievi. */
 async function exportReport() {
-  if (!lastHistory.length && !lastStats.length) {
+  if (!data.deposito.length && !data.prelievo.length) {
     toastError('Nessun dato da esportare per il periodo selezionato.');
     return;
   }
@@ -311,44 +394,36 @@ async function exportReport() {
     await loadLib('xlsx');
     // eslint-disable-next-line no-undef
     const wb = XLSX.utils.book_new();
+    const toRows = (list) =>
+      list.map((h) => ({
+        Data: new Date(h.data_ora).toLocaleString('it-IT'),
+        Articolo: h.products?.codice_articolo || '—',
+        Quantità: h.quantita,
+        Scaffale: h.locazione || '',
+        Linea: h.linea || '',
+        Macchinario: h.macchinario || '',
+        'Punto utilizzo': h.punto_utilizzo_specifico || '',
+        Operatore: h.profiles?.full_name || '',
+        Note: h.note || '',
+      }));
+    // eslint-disable-next-line no-undef
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(toRows(data.deposito)), 'Depositi');
+    // eslint-disable-next-line no-undef
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(toRows(data.prelievo)), 'Prelievi');
 
-    const historyRows = lastHistory.map((h) => ({
-      Data: new Date(h.data_ora).toLocaleString('it-IT'),
-      Tipo: h.tipo === 'deposito' ? 'Deposito' : 'Prelievo',
-      Articolo: h.products?.codice_articolo || '—',
-      Quantità: h.quantita,
-      Scaffale: h.locazione || '',
-      Linea: h.linea || '',
-      Macchinario: h.macchinario || '',
-      'Punto utilizzo': h.punto_utilizzo_specifico || '',
-      Operatore: h.profiles?.full_name || '',
-    }));
+    const periodLabels = { '7d': '7gg', '30d': '30gg', '3m': '3mesi', '6m': '6mesi', '12m': '12mesi', all: 'storico' };
+    const label =
+      currentPeriod === 'custom' && customRange
+        ? `${customRange.from.toISOString().slice(0, 10)}_${customRange.to.toISOString().slice(0, 10)}`
+        : periodLabels[currentPeriod] || currentPeriod;
     // eslint-disable-next-line no-undef
-    const historySheet = XLSX.utils.json_to_sheet(historyRows);
-    // eslint-disable-next-line no-undef
-    XLSX.utils.book_append_sheet(wb, historySheet, 'Storico');
-
-    const statsRows = lastStats.map((s) => ({
-      Articolo: s.codice_articolo,
-      'Totale prelevato': s.totale,
-    }));
-    // eslint-disable-next-line no-undef
-    const statsSheet = XLSX.utils.json_to_sheet(statsRows);
-    // eslint-disable-next-line no-undef
-    XLSX.utils.book_append_sheet(wb, statsSheet, 'Consumi per articolo');
-
-    const periodLabels = { '7d': '7gg', '30d': '30gg', '90d': '90gg', all: 'storico' };
-    const filename = `report_magazzino_${periodLabels[currentPeriodLabel] || currentPeriodLabel}_${new Date()
-      .toISOString()
-      .slice(0, 10)}.xlsx`;
-    // eslint-disable-next-line no-undef
-    XLSX.writeFile(wb, filename);
+    XLSX.writeFile(wb, `report_magazzino_${label}_${new Date().toISOString().slice(0, 10)}.xlsx`);
 
     feedback.confirmAction();
     toastSuccess('Report esportato.');
   } catch (err) {
     console.error(err);
     feedback.errorAction();
-    toastError('Errore durante l\'esportazione del report.');
+    toastError("Errore durante l'esportazione del report.");
   }
 }

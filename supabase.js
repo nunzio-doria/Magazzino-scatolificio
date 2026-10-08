@@ -1095,6 +1095,31 @@ export async function listTransactions({ from, to, productId, limit = 200 } = {}
   return withAdminNames(data);
 }
 
+/**
+ * Tutti i movimenti di un tipo ('deposito' | 'prelievo') in un intervallo di date, dal più
+ * recente al più vecchio, con i dati utili alla scheda di dettaglio del Report.
+ * Legge a pagine da 1000 righe (tetto del server), cosí nessun movimento viene tagliato.
+ */
+export async function listTransactionsRange({ tipo, from, to } = {}) {
+  const pageSize = 1000;
+  const rows = [];
+  for (let offset = 0; ; offset += pageSize) {
+    let query = supabase
+      .from('transactions')
+      .select('id, tipo, quantita, data_ora, punto_utilizzo_specifico, linea, macchinario, locazione, note, product_id, user_id, products(codice_articolo, categoria, punto_utilizzo_standard), profiles(full_name)')
+      .order('data_ora', { ascending: false })
+      .range(offset, offset + pageSize - 1);
+    if (tipo) query = query.eq('tipo', tipo);
+    if (from) query = query.gte('data_ora', from);
+    if (to) query = query.lte('data_ora', to);
+    const { data, error } = await query;
+    if (error) throw error;
+    rows.push(...data);
+    if (data.length < pageSize) break;
+  }
+  return withAdminNames(rows);
+}
+
 // Un operatore può leggere i movimenti degli admin ma non i loro profili (RLS su profiles):
 // l'incorporamento profiles(full_name) torna vuoto per quelle righe. I nomi degli admin
 // (solo id e nome) arrivano da una funzione dedicata, letta una volta sola per sessione.

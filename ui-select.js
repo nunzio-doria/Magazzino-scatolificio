@@ -58,7 +58,8 @@ export function enhanceSelect(selectEl) {
       optBtn.textContent = opt.textContent;
       optBtn.dataset.value = opt.value;
       optBtn.addEventListener('click', () => {
-        if (selectEl.value !== opt.value) {
+        // data-reselect: anche un nuovo tocco sulla voce già scelta emette 'change' (es. "Personalizzato" per cambiare date).
+        if (selectEl.value !== opt.value || selectEl.dataset.reselect === 'true') {
           selectEl.value = opt.value;
           selectEl.dispatchEvent(new Event('change', { bubbles: true }));
         }

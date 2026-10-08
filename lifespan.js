@@ -127,11 +127,12 @@ function summaryRow(s) {
     </div>`;
 }
 
-function render(fromIso) {
+function render(fromIso, toIso) {
   if (!el || !lastData) return;
   const { alerts, summaries, skipped } = lastData;
   const fromMs = fromIso ? new Date(fromIso).getTime() : 0;
-  const inPeriod = alerts.filter((a) => a.date >= fromMs);
+  const toMs = toIso ? new Date(toIso).getTime() : Infinity;
+  const inPeriod = alerts.filter((a) => a.date >= fromMs && a.date <= toMs);
 
   let html = '';
   if (!summaries.length) {
@@ -160,16 +161,16 @@ function render(fromIso) {
 }
 
 /** Ricarica tutti i prelievi e ridisegna la sezione; se la rete manca resta l'ultimo calcolo. */
-export async function refreshLifespan(fromIso) {
+export async function refreshLifespan(fromIso, toIso = null) {
   el = document.getElementById('dash-lifespan');
   if (!el) return;
   try {
     const rows = await listPrelieviForLifespan();
     lastData = computeLifespan(rows);
-    render(fromIso);
+    render(fromIso, toIso);
   } catch (err) {
     console.warn('Vita utile ricambi non disponibile.', err);
-    if (lastData) render(fromIso);
+    if (lastData) render(fromIso, toIso);
     else el.innerHTML = '<p class="text-sm text-graphite-400">Non riesco a calcolare la vita utile in questo momento (controlla la connessione).</p>';
   }
 }

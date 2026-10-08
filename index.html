@@ -700,52 +700,23 @@
 
     <!-- ============ VISTA DASHBOARD (solo Admin, raggiungibile da Impostazioni → Applicazioni → Report) ============ -->
     <section id="view-dashboard" class="hidden" data-admin-only>
-      <div class="flex items-center justify-end mb-3 gap-2">
-        <div class="flex items-center gap-1.5">
-          <select id="dash-period-select" class="rounded-lg bg-graphite-800 border border-graphite-700 text-sm px-2.5 py-1.5 focus:border-amber-400 outline-none min-h-[44px]">
+      <!-- Filtro periodo: vale per la vita utile e per entrambi gli elenchi. "Personalizzato" apre il calendario dell'app. -->
+      <div class="flex items-center gap-2 mb-4">
+        <div class="flex-1 min-w-0">
+          <select id="dash-period-select" data-reselect="true" aria-label="Periodo" class="w-full rounded-lg bg-graphite-800 border border-graphite-700 text-sm px-2.5 py-1.5 focus:border-amber-400 outline-none min-h-[44px]">
             <option value="7d">Ultimi 7 giorni</option>
             <option value="30d" selected>Ultimi 30 giorni</option>
-            <option value="90d">Ultimi 90 giorni</option>
-            <option value="all">Tutto lo storico</option>
+            <option value="3m">Ultimi 3 mesi</option>
+            <option value="6m">Ultimi 6 mesi</option>
+            <option value="12m">Ultimi 12 mesi</option>
+            <option value="all">Totale</option>
+            <option value="custom">Personalizzato…</option>
           </select>
-          <button id="dash-export-btn" type="button" aria-label="Esporta report" title="Esporta in Excel"
-            class="shrink-0 w-11 h-11 rounded-lg bg-graphite-800 border border-graphite-700 text-graphite-400 hover:text-amber-400 hover:border-amber-400 flex items-center justify-center transition-colors">
-            <i data-lucide="download" class="w-5 h-5" stroke-width="2"></i>
-          </button>
         </div>
-      </div>
-
-      <div class="grid grid-cols-3 gap-2 mb-4">
-        <div class="card-plate rounded-xl px-2 py-3 text-center">
-          <div class="relative w-14 h-14 mx-auto mb-1">
-            <svg viewBox="0 0 44 44" class="w-14 h-14 -rotate-90">
-              <circle cx="22" cy="22" r="18" fill="none" stroke="#dde1e7" stroke-width="4"></circle>
-              <circle id="dash-ring-depositi" cx="22" cy="22" r="18" fill="none" stroke="#047857" stroke-width="4" stroke-linecap="round" stroke-dasharray="113.1" stroke-dashoffset="113.1"></circle>
-            </svg>
-            <span id="dash-kpi-depositi" class="absolute inset-0 flex items-center justify-center font-mono text-sm font-bold text-emerald-700">0</span>
-          </div>
-          <p class="ui-label uppercase tracking-normal whitespace-nowrap text-graphite-500 mt-0.5">Depositi</p>
-        </div>
-        <div class="card-plate rounded-xl px-2 py-3 text-center">
-          <div class="relative w-14 h-14 mx-auto mb-1">
-            <svg viewBox="0 0 44 44" class="w-14 h-14 -rotate-90">
-              <circle cx="22" cy="22" r="18" fill="none" stroke="#dde1e7" stroke-width="4"></circle>
-              <circle id="dash-ring-prelievi" cx="22" cy="22" r="18" fill="none" stroke="#2f4f92" stroke-width="4" stroke-linecap="round" stroke-dasharray="113.1" stroke-dashoffset="113.1"></circle>
-            </svg>
-            <span id="dash-kpi-prelievi" class="absolute inset-0 flex items-center justify-center font-mono text-sm font-bold text-amber-300">0</span>
-          </div>
-          <p class="ui-label uppercase tracking-normal whitespace-nowrap text-graphite-500 mt-0.5">Prelievi</p>
-        </div>
-        <div class="card-plate rounded-xl px-2 py-3 text-center">
-          <div class="relative w-14 h-14 mx-auto mb-1">
-            <svg viewBox="0 0 44 44" class="w-14 h-14 -rotate-90">
-              <circle cx="22" cy="22" r="18" fill="none" stroke="#dde1e7" stroke-width="4"></circle>
-              <circle id="dash-ring-movimenti" cx="22" cy="22" r="18" fill="none" stroke="#465063" stroke-width="4" stroke-linecap="round" stroke-dasharray="113.1" stroke-dashoffset="0"></circle>
-            </svg>
-            <span id="dash-kpi-movimenti" class="absolute inset-0 flex items-center justify-center font-mono text-sm font-bold text-graphite-100">0</span>
-          </div>
-          <p class="ui-label uppercase tracking-normal whitespace-nowrap text-graphite-500 mt-0.5">Movimenti</p>
-        </div>
+        <button id="dash-export-btn" type="button" aria-label="Esporta report" title="Esporta in Excel"
+          class="shrink-0 w-11 h-11 rounded-lg bg-graphite-800 border border-graphite-700 text-graphite-400 hover:text-amber-400 hover:border-amber-400 flex items-center justify-center transition-colors">
+          <i data-lucide="download" class="w-5 h-5" stroke-width="2"></i>
+        </button>
       </div>
 
       <h3 class="font-display font-semibold uppercase tracking-wide text-sm text-graphite-400 mb-2">Vita utile ricambi</h3>
@@ -753,21 +724,22 @@
         <div class="skeleton h-4 w-full"></div>
       </div>
 
-      <h3 class="font-display font-semibold uppercase tracking-wide text-sm text-graphite-400 mb-2">Consumi per articolo</h3>
-      <div id="dash-consumption-skeleton" class="card-plate rounded-xl p-4 space-y-3">
-        <div class="skeleton h-4 w-full"></div>
-        <div class="skeleton h-4 w-full"></div>
-        <div class="skeleton h-4 w-full"></div>
+      <h3 class="font-display font-semibold uppercase tracking-wide text-sm text-graphite-400 mb-2">Movimenti</h3>
+      <!-- Stesso controllo segmentato di Cuscinetti/Cinghie/Ricambi: il rettangolo blu scorre tra le due voci -->
+      <div id="report-seg" class="seg flex w-full rounded-lg border border-graphite-700 bg-graphite-800 p-0.5 mb-3" role="tablist">
+        <span class="seg-indicator" aria-hidden="true"></span>
+        <button type="button" data-report-tab="deposito" class="category-tab category-tab-active flex-1 min-w-0 rounded-md min-h-[44px] px-1.5 py-1.5 flex items-center justify-center text-center leading-tight text-xs font-display font-semibold uppercase tracking-wide">Depositi</button>
+        <button type="button" data-report-tab="prelievo" class="category-tab flex-1 min-w-0 rounded-md min-h-[44px] px-1.5 py-1.5 flex items-center justify-center text-center leading-tight text-xs font-display font-semibold uppercase tracking-wide">Prelievi</button>
       </div>
-      <div id="dash-consumption-list" class="hidden card-plate rounded-xl p-4 mb-5"></div>
-
-      <h3 class="font-display font-semibold uppercase tracking-wide text-sm text-graphite-400 mb-2">Storico dettagliato</h3>
-      <div id="dash-history-skeleton" class="card-plate rounded-xl p-4 space-y-3">
+      <div id="report-skeleton" class="card-plate rounded-xl p-4 space-y-3">
         <div class="skeleton h-10 w-full"></div>
         <div class="skeleton h-10 w-full"></div>
         <div class="skeleton h-10 w-full"></div>
       </div>
-      <div id="dash-history-list" class="hidden card-plate rounded-xl p-2"></div>
+      <div id="report-lists" class="hidden">
+        <div id="report-list-deposito" class="card-plate rounded-xl p-2"></div>
+        <div id="report-list-prelievo" class="hidden card-plate rounded-xl p-2"></div>
+      </div>
     </section>
 
     <!-- ============ VISTA IMPOSTAZIONI ============ -->
@@ -893,25 +865,6 @@
         </div>
       </div>
     </section>
-
-    <!-- =================== MODALE STORICO ARTICOLO (drill-down consumi) =================== -->
-    <div id="article-history-modal" class="modal-overlay hidden fixed inset-0 z-[92] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm px-0 sm:px-4">
-      <div class="modal-panel w-full sm:max-w-md bg-graphite-900 border border-graphite-700 rounded-t-2xl sm:rounded-2xl max-h-[85vh] flex flex-col">
-        <div data-sheet-drag class="sheet-grabber sm:hidden"><span class="sheet-grabber-pill"></span></div>
-        <div data-sheet-drag class="flex items-center justify-between px-5 pb-3 pt-1 sm:pt-3 border-b border-graphite-800 shrink-0">
-          <h3 id="article-history-title" class="font-display font-bold text-lg uppercase tracking-wide">—</h3>
-          <button id="article-history-close" aria-label="Chiudi" class="modal-close modal-close--on-light">
-            <i data-lucide="x" class="w-6 h-6" stroke-width="2.5"></i>
-          </button>
-        </div>
-        <div class="flex gap-2 px-4 pt-3 shrink-0">
-          <button type="button" data-history-tab="tutti" class="history-tab history-tab-active flex-1 rounded-lg py-2 px-1 whitespace-nowrap text-xs font-display font-semibold uppercase tracking-wide border border-graphite-700 min-h-[44px]">Tutti</button>
-          <button type="button" data-history-tab="deposito" class="history-tab flex-1 rounded-lg py-2 px-1 whitespace-nowrap text-xs font-display font-semibold uppercase tracking-wide border border-graphite-700 min-h-[44px]">Depositi</button>
-          <button type="button" data-history-tab="prelievo" class="history-tab flex-1 rounded-lg py-2 px-1 whitespace-nowrap text-xs font-display font-semibold uppercase tracking-wide border border-graphite-700 min-h-[44px]">Prelievi</button>
-        </div>
-        <div id="article-history-list" class="flex-1 overflow-y-auto px-4 py-3"></div>
-      </div>
-    </div>
 
     <!-- =================== MODALE GESTIONE MACCHINE (Admin) =================== -->
     <div id="machines-modal" class="modal-overlay hidden fixed inset-0 z-[92] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm px-0 sm:px-4">
