@@ -7,7 +7,7 @@
 import { openPicker } from './picker.js';
 import { animateFluidSwap } from './app.js';
 import { staggerIndex, syncSegIndicator, modalCloseMs } from './ui-utils.js';
-import { listDistinctMacchine, getProductLocations } from './supabase.js';
+import { listDistinctMacchine, getProductLocations, areaOfShelf, SHELF_AREAS } from './supabase.js';
 import { els, state, LINEA_OPTIONS, MACHINE_VIEW_CATEGORIES, escapeHtml, shelfLabel, hasMultipleShelves } from './products-shared.js';
 import { refresh } from './products-data.js';
 import { openDetail } from './products-detail.js';
@@ -30,6 +30,7 @@ let followRaf = 0;
  * così non si vede nulla richiudersi mentre la sezione sta già uscendo.
  */
 export function collapseAllShelves() {
+  closeAreaPanel();
   cancelAnimationFrame(followRaf);
   scopes.forEach((sc) => clearTimeout(sc.swapTimer));
   scopes.clear();
@@ -52,6 +53,88 @@ export function collapseAllShelves() {
  * arrotondati né sopra al banner. A riposo (banner non fermo) il taglio è nullo.
  */
 const openMachines = new Set(); // macchine espanse, persiste tra i refresh
+
+// --- FILTRO PER AREA -------------------------------------------------------
+// Compare solo se tra gli scaffali dell'elenco corrente ci sono più aree. '' = tutte le aree.
+let areaFilter = '';
+let areasPresent = []; // aree presenti nell'elenco corrente, nell'ordine di SHELF_AREAS
+
+/** Scaffali dell'articolo che rientrano nell'area scelta (tutti se non c'è filtro; con filtro niente "senza scaffale") */
+function locationsInArea(p) {
+  const locs = getProductLocations(p);
+  return areaFilter ? locs.filter((l) => l.locazione && areaOfShelf(l.locazione) === areaFilter) : locs;
+}
+
+/** Riallinea freccia, visibilità del selettore, opzioni e chip allo stato dell'elenco corrente */
+function syncAreaFilter() {
+  const found = new Set();
+  for (const p of state.currentList) {
+    for (const l of getProductLocations(p)) if (l.locazione) found.add(areaOfShelf(l.locazione));
+  }
+  areasPresent = SHELF_AREAS.filter((a) => found.has(a));
+  const multi = areasPresent.length > 1;
+  if (!multi || (areaFilter && !areasPresent.includes(areaFilter))) areaFilter = '';
+  if (!multi) closeAreaPanel();
+
+  // Cuscinetti non ha il tab Macchina: con più aree il selettore compare lo stesso, ma solo con Scaffalatura
+  const canMachine = MACHINE_VIEW_CATEGORIES.includes(state.currentCategory);
+  els.viewModeWrap?.classList.toggle('hidden', !(canMachine || multi));
+  els.viewModeTabs.forEach((btn) => {
+    const isMachineTab = btn.dataset.viewModeTab === 'machine';
+    btn.classList.toggle('hidden', isMachineTab && !canMachine);
+    const chev = btn.querySelector('.area-chevron');
+    if (chev) chev.hidden = !(multi && btn.dataset.viewModeTab === viewMode);
+  });
+  els.areaBlock?.classList.toggle('hidden', !multi);
+  renderAreaOptions();
+  if (els.areaChip) {
+    els.areaChip.hidden = !areaFilter;
+    if (els.areaChipLabel) els.areaChipLabel.textContent = areaFilter;
+  }
+  syncSegs();
+}
+
+function renderAreaOptions() {
+  if (!els.areaOptions) return;
+  els.areaOptions.innerHTML = '';
+  ['', ...areasPresent].forEach((area) => {
+    const on = area === areaFilter;
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.setAttribute('aria-pressed', String(on));
+    b.className = `rounded-lg border px-3 text-xs font-display font-semibold uppercase tracking-wide min-h-[44px] transition-colors ${
+      on ? 'bg-amber-400 border-amber-400 text-white' : 'bg-graphite-800 border-graphite-700 text-graphite-300 hover:border-amber-400'
+    }`;
+    b.textContent = area || 'Tutte le aree'; // testo, mai HTML
+    b.addEventListener('click', () => applyAreaFilter(area));
+    els.areaOptions.appendChild(b);
+  });
+}
+
+function setAreaPanel(open) {
+  if (!els.areaPanel) return;
+  els.areaPanel.classList.toggle('area-panel-open', open);
+  els.areaPanel.toggleAttribute('inert', !open);
+  els.viewModeTabs?.forEach((btn) => {
+    if (open) btn.dataset.areaOpen = String(btn.dataset.viewModeTab === viewMode);
+    else delete btn.dataset.areaOpen;
+  });
+}
+function closeAreaPanel() {
+  setAreaPanel(false);
+}
+function toggleAreaPanel() {
+  setAreaPanel(!els.areaPanel.classList.contains('area-panel-open'));
+}
+
+/** Sceglie l'area da mostrare ('' = tutte): la fisarmonica si richiude e l'elenco si ridisegna */
+function applyAreaFilter(area) {
+  closeAreaPanel();
+  if (area === areaFilter) return;
+  areaFilter = area;
+  setListStatic(false);
+  renderCurrentList();
+}
 let clipRaf = 0;
 let clipApplied = false; // true se almeno un taglio è attivo: serve a ripulire quando si richiude
 function updateShelfClip() {
@@ -146,8 +229,21 @@ export function initProductsList() {
   els.categoryTabs.forEach((btn) => {
     btn.addEventListener('click', () => setCategory(btn.dataset.categoryTab));
   });
+  els.areaBlock = document.getElementById('product-area-block');
+  els.areaPanel = document.getElementById('product-area-panel');
+  els.areaOptions = document.getElementById('product-area-options');
+  els.areaChip = document.getElementById('product-area-chip');
+  els.areaChipLabel = document.getElementById('product-area-chip-label');
+  els.areaChip?.addEventListener('click', () => applyAreaFilter(''));
   els.viewModeTabs.forEach((btn) => {
-    btn.addEventListener('click', () => setViewMode(btn.dataset.viewModeTab));
+    btn.addEventListener('click', () => {
+      // Tab già attivo con più aree presenti: apre/chiude la fisarmonica delle aree; altrimenti cambia vista
+      if (btn.dataset.viewModeTab === viewMode && areasPresent.length > 1) toggleAreaPanel();
+      else {
+        closeAreaPanel();
+        setViewMode(btn.dataset.viewModeTab);
+      }
+    });
   });
 }
 
@@ -206,7 +302,7 @@ function applyViewMode(mode) {
   const previousMode = viewMode;
   viewMode = mode;
   els.viewModeTabs.forEach((btn) => btn.classList.toggle('view-mode-tab-active', btn.dataset.viewModeTab === mode));
-  syncSegs();
+  syncAreaFilter(); // la freccia delle aree passa sul tab appena attivato (e riallinea il selettore)
 
   if (state.currentList.length === 0) return; // l'empty state resta cosí com'è, nulla da animare
 
@@ -276,6 +372,7 @@ export function setListStatic(on) {
  * (vedi products-data.js → refresh).
  */
 export function renderCurrentList(opts = {}) {
+  syncAreaFilter();
   els.shelfView.classList.add('hidden');
   els.machineView.classList.add('hidden');
   els.emptyState.classList.add('hidden');
@@ -309,7 +406,7 @@ function renderShelves() {
   renderGroupedCards({
     wrapEl: els.shelfView,
     openSet: openShelves,
-    entriesFn: (p) => getProductLocations(p).map((l) => ({ key: l.locazione, qty: l.quantita })),
+    entriesFn: (p) => locationsInArea(p).map((l) => ({ key: l.locazione, qty: l.quantita })),
     titleField: isRicambi ? (p) => p.punto_utilizzo_standard || p.codice_articolo : (p) => p.codice_articolo,
     subtitleFields: isRicambi
       ? (p) => [p.codice_articolo, p.macchina, p.linea, totHint(p)]
@@ -330,6 +427,13 @@ function shelfSeries(key) {
 }
 const UNASSIGNED_SHELF = 'Non assegnata';
 
+/** Etichetta dell'area (Magazzino / Ufficio tecnico) di uno scaffale; vuota se non c'è area da mostrare */
+function areaChipHtml(area) {
+  if (!area) return '';
+  const cls = area === 'Ufficio tecnico' ? 'shelf-area shelf-area--ufficio' : 'shelf-area';
+  return `<span class="${cls} whitespace-nowrap">${escapeHtml(area)}</span>`;
+}
+
 /**
  * Vista "riordino per macchina": stessa logica della scaffalatura ma
  * raggruppata per macchina invece che per locazione — mostra a colpo
@@ -341,7 +445,11 @@ function renderByMachine() {
   renderGroupedCards({
     wrapEl: els.machineView,
     openSet: openMachines,
-    entriesFn: (p) => [{ key: p.macchina, qty: p.quantita_disponibile }],
+    entriesFn: (p) => {
+      if (!areaFilter) return [{ key: p.macchina, qty: p.quantita_disponibile }];
+      const locs = locationsInArea(p); // con un'area scelta: solo gli articoli presenti lì, con la quantità di quell'area
+      return locs.length ? [{ key: p.macchina, qty: locs.reduce((sum, l) => sum + (l.quantita || 0), 0) }] : [];
+    },
     titleField: isRicambi ? (p) => p.punto_utilizzo_standard || p.codice_articolo : (p) => p.codice_articolo,
     subtitleFields: isRicambi ? (p) => [p.codice_articolo, shelfLabel(p), p.linea] : (p) => [shelfLabel(p), p.punto_utilizzo_standard, p.linea],
     unassignedLabel: 'Nessuna macchina assegnata',
@@ -445,7 +553,7 @@ function renderGroupedCards({ wrapEl, openSet, entriesFn, titleField, subtitleFi
           <div class="min-w-0">
             <p class="shelf-title font-display font-bold uppercase tracking-wide truncate">${escapeHtml(key)}</p>
             <p class="shelf-sub ui-note text-graphite-500 mt-0.5 flex flex-wrap gap-x-2">
-              <span class="whitespace-nowrap">${items.length} ${items.length === 1 ? 'articolo' : 'articoli'} · ${totQty} pz</span>${
+              ${iconName === 'shelving-unit' && key !== unassignedLabel ? areaChipHtml(areaOfShelf(key)) : ''}<span class="whitespace-nowrap">${items.length} ${items.length === 1 ? 'articolo' : 'articoli'} · ${totQty} pz</span>${
       lowCount ? `<span class="shelf-low whitespace-nowrap font-semibold text-rose-700">${lowCount} sotto scorta</span>` : ''
     }
             </p>
@@ -541,6 +649,8 @@ function buildShelfGroup(series, keys, groups, unassignedLabel, iconName, search
   }
   const title = series === '~' ? unassignedLabel : series ? `Scaffale ${series}` : 'Senza sigla';
   const shelvesTxt = series === '~' ? '' : `${keys.length} ${keys.length === 1 ? 'scaffale' : 'scaffali'} · `;
+  const groupAreasHtml =
+    iconName === 'shelving-unit' && series !== '~' ? [...new Set(keys.map((k) => areaOfShelf(k)))].map(areaChipHtml).join('') : '';
   const isOpen = searching || openGroups.has(series);
 
   const el = document.createElement('div');
@@ -554,7 +664,7 @@ function buildShelfGroup(series, keys, groups, unassignedLabel, iconName, search
         <div class="min-w-0">
           <p class="shelf-title font-display font-bold uppercase tracking-wide truncate">${escapeHtml(title)}</p>
           <p class="shelf-sub ui-note text-graphite-500 mt-0.5 flex flex-wrap gap-x-2">
-            <span class="whitespace-nowrap">${shelvesTxt}${productIds.size} ${productIds.size === 1 ? 'articolo' : 'articoli'}</span>${
+            ${groupAreasHtml}<span class="whitespace-nowrap">${shelvesTxt}${productIds.size} ${productIds.size === 1 ? 'articolo' : 'articoli'}</span>${
     lowIds.size ? `<span class="shelf-low whitespace-nowrap font-semibold text-rose-700">${lowIds.size} sotto scorta</span>` : ''
   }
           </p>

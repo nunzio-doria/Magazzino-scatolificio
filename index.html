@@ -421,10 +421,25 @@
       <div id="product-view-mode-wrap" class="seg hidden inline-flex max-w-full overflow-x-auto rounded-lg border border-graphite-700 bg-graphite-800 p-0.5 mb-4">
         <span class="seg-indicator" aria-hidden="true"></span>
         <button type="button" data-view-mode-tab="shelf" class="view-mode-tab view-mode-tab-active flex items-center justify-center gap-1.5 rounded-md px-2.5 sm:px-3 py-1.5 whitespace-nowrap text-xs font-display font-semibold uppercase tracking-wide min-h-[44px]">
-          <i data-lucide="layout-grid" class="w-3.5 h-3.5" stroke-width="2"></i>Scaffalatura
+          <i data-lucide="layout-grid" class="w-3.5 h-3.5" stroke-width="2"></i>Scaffalatura<span class="area-chevron" hidden aria-hidden="true"><svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></span>
         </button>
         <button type="button" data-view-mode-tab="machine" class="view-mode-tab flex items-center justify-center gap-1.5 rounded-md px-2.5 sm:px-3 py-1.5 whitespace-nowrap text-xs font-display font-semibold uppercase tracking-wide min-h-[44px]">
-          <i data-lucide="wrench" class="w-3.5 h-3.5" stroke-width="2"></i>Macchina
+          <i data-lucide="wrench" class="w-3.5 h-3.5" stroke-width="2"></i>Macchina<span class="area-chevron" hidden aria-hidden="true"><svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></span>
+        </button>
+      </div>
+
+      <!-- Filtro per area (Magazzino / Ufficio tecnico): compare solo se nell'elenco ci sono scaffali di più aree.
+           Si apre toccando il tab già attivo (freccia), a fisarmonica; scelta un'area si richiude e resta il chip -->
+      <div id="product-area-block" class="hidden">
+        <div id="product-area-panel" class="area-panel-track" inert>
+          <div class="area-panel-inner">
+            <div id="product-area-options" class="flex flex-wrap gap-2 pb-4" role="group" aria-label="Filtra per area"></div>
+          </div>
+        </div>
+        <button id="product-area-chip" type="button" hidden aria-label="Togli il filtro per area"
+          class="area-chip mb-3 inline-flex items-center gap-1.5 rounded-lg px-2.5 min-h-[36px] text-xs font-display font-semibold uppercase tracking-wide">
+          <span>Area: <span id="product-area-chip-label"></span></span>
+          <i data-lucide="x" class="w-3.5 h-3.5" stroke-width="2.5"></i>
         </button>
       </div>
 

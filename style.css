@@ -842,6 +842,29 @@ button.lowstock-header:not(:disabled):active { transform: none; background: tran
   transform: scale(1.02);
 }
 
+/* Filtro per area del Magazzino: freccia sul tab attivo + fisarmonica con le aree */
+.area-chevron { display: inline-flex; margin-left: -0.15rem; }
+.area-chevron[hidden] { display: none; }
+.area-chevron svg { transition: transform var(--dur-base) var(--ease-inout); }
+.view-mode-tab[data-area-open="true"] .area-chevron svg { transform: rotate(180deg); }
+.area-panel-track {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  transition: grid-template-rows var(--dur-base) var(--ease-inout), opacity var(--dur-base) ease;
+}
+.area-panel-track.area-panel-open { grid-template-rows: 1fr; opacity: 1; }
+.area-panel-inner { overflow: hidden; min-height: 0; }
+.area-chip[hidden] { display: none; }
+.area-chip {
+  background-color: rgba(245, 158, 11, 0.16);
+  color: #a85a00;
+  border: 1px solid rgba(245, 158, 11, 0.35);
+}
+@media (prefers-reduced-motion: reduce) {
+  .area-panel-track, .area-chevron svg { transition-duration: 1ms; }
+}
+
 /* Schermi molto stretti (<360px): nel selettore di visualizzazione le icone
    lasciano spazio alle etichette, così nessun testo esce dal proprio tab. */
 @media (max-width: 359px) {
@@ -1005,9 +1028,25 @@ button.category-tab-active:not(:disabled):active { background-color: transparent
 }
 /* 150% = raggio che raggiunge l'angolo opposto anche partendo dall'icona a sinistra */
 .shelf-card.shelf-active .shelf-header::before { clip-path: circle(150% at 34px 50%); }
-.shelf-title, .shelf-sub, .shelf-low, .shelf-ico, .shelf-ico-box, .shelf-chevron {
+.shelf-title, .shelf-sub, .shelf-low, .shelf-ico, .shelf-ico-box, .shelf-chevron, .shelf-area {
   transition: color var(--dur-base) ease, background-color var(--dur-base) ease, transform var(--dur-base) var(--ease-inout);
 }
+/* Etichetta dell'area dello scaffale: neutra per Magazzino, ambra per Ufficio tecnico */
+.shelf-area {
+  display: inline-block;
+  padding: 0 0.4rem;
+  border-radius: 0.3rem;
+  font-size: 0.65rem;
+  line-height: 1.15rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  background-color: rgba(100, 116, 139, 0.16);
+  color: #475569;
+}
+.shelf-area--ufficio { background-color: rgba(245, 158, 11, 0.18); color: #a85a00; }
+.shelf-card.shelf-active .shelf-area,
+.shelf-group.group-open > .shelf-group-header .shelf-area { background-color: rgba(255, 255, 255, 0.2); color: #ffffff; }
 .shelf-card.shelf-active .shelf-title { color: #ffffff; }
 .shelf-card.shelf-active .shelf-sub { color: rgba(255, 255, 255, 0.75); }
 .shelf-card.shelf-active .shelf-low { color: #ffd0d6; }
@@ -1109,6 +1148,7 @@ button.shelf-item:not(:disabled):active {
 .shelf-reset-instant .shelf-title,
 .shelf-reset-instant .shelf-sub,
 .shelf-reset-instant .shelf-low,
+.shelf-reset-instant .shelf-area,
 .shelf-reset-instant .shelf-ico,
 .shelf-reset-instant .shelf-ico-box,
 .shelf-reset-instant .shelf-chevron { transition: none !important; }
