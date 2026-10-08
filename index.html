@@ -63,7 +63,7 @@
     <!-- Testata login: scheda blu con carta millimetrata e logo MATE a livelli (ingranaggio, M, corona,
          MATE, Magazzino Tecnico) che compaiono in sequenza (prima i testi, poi l'ingranaggio rotola, infine la M cade e rimbalza su MATE), poi luce e ingranaggio in rotazione.
          Stili: blocco ".mate-" in style.css. Il logo è ritagliato dallo screenshot dell'utente. -->
-    <div class="mate-brand mb-5">
+    <div class="mate-brand mb-3">
       <h1 class="mate-title" aria-label="MATE, Magazzino Tecnico">
         <span class="mate-logo-wrap">
           <!-- Ingranaggio: immagine metallica unica, dietro alla M. Due finestre identiche (parte superiore = "corona",
@@ -93,13 +93,13 @@
         <label for="login-email" class="block text-xs font-display font-semibold uppercase tracking-wide text-graphite-400 mb-1.5">Email</label>
         <input id="login-email" type="email" required autocomplete="username"
           class="w-full rounded-lg bg-graphite-900 border border-graphite-700 px-3.5 py-2.5 text-graphite-100 focus:border-amber-400 outline-none transition-colors"
-          placeholder="nome@azienda.it">
+          placeholder="Inserisci email">
       </div>
       <div>
         <label for="login-password" class="block text-xs font-display font-semibold uppercase tracking-wide text-graphite-400 mb-1.5">Password</label>
         <input id="login-password" type="password" required autocomplete="current-password"
           class="w-full rounded-lg bg-graphite-900 border border-graphite-700 px-3.5 py-2.5 text-graphite-100 focus:border-amber-400 outline-none transition-colors"
-          placeholder="••••••••">
+          placeholder="•••••">
       </div>
 
       <p id="login-error" class="hidden text-sm text-rose-700 bg-rose-500/10 border border-rose-500/30 rounded-lg px-3 py-2"></p>
@@ -111,7 +111,7 @@
     </form>
     <!-- Stato dei tentativi di connessione (login e riconnessione automatica) -->
     <p id="login-status" role="status" aria-live="polite" class="hidden mt-4 text-sm text-center text-amber-400 bg-amber-500/10 border border-amber-500/30 rounded-lg px-3 py-2"></p>
-    <p class="text-center text-xs text-graphite-500 mt-6">Accesso riservato al personale autorizzato</p>
+    <p class="text-center text-xs text-graphite-500 mt-4">Accesso riservato al personale autorizzato</p>
   </div>
 </div>
 
