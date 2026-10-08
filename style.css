@@ -2014,7 +2014,7 @@ input:disabled + .input-clear { display: none; }
 .mate-sub-l { clip-path: inset(0 42.4% 0 0); }
 .mate-sub-r { clip-path: inset(0 0 0 57.6%); }
 /* La M cade da un punto fuori dalla scheda: l'origine dello squash è sul suo bordo inferiore */
-.mate-m { transform-origin: 49.6% 34%; scale: 0.84; } /* M ridotta all'84% attorno al centro dell'ingranaggio: l'ingranaggio pesa di più */
+.mate-m { transform-origin: 49.6% 34%; scale: 0.84; translate: 0 3%; } /* M ridotta all'84% attorno al centro dell'ingranaggio: l'ingranaggio pesa di più */
 
 @media (prefers-reduced-motion: no-preference) {
   /* Carta millimetrata e sfondo blu sono già presenti da subito (nessuna animazione) */
@@ -2034,8 +2034,8 @@ input:disabled + .input-clear { display: none; }
   .mate-gear {
     animation:
       mate-gear-roll-rot 1.1s linear 0.6s both,
-      mate-gear-start 0.8s cubic-bezier(0.4, 0, 1, 1) 2.47s forwards,
-      mate-gear-run 14s linear 3.27s infinite;
+      mate-gear-start 0.8s cubic-bezier(0.4, 0, 1, 1) 2.22s forwards,
+      mate-gear-run 14s linear 3.02s infinite;
   }
   /* 5) Infine la luce */
   .mate-beam     { animation: mate-beam 1.1s ease-in-out 2.9s both; }
@@ -2066,9 +2066,9 @@ input:disabled + .input-clear { display: none; }
 @keyframes mate-m-drop {
   0%     { transform: translateY(-85%); animation-timing-function: cubic-bezier(0.55, 0, 1, 0.45); }
   57.69% { transform: translateY(0) scale(1.012, 0.982); animation-timing-function: cubic-bezier(0.1, 0.8, 0.3, 1); }
-  71.15% { transform: translateY(-3.2%) scale(1); animation-timing-function: cubic-bezier(0.6, 0, 1, 0.6); }
+  71.15% { transform: translateY(-1.8%) scale(1); animation-timing-function: cubic-bezier(0.6, 0, 1, 0.6); }
   84.62% { transform: translateY(0) scale(1.006, 0.992); animation-timing-function: cubic-bezier(0.1, 0.8, 0.3, 1); }
-  92.31% { transform: translateY(-0.9%) scale(1); animation-timing-function: cubic-bezier(0.6, 0, 1, 0.6); }
+  92.31% { transform: translateY(-0.5%) scale(1); animation-timing-function: cubic-bezier(0.6, 0, 1, 0.6); }
   100%   { transform: translateY(0) scale(1); }
 }
 /* Le due parole partono da fuori scheda e convergono verso il centro fino alla loro posizione */
