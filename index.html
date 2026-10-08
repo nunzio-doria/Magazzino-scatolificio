@@ -1034,28 +1034,42 @@
 
   <!-- Bottom navigation (mobile-first) -->
   <nav class="nav-glass fixed bottom-0 inset-x-0 z-40">
-    <div class="max-w-2xl mx-auto flex">
-      <button data-nav-target="scanner" class="nav-item nav-active flex-1 flex flex-col items-center gap-1 py-3 text-graphite-500">
-        <span class="nav-icon-wrap transition-transform">
-          <i data-lucide="arrow-left-right" class="w-6 h-6" stroke-width="1.8"></i>
+    <div class="nav-seg-wrap max-w-2xl mx-auto">
+      <div id="nav-seg" class="nav-seg seg seg-optional flex rounded-lg border border-graphite-700 bg-graphite-800 p-0.5" role="tablist">
+        <span class="seg-indicator" aria-hidden="true"></span>
+      <button type="button" data-nav-target="scanner" class="nav-item nav-active flex-1 min-w-0 rounded-md min-h-[56px] py-1.5 flex flex-col items-center justify-center gap-1 text-graphite-500">
+        <span class="nav-icon-wrap">
+          <svg class="nav-svg w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <g class="nav-mv-left"><path d="M8 3 4 7l4 4"/><path d="M4 7h16"/></g>
+            <g class="nav-mv-right"><path d="m16 13 4 4-4 4"/><path d="M20 17H4"/></g>
+          </svg>
         </span>
         <span class="ui-label whitespace-nowrap font-display font-semibold uppercase tracking-wide">Movimenti</span>
-        <span class="nav-dot w-1 h-1 rounded-full bg-amber-400"></span>
       </button>
-      <button data-nav-target="products" class="nav-item flex-1 flex flex-col items-center gap-1 py-3 text-graphite-500">
-        <span class="nav-icon-wrap transition-transform">
-          <i data-lucide="warehouse" class="w-6 h-6" stroke-width="1.8"></i>
+      <button type="button" data-nav-target="products" class="nav-item flex-1 min-w-0 rounded-md min-h-[56px] py-1.5 flex flex-col items-center justify-center gap-1 text-graphite-500">
+        <span class="nav-icon-wrap">
+          <svg class="nav-svg w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M22 8.35V20a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V8.35A1 1 0 0 1 2.63 7.42l9-4.09a1 1 0 0 1 .74 0l9 4.09A1 1 0 0 1 22 8.35Z"/>
+            <path d="M6 21V11a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v10"/>
+            <clipPath id="nav-door-clip"><rect x="6.9" y="10.9" width="10.2" height="10.2"/></clipPath>
+            <g clip-path="url(#nav-door-clip)"><g class="nav-wh-shutter"><path d="M6 12.6h12"/><path d="M6 15.2h12"/><path d="M6 17.8h12"/><path d="M6 20.4h12"/></g></g>
+          </svg>
         </span>
         <span class="ui-label whitespace-nowrap font-display font-semibold uppercase tracking-wide">Magazzino</span>
-        <span class="nav-dot w-1 h-1 rounded-full bg-amber-400"></span>
       </button>
-      <button data-nav-target="manuals" class="nav-item flex-1 flex flex-col items-center gap-1 py-3 text-graphite-500">
-        <span class="nav-icon-wrap transition-transform">
-          <i data-lucide="book-open-text" class="w-6 h-6" stroke-width="1.8"></i>
+      <button type="button" data-nav-target="manuals" class="nav-item flex-1 min-w-0 rounded-md min-h-[56px] py-1.5 flex flex-col items-center justify-center gap-1 text-graphite-500">
+        <span class="nav-icon-wrap">
+          <svg class="nav-svg w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M12 7v14"/>
+            <path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/>
+            <path class="nav-bk-flap" d="M12 7a4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3Z"/>
+            <path class="nav-bk-flap" d="M12 7a4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3Z"/>
+            <path class="nav-bk-flap" d="M12 7a4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3Z"/>
+          </svg>
         </span>
         <span class="ui-label whitespace-nowrap font-display font-semibold uppercase tracking-wide">Manuali</span>
-        <span class="nav-dot w-1 h-1 rounded-full bg-amber-400"></span>
       </button>
+      </div>
     </div>
   </nav>
 </div>

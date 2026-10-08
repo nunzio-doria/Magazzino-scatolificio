@@ -307,7 +307,14 @@ export function syncSegIndicator(seg) {
     seg._segObserved = true;
     new ResizeObserver(() => syncSegIndicator(seg)).observe(seg);
   }
-  const active = seg.querySelector('.category-tab-active, .view-mode-tab-active');
+  const active = seg.querySelector('.category-tab-active, .view-mode-tab-active, .nav-active');
+  // Controlli con .seg-optional (barra in basso): nessuna voce attiva (es. Impostazioni) =
+  // l'indicatore si dissolve sul posto, senza perdere la posizione per il ritorno.
+  if (!active && seg.classList.contains('seg-optional') && seg.offsetWidth) {
+    seg.classList.add('seg-empty');
+    return;
+  }
+  seg.classList.remove('seg-empty');
   if (!active || !seg.offsetWidth) {
     seg._segHidden = true;
     return;

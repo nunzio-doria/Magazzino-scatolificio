@@ -232,63 +232,85 @@ input, textarea {
 body.manuals-detail-active .nav-glass {
   box-shadow: 0 -2px 10px -6px rgba(13, 17, 23, 0.1);
 }
-/* ---- Bottom nav ----------------------------------------------- */
+/* ---- Bottom nav: controllo segmentato --------------------------------
+   Stessa estetica di Cuscinetti/Cinghie/Ricambi tecnici: una cornice con i tre pulsanti
+   dentro e un rettangolo blu pieno (.seg-indicator) che scorre a destra o a sinistra sotto
+   la sezione scelta (posizione/larghezza da syncSegIndicator in ui-utils.js). Alla selezione
+   l'icona della sezione si anima una sola volta: Movimenti = le due frecce escono nella
+   loro direzione e rientrano dal lato opposto; Magazzino = la serranda si apre e si chiude;
+   Manuali = le pagine del libro si sfogliano. Solo transform/opacity: niente layout. */
+.nav-seg-wrap { padding: 8px 12px 8px; }
+.nav-seg { margin: 0; }
+.nav-seg.seg-empty .seg-indicator { opacity: 0; }
+.nav-seg .seg-indicator { transition: opacity var(--dur-base) ease; }
+.nav-seg.seg-ready .seg-indicator {
+  transition: transform var(--dur-slow) var(--ease-out), width var(--dur-slow) var(--ease-out), opacity var(--dur-base) ease;
+}
 .nav-item {
   position: relative;
-  transition: color var(--dur-fast) ease;
-  z-index: 0;
+  z-index: 1;
+  transition: color var(--dur-base) ease 60ms, background-color var(--dur-fast) ease;
 }
-.nav-item::before {
-  content: '';
-  position: absolute;
-  inset: 2px 10px;
-  border-radius: 14px;
-  background: rgba(var(--accent-rgb), 0.10);
-  border: 1px solid rgba(var(--accent-rgb), 0.18);
-  opacity: 0;
-  transform: scale(0.85);
-  transition: opacity var(--dur-base) var(--ease-out), transform var(--dur-base) var(--ease-out);
-  z-index: -1;
+.nav-active { color: #ffffff !important; }
+/* Pulsanti incollati: nessun ridimensionamento alla pressione, solo tinta opaca sul non attivo */
+button.nav-item:not(:disabled):active {
+  transform: none;
+  background-color: var(--accent-tint);
+  transition-duration: var(--dur-press);
 }
-.nav-active {
-  color: var(--accent) !important;
-}
-.nav-active::before {
-  opacity: 1;
-  transform: scale(1);
-}
-.nav-active .nav-icon-wrap {
-  transform: translateY(-2px);
-}
-.nav-active .nav-dot {
-  opacity: 1;
-  transform: scale(1);
-}
-.nav-dot {
-  opacity: 0;
-  transform: scale(0.4);
-  transition: opacity var(--dur-fast) ease, transform var(--dur-fast) var(--ease-out);
-}
+button.nav-item.nav-active:not(:disabled):active { background-color: transparent; }
 
-/* Pressione della barra in basso: sobria. Il pulsante non si rimpicciolisce (la
-   regola globale sui bottoni qui non vale) e l'icona scende appena, in modo fluido
-   e senza rimbalzo. Al cambio sezione l'icona fa un solo, piccolo, assestamento. */
-button.nav-item:not(:disabled):active { transform: none; }
-.nav-item .nav-icon-wrap {
-  display: inline-flex;
-  transition: transform var(--dur-base) var(--ease-out);
+.nav-item .nav-icon-wrap { display: inline-flex; }
+.nav-svg { display: block; overflow: hidden; }
+
+/* Movimenti: la freccia verso sinistra esce a sinistra, quella verso destra esce a destra;
+   poi ciascuna ricompare dal lato opposto e si assesta al suo posto. */
+@keyframes nav-arrow-left {
+  0%     { transform: translateX(0);     animation-timing-function: cubic-bezier(0.5, 0, 0.9, 0.5); }
+  42%    { transform: translateX(-26px); }
+  42.01% { transform: translateX(26px);  animation-timing-function: var(--ease-out); }
+  100%   { transform: translateX(0); }
 }
-.nav-item:active .nav-icon-wrap { transform: scale(0.92); transition-duration: var(--dur-press); }
-.nav-item.nav-active:active .nav-icon-wrap { transform: translateY(-2px) scale(0.92); }
-@keyframes nav-tap-soft {
-  0%   { transform: scale(1); }
-  40%  { transform: scale(0.94); }
-  100% { transform: scale(1); }
+@keyframes nav-arrow-right {
+  0%     { transform: translateX(0);    animation-timing-function: cubic-bezier(0.5, 0, 0.9, 0.5); }
+  42%    { transform: translateX(26px); }
+  42.01% { transform: translateX(-26px); animation-timing-function: var(--ease-out); }
+  100%   { transform: translateX(0); }
 }
-.nav-item.nav-tapped .nav-icon-wrap svg { animation: nav-tap-soft var(--dur-base) var(--ease-out); }
+.nav-item.nav-active .nav-mv-left  { animation: nav-arrow-left  720ms both; }
+.nav-item.nav-active .nav-mv-right { animation: nav-arrow-right 720ms both; }
+
+/* Magazzino: la serranda sale (si apre), resta aperta un istante, poi scende (si chiude). */
+@keyframes nav-shutter {
+  0%   { transform: translateY(0);     animation-timing-function: var(--ease-inout); }
+  38%  { transform: translateY(-11px); }
+  58%  { transform: translateY(-11px); animation-timing-function: var(--ease-inout); }
+  100% { transform: translateY(0); }
+}
+.nav-item.nav-active .nav-wh-shutter { animation: nav-shutter 1100ms both; }
+
+/* Manuali: tre pagine si girano una dopo l'altra attorno al dorso (x = 12). */
+.nav-bk-flap {
+  transform-origin: 12px 12px;
+  opacity: 0;
+  fill: currentColor;
+  fill-opacity: 0.2;
+}
+@keyframes nav-flip {
+  0%   { transform: scaleX(1);  opacity: 0; }
+  14%  { opacity: 1; }
+  86%  { opacity: 1; }
+  100% { transform: scaleX(-1); opacity: 0; }
+}
+.nav-item.nav-active .nav-bk-flap { animation: nav-flip 560ms var(--ease-inout) both; }
+.nav-item.nav-active .nav-bk-flap:nth-of-type(2) { animation-delay: 170ms; }
+.nav-item.nav-active .nav-bk-flap:nth-of-type(3) { animation-delay: 340ms; }
 
 @media (prefers-reduced-motion: reduce) {
-  .nav-item.nav-tapped .nav-icon-wrap svg { animation: none; }
+  .nav-item.nav-active .nav-mv-left,
+  .nav-item.nav-active .nav-mv-right,
+  .nav-item.nav-active .nav-wh-shutter,
+  .nav-item.nav-active .nav-bk-flap { animation: none; }
 }
 
 /* =============================================================

@@ -19,7 +19,7 @@ import feedback, { initFeedbackSettings } from './feedback.js';
 import { initOfflineSync } from './offline-queue.js';
 import { processTransaction, adjustCachedProductQuantity, bumpProductsVersion } from './supabase.js';
 import { toastSuccess, toastError } from './toast.js';
-import { closeAllOverlays } from './ui-utils.js';
+import { closeAllOverlays, syncSegIndicator } from './ui-utils.js';
 import { initNavHistory, pushLayer, resetLayers } from './nav-history.js';
 import { getPdfCacheInfo, clearPdfCache } from './pdf-cache.js';
 import { confirmDialog } from './ui-modal.js';
@@ -130,6 +130,7 @@ function onSignedOut() {
       document.getElementById(`view-${v}`)?.classList.add('hidden');
       document.querySelector(`[data-nav-target="${v}"]`)?.classList.remove('nav-active');
     }
+    syncSegIndicator(document.getElementById('nav-seg'));
     currentView = null; // il prossimo login riparte sempre dallo Scanner
     pendingSwitch = null;
   }
@@ -280,6 +281,7 @@ export function switchView(view, { animate = true, onStart, fromBack = false } =
   for (const v of VIEWS) {
     document.querySelector(`[data-nav-target="${v}"]`)?.classList.toggle('nav-active', v === view);
   }
+  syncSegIndicator(document.getElementById('nav-seg'));
 
   if (view !== 'scanner') teardownScanner();
   if (view !== 'products') teardownProducts();
