@@ -140,18 +140,6 @@
     <!-- ============ VISTA SCANNER (Deposito/Prelievo) ============ -->
     <section id="view-scanner">
 
-      <div class="grid grid-cols-2 gap-3 mb-4">
-        <button id="mode-deposito" type="button"
-          class="card-plate rounded-xl h-[100px] py-1.5 flex flex-col items-center justify-between border-2 border-graphite-700">
-          <i data-lucide="package-plus" class="w-[60px] h-[60px] shrink-0" stroke-width="1.4"></i>
-          <span class="font-display font-bold uppercase tracking-wide text-sm">Deposito</span>
-        </button>
-        <button id="mode-prelievo" type="button"
-          class="card-plate rounded-xl h-[100px] py-1.5 flex flex-col items-center justify-between border-2 border-graphite-700">
-          <i data-lucide="package-minus" class="w-[60px] h-[60px] shrink-0" stroke-width="1.4"></i>
-          <span class="font-display font-bold uppercase tracking-wide text-sm">Prelievo</span>
-        </button>
-      </div>
 
       <!-- Pannello a colpo d'occhio, visibile solo prima di scegliere Deposito/Prelievo:
            riempie lo spazio vuoto con informazioni utili invece di lasciarlo bianco. -->
@@ -213,6 +201,20 @@
           </div>
           <div id="scanner-recent-empty" class="hidden"></div>
         </div>
+      </div>
+
+      <!-- Pulsanti azione in basso, a portata di pollice: restano sopra la barra di navigazione -->
+      <div class="scanner-actions grid grid-cols-2 gap-3">
+        <button id="mode-deposito" type="button"
+          class="card-plate rounded-xl h-[112px] py-1.5 flex flex-col items-center justify-between border-2 border-graphite-700">
+          <i data-lucide="package-plus" class="w-[60px] h-[60px] shrink-0" stroke-width="1.4"></i>
+          <span class="font-display font-bold uppercase tracking-wide text-sm">Deposito</span>
+        </button>
+        <button id="mode-prelievo" type="button"
+          class="card-plate rounded-xl h-[112px] py-1.5 flex flex-col items-center justify-between border-2 border-graphite-700">
+          <i data-lucide="package-minus" class="w-[60px] h-[60px] shrink-0" stroke-width="1.4"></i>
+          <span class="font-display font-bold uppercase tracking-wide text-sm">Prelievo</span>
+        </button>
       </div>
     </section>
 
