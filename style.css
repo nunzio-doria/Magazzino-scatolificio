@@ -2357,3 +2357,49 @@ button.hs-btn:not(:disabled):active { filter: brightness(0.92); }
   .hsearch-input, .hsearch-icon, .hsearch-clear, .hdr-right, .hs-backdrop, .hs-panel { transition-duration: 1ms; }
   .hs-row, .hs-hint, .qs-found { animation: none; }
 }
+
+
+/* =============================================================
+   Movimenti — ingresso animato + pulsanti Deposito/Prelievo con rilievo 3D
+   ============================================================= */
+/* Fino al primo fotogramma dell'ingresso i 4 elementi restano nascosti (nessun lampo) */
+#view-scanner.intro-pending #scanner-lowstock-card,
+#view-scanner.intro-pending #scanner-idle-panel > .card-plate:last-child,
+#view-scanner.intro-pending .scanner-actions > button { visibility: hidden; }
+/* I pulsanti arrivano da fuori schermo: nessuna barra di scorrimento orizzontale */
+#view-scanner { overflow-x: clip; }
+.scanner-actions { perspective: 900px; padding-bottom: 6px; }
+
+#mode-deposito { --edge: color-mix(in srgb, var(--deposito) 62%, #000); }
+#mode-prelievo { --edge: color-mix(in srgb, var(--accent) 62%, #000); }
+#mode-deposito, #mode-prelievo {
+  /* luce dall'alto: lucido in cima, ombra sul fondo */
+  background-image:
+    linear-gradient(180deg, rgba(255,255,255,0.26) 0%, rgba(255,255,255,0.07) 42%, rgba(0,0,0,0) 58%, rgba(0,0,0,0.16) 100%);
+  border-color: color-mix(in srgb, var(--edge) 55%, transparent);
+  /* bordo laterale/inferiore "spesso" + ombra morbida a terra */
+  box-shadow:
+    inset 0 1.5px 0 rgba(255,255,255,0.42),
+    inset 0 -2px 4px rgba(0,0,0,0.18),
+    0 6px 0 var(--edge),
+    0 14px 20px -6px rgba(13,17,23,0.45);
+  transform-style: preserve-3d;
+  transition: transform var(--dur-base) var(--ease-out), box-shadow var(--dur-base) var(--ease-out),
+    background-color var(--dur-fast) ease, border-color var(--dur-fast) ease;
+}
+#mode-deposito i, #mode-deposito svg, #mode-prelievo i, #mode-prelievo svg { filter: drop-shadow(0 3px 2px rgba(0,0,0,0.28)); }
+#mode-deposito span, #mode-prelievo span { text-shadow: 0 1px 2px rgba(0,0,0,0.3); }
+/* Pressione: il pulsante scende sul suo bordo */
+#mode-deposito:active, #mode-prelievo:active {
+  transform: translateY(5px);
+  transition-duration: var(--dur-press);
+  box-shadow:
+    inset 0 1.5px 0 rgba(255,255,255,0.3),
+    inset 0 -2px 4px rgba(0,0,0,0.22),
+    0 1px 0 var(--edge),
+    0 5px 10px -4px rgba(13,17,23,0.4);
+}
+.mode-active-deposito, .mode-active-prelievo { transform: translateY(3px); }
+@media (prefers-reduced-motion: reduce) {
+  #mode-deposito, #mode-prelievo { transition-duration: 1ms; }
+}

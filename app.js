@@ -3,7 +3,7 @@
 // =============================================================
 
 import { initAuth, authState, isAdmin } from './auth.js';
-import { initScanner, teardownScanner, activateMode } from './scanner.js';
+import { initScanner, teardownScanner, activateMode, playScannerIntro } from './scanner.js';
 import { initProducts, refresh as refreshProducts, enterProducts, resetProducts, teardownProducts } from './products.js';
 import { initDashboard, enterDashboard, resetDashboard, refresh as refreshDashboard } from './dashboard.js';
 import { initUsers, refreshUsers } from './users.js';
@@ -104,6 +104,7 @@ function onAuthed(profile) {
     );
     modulesInitialized = true;
   }
+  const firstEntry = currentView === null; // primo arrivo dopo apertura/accesso (non un semplice rinfresco del profilo)
   switchView('scanner', { animate: false });
 
   // Shortcut PWA "Deposito"/"Prelievo": apre lo scanner già pronto nella
@@ -112,6 +113,8 @@ function onAuthed(profile) {
   if (shortcutMode === 'deposito' || shortcutMode === 'prelievo') {
     window.history.replaceState({}, '', window.location.pathname);
     requestAnimationFrame(() => activateMode(shortcutMode));
+  } else if (firstEntry) {
+    playScannerIntro();
   }
 }
 
