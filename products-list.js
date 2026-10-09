@@ -8,7 +8,7 @@ import { openPicker } from './picker.js';
 import { animateFluidSwap } from './app.js';
 import { staggerIndex, syncSegIndicator, modalCloseMs } from './ui-utils.js';
 import { listDistinctMacchine, getProductLocations, areaOfShelf, SHELF_AREAS } from './supabase.js';
-import { els, state, LINEA_OPTIONS, MACHINE_VIEW_CATEGORIES, escapeHtml, shelfLabel, hasMultipleShelves } from './products-shared.js';
+import { els, state, LINEA_OPTIONS, MACHINE_VIEW_CATEGORIES, escapeHtml, shelfLabel, hasMultipleShelves, binIconHtml } from './products-shared.js';
 import { refresh } from './products-data.js';
 import { openDetail } from './products-detail.js';
 
@@ -548,7 +548,9 @@ function renderGroupedCards({ wrapEl, openSet, entriesFn, titleField, subtitleFi
       <div class="shelf-header-sticky"><div class="shelf-header flex items-center justify-between gap-3 px-4 py-3.5 border-2 border-graphite-700 rounded-xl">
         <div class="flex items-center gap-3 min-w-0">
           <span class="shelf-ico-box shrink-0 w-9 h-9 rounded-lg bg-graphite-700/50 flex items-center justify-center">
-            <i data-lucide="${iconName}" class="shelf-ico w-[18px] h-[18px] text-graphite-400" stroke-width="1.8"></i>
+            ${iconName === 'shelving-unit' && key !== unassignedLabel && areaOfShelf(key) === 'Ufficio tecnico'
+              ? binIconHtml('shelf-ico')
+              : `<i data-lucide="${iconName}" class="shelf-ico w-[18px] h-[18px] text-graphite-400" stroke-width="1.8"></i>`}
           </span>
           <div class="min-w-0">
             <p class="shelf-title font-display font-bold uppercase tracking-wide truncate">${escapeHtml(key)}</p>

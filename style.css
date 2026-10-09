@@ -2403,3 +2403,15 @@ button.hs-btn:not(:disabled):active { filter: brightness(0.92); }
 @media (prefers-reduced-motion: reduce) {
   #mode-deposito, #mode-prelievo { transition-duration: 1ms; }
 }
+
+/* Icona cassetto a becco (scaffali Ufficio tecnico): frontale azzurro pastello, interno più scuro per dare profondità */
+.bin-ico .bin-inner { fill: #7fa3d1; }
+.bin-ico .bin-front { fill: #c3daf3; }
+.bin-ico .bin-label { fill: #f4f9fe; }
+.bin-ico .bin-inner, .bin-ico .bin-front, .bin-ico .bin-label { transition: fill var(--dur-base) ease; }
+.shelf-card.shelf-active .bin-ico .bin-inner,
+.lowstock-tile-selected .bin-ico .bin-inner { fill: rgba(10, 30, 90, 0.45); }
+.shelf-card.shelf-active .bin-ico .bin-front,
+.lowstock-tile-selected .bin-ico .bin-front { fill: rgba(255, 255, 255, 0.38); }
+.shelf-card.shelf-active .bin-ico .bin-label,
+.lowstock-tile-selected .bin-ico .bin-label { fill: rgba(255, 255, 255, 0.9); }

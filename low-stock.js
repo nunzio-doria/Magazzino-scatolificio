@@ -9,10 +9,10 @@
 // dell'app (.acc-track, --dur-*, --ease-*).
 // =============================================================
 
-import { listProducts, getProductLocations } from './supabase.js';
+import { listProducts, getProductLocations, areaOfShelf } from './supabase.js';
 import { toastError } from './toast.js';
 import { staggerIndex, syncSegIndicator, animatePanelHeight } from './ui-utils.js';
-import { escapeHtml, CATEGORY_LABELS } from './products-shared.js';
+import { escapeHtml, CATEGORY_LABELS, binIconHtml } from './products-shared.js';
 
 const COLS = 2; // piastrelle per riga
 
@@ -151,7 +151,9 @@ function tileHtml(g, i) {
       class="list-item-in lowstock-tile relative card-plate rounded-xl p-3 pt-4 text-center" style="--i:${staggerIndex(i)}">
       <span class="lowstock-tile-badge absolute top-1.5 right-1.5 font-mono text-[11px] font-semibold px-2 py-0.5 rounded-full bg-rose-500/15 text-rose-700">${g.articoli.length}</span>
       <span class="lowstock-tile-ico-box mx-auto w-9 h-9 rounded-lg bg-graphite-700/50 flex items-center justify-center">
-        <i data-lucide="shelving-unit" class="lowstock-tile-ico w-[18px] h-[18px] text-graphite-400" stroke-width="1.8"></i>
+        ${g.key !== 'Non assegnato' && areaOfShelf(g.key) === 'Ufficio tecnico'
+          ? binIconHtml('lowstock-tile-ico')
+          : '<i data-lucide="shelving-unit" class="lowstock-tile-ico w-[18px] h-[18px] text-graphite-400" stroke-width="1.8"></i>'}
       </span>
       <p class="lowstock-tile-name text-xs font-display font-bold uppercase tracking-wide mt-1.5 truncate">${g.key === 'Non assegnato' ? 'Non assegnato' : 'Scaffale ' + escapeHtml(g.key)}</p>
     </button>`;
