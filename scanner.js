@@ -862,7 +862,7 @@ export function playScannerIntro() {
         const half = Math.max(2, (rp.left - rd.right) / 2); // metà spazio tra i due = punto di contatto
         const fromLeft = rd.right + 28; // fuori schermo a sinistra
         const fromRight = window.innerWidth - rp.left + 28; // fuori schermo a destra
-        const delay = 160 + Math.max(0, cards.length - 1) * 170 + 280;
+        const delay = 160 + Math.max(0, cards.length - 1) * 170 + 0;
         const timing = { duration: 1050, delay, fill: 'backwards' };
         const P = 'perspective(700px)';
         const frames = (dir, from) => [
