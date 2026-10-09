@@ -809,6 +809,14 @@ async function confirmTransaction() {
 }
 
 /** Chiamata quando si esce dalla vista scanner (es. cambio tab) */
+/** Avvia un movimento con un articolo già scelto (ricerca/scansione in testata):
+ *  apre il cassetto Deposito/Prelievo direttamente sulla scheda quantità. */
+export function startMovement(product, mode) {
+  if (!product || !els.scanModal) return;
+  selectMode(mode);
+  onProductMatched(product);
+}
+
 export function teardownScanner() {
   stopCamera();
   resetAll();

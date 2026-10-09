@@ -120,13 +120,24 @@
 
   <!-- Topbar -->
   <header class="app-header fixed top-0 inset-x-0 z-40">
-    <div class="flex items-center justify-between px-4 py-3 max-w-2xl mx-auto">
-      <div class="flex items-center gap-2 min-w-0">
-        <div class="min-w-0">
-          <p id="app-header-title" class="font-display font-bold uppercase tracking-wide text-lg leading-none truncate text-white">Movimenti</p>
-        </div>
+    <div class="hdr-row flex items-center gap-2 px-4 py-2.5 max-w-2xl mx-auto">
+      <!-- Il titolo della sezione resta per i lettori di schermo; a vista c'è la ricerca -->
+      <p id="app-header-title" class="sr-only">Movimenti</p>
+
+      <div id="hsearch" class="hsearch relative flex-1 min-w-0" role="search">
+        <i data-lucide="search" class="hsearch-icon w-[18px] h-[18px]" stroke-width="2.2"></i>
+        <input id="hsearch-input" type="text" inputmode="search" enterkeyhint="search" autocomplete="off" autocapitalize="none" spellcheck="false" data-no-clear
+          placeholder="Cerca articolo…" aria-label="Cerca articolo" aria-controls="hsearch-panel" class="hsearch-input">
+        <button id="hsearch-clear" type="button" tabindex="-1" aria-label="Cancella testo" class="hsearch-clear">
+          <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+        </button>
       </div>
-      <div class="flex items-center gap-2 shrink-0">
+
+      <button id="hsearch-scan-btn" type="button" aria-label="Scansiona codice" class="hdr-btn camera-only shrink-0">
+        <i data-lucide="scan-barcode" class="w-[22px] h-[22px]" stroke-width="1.9"></i>
+      </button>
+
+      <div class="hdr-right flex items-center gap-2 shrink-0">
         <span id="user-role-badge" class="ui-label whitespace-nowrap font-display font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-white/20 text-white">—</span>
         <button id="settings-btn" aria-label="Impostazioni" class="hit-area-sm w-9 h-9 rounded-lg flex items-center justify-center text-white hover:bg-white/15 transition-colors">
           <i data-lucide="settings" class="w-5 h-5" stroke-width="1.8"></i>
@@ -134,6 +145,12 @@
       </div>
     </div>
   </header>
+
+  <!-- Risultati della ricerca in testata: velo + pannello che scende dalla testata -->
+  <div id="hsearch-layer" class="hs-layer" aria-hidden="true">
+    <div id="hsearch-backdrop" class="hs-backdrop"></div>
+    <div id="hsearch-panel" class="hs-panel" role="listbox"></div>
+  </div>
 
   <main class="view-host flex-1 max-w-2xl w-full mx-auto px-4 py-4">
 
@@ -217,6 +234,35 @@
         </button>
       </div>
     </section>
+
+    <!-- ============ SCANSIONE RAPIDA (pulsante fotocamera in testata) ============ -->
+    <div id="qs-modal" class="modal-overlay hidden fixed inset-0 z-[90] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm px-0 sm:px-4">
+      <div id="qs-panel" class="modal-panel w-full sm:max-w-md bg-graphite-900 border border-graphite-700 rounded-t-2xl sm:rounded-2xl flex flex-col overflow-hidden">
+        <div class="scan-head shrink-0">
+          <div data-sheet-drag class="sheet-grabber sm:hidden"><span class="sheet-grabber-pill"></span></div>
+          <div data-sheet-drag class="scan-head-row flex items-center gap-3 px-5 pb-3 pt-1 sm:pt-3">
+            <i data-lucide="scan-barcode" class="w-8 h-8 shrink-0" stroke-width="2"></i>
+            <p class="flex-1 min-w-0 truncate font-display font-bold text-xl uppercase tracking-wide">Scansiona codice</p>
+            <button id="qs-close-btn" type="button" aria-label="Chiudi" class="modal-close modal-close--on-color">
+              <i data-lucide="x" class="w-6 h-6" stroke-width="2.5"></i>
+            </button>
+          </div>
+        </div>
+        <div class="p-5">
+          <div id="qs-camera-collapse">
+            <div class="grid-rows-collapse-inner">
+              <div id="qs-reader" class="w-full relative"></div>
+              <p id="qs-focus-hint" class="hidden text-center text-xs text-graphite-500 mt-2">Tocca lo schermo sul codice per mettere a fuoco</p>
+              <div class="flex items-center justify-center gap-4 mt-1">
+                <button id="qs-switch-btn" type="button" class="hidden inline-flex items-center gap-1.5 text-xs text-graphite-500 py-1.5 min-h-[44px]">Cambia fotocamera</button>
+                <button id="qs-torch-btn" type="button" aria-label="Torcia" class="hidden inline-flex items-center gap-1.5 text-xs text-graphite-500 py-1.5 min-h-[44px]">Torcia</button>
+              </div>
+            </div>
+          </div>
+          <div id="qs-result" class="hidden"></div>
+        </div>
+      </div>
+    </div>
 
     <!-- ============ MODALE SCANSIONE (Deposito/Prelievo) ============
          Si apre sopra la vista Movimenti quando si sceglie Deposito o

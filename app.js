@@ -15,6 +15,7 @@ import { initManuals } from './manuals.js';
 import { initManualsBrowser, enterManualsBrowser, resetManualsBrowser } from './manuals-browser.js';
 import { initHistoryAdmin } from './history-admin.js';
 import { initPicker } from './picker.js';
+import { initGlobalSearch, resetGlobalSearch, closePanel as closeGlobalSearch } from './global-search.js';
 import feedback, { initFeedbackSettings } from './feedback.js';
 import { initOfflineSync } from './offline-queue.js';
 import { processTransaction, adjustCachedProductQuantity, bumpProductsVersion } from './supabase.js';
@@ -74,6 +75,7 @@ function onAuthed(profile) {
     initHistoryAdmin();
     initNavHistory();
     initNav();
+    initGlobalSearch();
     initFeedbackSettings();
     initSettingsRefreshButton();
     initPdfCacheButton();
@@ -126,6 +128,7 @@ function onSignedOut() {
     resetProducts(); // al prossimo accesso la lista si ricarica da capo (e non resta quella di un altro utente)
     resetDashboard();
     resetManualsBrowser();
+    resetGlobalSearch();
     for (const v of VIEWS) {
       document.getElementById(`view-${v}`)?.classList.add('hidden');
       document.querySelector(`[data-nav-target="${v}"]`)?.classList.remove('nav-active');
@@ -260,6 +263,7 @@ export function switchView(view, { animate = true, onStart, fromBack = false } =
   }
   if (view === currentView) return;
   onStart?.();
+  closeGlobalSearch({ clear: true, silent: true }); // la ricerca in testata non segue nella nuova sezione
 
   const previousView = currentView;
   // Ogni cambio di sezione è un passo della cronologia: il tasto indietro del telefono
