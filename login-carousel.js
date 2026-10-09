@@ -7,6 +7,8 @@
 // nell'elenco APP_SHELL, se vuoi che si veda anche offline).
 // Le voci qui sotto sono grafiche segnaposto, da sostituire.
 // =============================================================
+import './login-gear.js'; // l'ingranaggio del logo si lancia col dito come il carosello
+
 const ITEMS = [
   { src: './carousel/reparto.png', alt: 'Reparto' },
   { src: './carousel/forno.png', alt: 'Forno' },

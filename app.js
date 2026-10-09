@@ -75,6 +75,7 @@ function onAuthed(profile) {
     initHistoryAdmin();
     initNavHistory();
     initNav();
+    initSwipeNav();
     initGlobalSearch();
     initFeedbackSettings();
     initSettingsRefreshButton();
@@ -174,6 +175,63 @@ function initPdfCacheButton() {
   document.getElementById('settings-btn')?.addEventListener('click', showInfo);
   document.querySelector('[data-nav-target="settings"]')?.addEventListener('click', showInfo);
   showInfo();
+}
+
+/**
+ * Swipe orizzontale per spostarsi tra le sezioni della barra in basso
+ * (Movimenti ⇄ Magazzino ⇄ Manuali): da destra a sinistra si va avanti, al contrario indietro.
+ * Non scatta su campi di testo, aree che scorrono in orizzontale, modali aperte,
+ * gesti a più dita o partiti dai bordi dello schermo (gesto "indietro" del sistema).
+ */
+const SWIPE_ORDER = ['scanner', 'products', 'manuals'];
+function initSwipeNav() {
+  const MIN_DX = 70;        // spostamento minimo (px)
+  const MAX_MS = 700;       // durata massima del gesto
+  const EDGE = 28;          // fascia ai bordi riservata al sistema (px)
+  let start = null;
+
+  const blocked = (el) => {
+    if (document.querySelector('.modal-overlay:not(.hidden)')) return true;
+    for (let n = el; n && n !== document.body; n = n.parentElement) {
+      if (n.matches?.('input, textarea, select, canvas, [contenteditable="true"], [data-no-swipe]')) return true;
+      const ox = getComputedStyle(n).overflowX;
+      if ((ox === 'auto' || ox === 'scroll') && n.scrollWidth > n.clientWidth + 2) return true;
+    }
+    return false;
+  };
+
+  document.addEventListener('touchstart', (e) => {
+    start = null;
+    if (e.touches.length !== 1 || !SWIPE_ORDER.includes(currentView) || isTransitioning) return;
+    const t = e.touches[0];
+    if (t.clientX < EDGE || t.clientX > window.innerWidth - EDGE) return;
+    if (blocked(e.target)) return;
+    start = { x: t.clientX, y: t.clientY, time: e.timeStamp };
+  }, { passive: true });
+
+  document.addEventListener('touchmove', (e) => {
+    if (start && e.touches.length > 1) start = null; // pizzico: non è uno swipe
+  }, { passive: true });
+
+  document.addEventListener('touchend', (e) => {
+    const s = start;
+    start = null;
+    if (!s || !e.changedTouches.length) return;
+    const t = e.changedTouches[0];
+    const dx = t.clientX - s.x;
+    const dy = t.clientY - s.y;
+    if (Math.abs(dx) < MIN_DX || Math.abs(dx) < Math.abs(dy) * 1.8 || e.timeStamp - s.time > MAX_MS) return;
+    const idx = SWIPE_ORDER.indexOf(currentView) + (dx < 0 ? 1 : -1);
+    const target = SWIPE_ORDER[idx];
+    if (!target) return;
+    const btn = document.querySelector(`[data-nav-target="${target}"]`);
+    switchView(target, {
+      onStart: () => {
+        feedback.navTap();
+        if (btn) triggerNavTap(btn);
+      },
+    });
+  }, { passive: true });
 }
 
 function initNav() {
