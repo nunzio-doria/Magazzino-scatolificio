@@ -2366,8 +2366,8 @@ button.hs-btn:not(:disabled):active { filter: brightness(0.92); }
 #view-scanner.intro-pending #scanner-lowstock-card,
 #view-scanner.intro-pending #scanner-idle-panel > .card-plate:last-child,
 #view-scanner.intro-pending .scanner-actions > button { visibility: hidden; }
-/* I pulsanti arrivano da fuori schermo: nessuna barra di scorrimento orizzontale */
-#view-scanner { overflow-x: clip; }
+/* I pulsanti arrivano da fuori schermo: il ritaglio laterale lo fa già .view-host (ai bordi dello schermo);
+   ritagliare anche qui li tagliava 16px prima del bordo, in entrata e nel rimbalzo */
 .scanner-actions { perspective: 900px; padding-bottom: 6px; }
 
 #mode-deposito { --edge: color-mix(in srgb, var(--deposito) 62%, #000); }

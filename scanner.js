@@ -869,7 +869,7 @@ export function playScannerIntro() {
           { offset: 0, transform: `${P} translateX(${-dir * from}px) rotateY(${-dir * 16}deg)`, easing: 'cubic-bezier(0.45, 0, 0.9, 0.55)' },
           { offset: 0.5, transform: `${P} translateX(${dir * half}px) rotateY(${-dir * 5}deg) scaleX(1)`, easing: 'ease-out' },
           { offset: 0.56, transform: `${P} translateX(${dir * (half - 1)}px) rotateY(0deg) scaleX(0.93)`, easing: 'cubic-bezier(0.2, 0.7, 0.3, 1)' },
-          { offset: 0.74, transform: `${P} translateX(${-dir * 15}px) rotateY(${dir * 6}deg) scaleX(1.02)`, easing: 'ease-in-out' },
+          { offset: 0.74, transform: `${P} translateX(${-dir * 11}px) rotateY(${dir * 6}deg) scaleX(1.02)`, easing: 'ease-in-out' },
           { offset: 0.88, transform: `${P} translateX(${dir * 3}px) rotateY(${-dir * 1.5}deg) scaleX(1)`, easing: 'ease-in-out' },
           { offset: 1, transform: `${P} translateX(0) rotateY(0deg) scaleX(1)` },
         ];
