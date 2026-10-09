@@ -2258,17 +2258,15 @@ input:disabled + .input-clear { display: none; }
 
 /* ---- Movimenti: Deposito/Prelievo in basso, a portata di pollice --------------------
    La vista riempie lo schermo tra testata e barra in basso; i due pulsanti vanno in fondo
-   (margin-top:auto) e, se l'elenco sopra diventa lungo, restano ancorati sopra la barra. */
+   (margin-top:auto) e, se l'elenco sopra diventa lungo (es. scheda scorta minima aperta),
+   scorrono con il resto della pagina invece di restare fissi sopra il contenuto. */
 #view-scanner:not(.hidden) {
   display: flex;
   flex-direction: column;
   min-height: calc(100dvh - var(--header-h, 56px) - var(--nav-h) - 4rem);
 }
 #view-scanner .scanner-actions {
-  margin-top: auto;
-  position: sticky;
-  bottom: calc(var(--nav-h) + 0.75rem);
-  z-index: 5;
+  margin-top: auto; /* contenuto corto: in fondo; contenuto lungo: seguono la pagina e scorrono con essa */
 }
 #view-scanner #scanner-idle-panel { margin-bottom: 1rem; }
 
@@ -2442,13 +2440,28 @@ button.hs-btn:not(:disabled):active { filter: brightness(0.92); }
   .nav-seg .nav-item .ui-label { letter-spacing: 0; }
 }
 
-/* Pulsante tondo "+" (nuovo intervento): sopra la barra in basso, allineato al contenuto */
+/* Pulsante tondo "+" (nuovo intervento): sopra la barra in basso, allineato al contenuto.
+   Sta fuori dalla vista (le animazioni di cambio sezione lo sposterebbero) e compare solo
+   nella sezione Interventi, con una piccola dissolvenza. */
 .int-fab {
   position: fixed;
   z-index: 30;
   right: max(1rem, calc((100vw - 42rem) / 2 + 1rem));
   bottom: calc(var(--nav-h) + 1rem);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transform: scale(0.6);
+  transition: opacity var(--dur-base) ease, transform var(--dur-base) var(--ease-out), visibility 0s linear var(--dur-base);
 }
+.int-fab.int-fab--on {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transform: none;
+  transition-delay: 0s;
+}
+@media (prefers-reduced-motion: reduce) { .int-fab { transition-duration: 1ms; } }
 
 /* Passi del nuovo intervento (Linea → Macchina → Intervento): quelli non ancora
    raggiungibili restano attenuati e non toccabili, poi si accendono con una dissolvenza. */

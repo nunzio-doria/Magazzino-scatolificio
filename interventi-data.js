@@ -11,7 +11,6 @@ export const FOTO_BUCKET = 'interventi-foto';
 export const LINEE = [
   { value: 'L1', label: 'Linea 1' },
   { value: 'L2', label: 'Linea 2' },
-  { value: 'L1-L2', label: 'Linee 1-2' },
 ];
 export const STATI = {
   da_effettuare: 'Da effettuare',
@@ -21,11 +20,10 @@ export const STATI = {
 
 export const lineaLabel = (v) => LINEE.find((l) => l.value === v)?.label || v || '';
 
-/** Un preimpostato di linea condivisa (L1-L2) vale anche per L1 e L2 (stessa logica degli articoli) */
+/** Un intervento rapido vale per la stessa linea e la stessa macchina (senza distinzione di maiuscole) */
 export function rapidoMatches(rapido, linea, macchina) {
   if (!linea || !macchina) return false;
-  if ((rapido.macchina || '').toLowerCase() !== macchina.toLowerCase()) return false;
-  return rapido.linea === linea || (linea !== 'L1-L2' && rapido.linea === 'L1-L2');
+  return rapido.linea === linea && (rapido.macchina || '').toLowerCase() === macchina.toLowerCase();
 }
 
 function isMissingTable(error) {

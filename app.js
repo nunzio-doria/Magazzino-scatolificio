@@ -14,7 +14,7 @@ import { initLowStock } from './low-stock.js';
 import { initManuals } from './manuals.js';
 import { initManualsBrowser, enterManualsBrowser, resetManualsBrowser } from './manuals-browser.js';
 import { initHistoryAdmin } from './history-admin.js';
-import { initInterventi, enterInterventi, resetInterventi } from './interventi.js';
+import { initInterventi, enterInterventi, resetInterventi, setInterventiFab } from './interventi.js';
 import { initInterventiRapidi } from './interventi-rapidi.js';
 import { initPicker } from './picker.js';
 import { initGlobalSearch, resetGlobalSearch, closePanel as closeGlobalSearch } from './global-search.js';
@@ -340,6 +340,7 @@ export function switchView(view, { animate = true, onStart, fromBack = false } =
   const forward = fromIndex === -1 ? true : toIndex > fromIndex; // direzione: avanti = scivola da destra
 
   currentView = view;
+  setInterventiFab(view === 'interventi');
   const headerTitle = document.getElementById('app-header-title');
   if (headerTitle) headerTitle.textContent = VIEW_TITLES[view] || VIEW_TITLES.scanner;
 

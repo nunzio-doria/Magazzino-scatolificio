@@ -138,7 +138,7 @@ export function initInterventi() {
   els.list = $('int-list');
   els.skeleton = $('int-skeleton');
   els.notice = $('int-notice');
-  els.fab = $('int-fab');
+  els.fab = $('int-fab'); // fuori dalla vista (vedi index.html)
 
   // Tab Da fare / Effettuati
   els.seg.addEventListener('click', (e) => {
@@ -181,6 +181,11 @@ export function initInterventi() {
   paintFilters();
 }
 
+/** Mostra/nasconde il "+" (sta fuori dalla vista): visibile solo nella sezione Interventi */
+export function setInterventiFab(on) {
+  document.getElementById('int-fab')?.classList.toggle('int-fab--on', !!on);
+}
+
 /** Entrando nella vista: primo caricamento, poi aggiornamento silenzioso */
 export async function enterInterventi() {
   syncSegIndicator(els.seg);
@@ -188,6 +193,7 @@ export async function enterInterventi() {
 }
 
 export function resetInterventi() {
+  setInterventiFab(false);
   state.open = [];
   state.done = [];
   state.loaded = false;

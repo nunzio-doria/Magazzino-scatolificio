@@ -790,10 +790,6 @@
         <div class="skeleton h-24 w-full"></div>
       </div>
       <div id="int-list" class="hidden space-y-2.5 pb-24"></div>
-
-      <button type="button" id="int-fab" aria-label="Nuovo intervento" class="int-fab fab-round press-spring w-14 h-14 rounded-full bg-amber-400 text-white flex items-center justify-center">
-        <i data-lucide="plus" class="w-7 h-7" stroke-width="2.6"></i>
-      </button>
     </section>
 
     <section id="view-dashboard" class="hidden" data-admin-only>
@@ -1373,6 +1369,12 @@
   </div>
 </div>
 
+<!-- Pulsante "+" degli interventi: fuori dalla vista, perché le animazioni di cambio sezione
+     (transform) spostano i figli "fixed" e lo farebbero comparire in alto prima di scendere. -->
+<button type="button" id="int-fab" aria-label="Nuovo intervento" class="int-fab fab-round press-spring w-14 h-14 rounded-full bg-amber-400 text-white flex items-center justify-center">
+        <i data-lucide="plus" class="w-7 h-7" stroke-width="2.6"></i>
+      </button>
+
 <!-- =================== MODALE NUOVO INTERVENTO =================== -->
 <div id="int-new-modal" class="modal-overlay hidden fixed inset-0 z-[91] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm px-0 sm:px-4">
   <div class="modal-panel w-full sm:max-w-md bg-graphite-900 border border-graphite-700 rounded-t-2xl sm:rounded-2xl max-h-[92vh] flex flex-col">
@@ -1391,7 +1393,6 @@
           <span class="seg-indicator" aria-hidden="true"></span>
           <button type="button" data-linea="L1" class="category-tab flex-1 min-w-0 rounded-md min-h-[44px] px-1.5 py-1.5 flex items-center justify-center text-center leading-tight text-xs font-display font-semibold uppercase tracking-wide">Linea 1</button>
           <button type="button" data-linea="L2" class="category-tab flex-1 min-w-0 rounded-md min-h-[44px] px-1.5 py-1.5 flex items-center justify-center text-center leading-tight text-xs font-display font-semibold uppercase tracking-wide">Linea 2</button>
-          <button type="button" data-linea="L1-L2" class="category-tab flex-1 min-w-0 rounded-md min-h-[44px] px-1.5 py-1.5 flex items-center justify-center text-center leading-tight text-xs font-display font-semibold uppercase tracking-wide">Linee 1-2</button>
         </div>
       </div>
       <div class="int-step" id="int-step-macchina" data-locked="true">
@@ -1501,14 +1502,13 @@
       <button id="rapidi-modal-close" type="button" aria-label="Chiudi" class="modal-close modal-close--on-light"><i data-lucide="x" class="w-6 h-6" stroke-width="2.5"></i></button>
     </div>
     <div class="flex-1 overflow-y-auto px-5 py-4">
-      <p class="text-xs text-graphite-500 mb-3">Gli interventi registrati qui compaiono come scelta rapida nel Blocco Note Interventi, quando si sceglie la stessa linea e la stessa macchina. Un intervento su "Linee 1-2" vale per entrambe le linee.</p>
+      <p class="text-xs text-graphite-500 mb-3">Gli interventi registrati qui compaiono come scelta rapida nel Blocco Note Interventi, quando si sceglie la stessa linea e la stessa macchina.</p>
       <p id="rapidi-notice" class="hidden text-xs rounded-lg px-3 py-2 mb-3 bg-rose-500/10 text-rose-700">Le tabelle degli interventi non sono ancora state create sul database.</p>
       <form id="rapidi-form" class="space-y-2 mb-4">
         <div id="rapidi-linea-seg" class="seg flex w-full rounded-lg border border-graphite-700 bg-graphite-800 p-0.5" role="group" aria-label="Linea">
           <span class="seg-indicator" aria-hidden="true"></span>
           <button type="button" data-linea="L1" class="category-tab flex-1 min-w-0 rounded-md min-h-[44px] px-1.5 py-1.5 flex items-center justify-center text-center leading-tight text-xs font-display font-semibold uppercase tracking-wide">Linea 1</button>
           <button type="button" data-linea="L2" class="category-tab flex-1 min-w-0 rounded-md min-h-[44px] px-1.5 py-1.5 flex items-center justify-center text-center leading-tight text-xs font-display font-semibold uppercase tracking-wide">Linea 2</button>
-          <button type="button" data-linea="L1-L2" class="category-tab flex-1 min-w-0 rounded-md min-h-[44px] px-1.5 py-1.5 flex items-center justify-center text-center leading-tight text-xs font-display font-semibold uppercase tracking-wide">Linee 1-2</button>
         </div>
         <button type="button" id="rapidi-macchina-btn" class="w-full flex items-center justify-between rounded-lg bg-graphite-800 border border-graphite-700 px-3.5 py-2.5 text-sm text-left hover:border-amber-400 transition-colors min-h-[44px]">
           <span id="rapidi-macchina-value" class="text-graphite-400 truncate">Macchina…</span>
