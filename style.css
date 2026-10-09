@@ -2418,3 +2418,65 @@ button.hs-btn:not(:disabled):active { filter: brightness(0.92); }
 
 /* Ingranaggio del logo trascinabile: i gesti orizzontali arrivano al codice, quelli verticali scorrono la pagina */
 .mate-logo-wrap { touch-action: pan-y; -webkit-user-select: none; user-select: none; }
+
+/* =============================================================
+   BLOCCO NOTE INTERVENTI (vista Interventi, modali nuovo/esito)
+   ============================================================= */
+
+/* Icona della barra in basso: alla selezione le tre righe del foglio si "scrivono"
+   una dopo l'altra (stessa logica delle altre icone: una sola volta, solo trasformazioni/tratto). */
+.nav-nt-line { stroke-dasharray: 10; stroke-dashoffset: 0; }
+@keyframes nav-nt-write {
+  0%   { stroke-dashoffset: 10; opacity: 0.2; }
+  15%  { opacity: 1; }
+  100% { stroke-dashoffset: 0;  opacity: 1; }
+}
+.nav-item.nav-active .nav-nt-line { animation: nav-nt-write 420ms var(--ease-out) both; }
+.nav-item.nav-active .nav-nt-line:nth-of-type(2) { animation-delay: 150ms; }
+.nav-item.nav-active .nav-nt-line:nth-of-type(3) { animation-delay: 300ms; }
+@media (prefers-reduced-motion: reduce) {
+  .nav-item.nav-active .nav-nt-line { animation: none; }
+}
+/* Con quattro voci la barra è più stretta: etichette senza spaziatura extra sugli schermi piccoli */
+@media (max-width: 389px) {
+  .nav-seg .nav-item .ui-label { letter-spacing: 0; }
+}
+
+/* Pulsante tondo "+" (nuovo intervento): sopra la barra in basso, allineato al contenuto */
+.int-fab {
+  position: fixed;
+  z-index: 30;
+  right: max(1rem, calc((100vw - 42rem) / 2 + 1rem));
+  bottom: calc(var(--nav-h) + 1rem);
+}
+
+/* Passi del nuovo intervento (Linea → Macchina → Intervento): quelli non ancora
+   raggiungibili restano attenuati e non toccabili, poi si accendono con una dissolvenza. */
+.int-step { transition: opacity var(--dur-base) ease; }
+.int-step[data-locked="true"] { opacity: 0.4; pointer-events: none; }
+
+/* Scelte rapide */
+.int-chip {
+  min-height: 40px;
+  padding: 0.4rem 0.8rem;
+  border-radius: 9999px;
+  border: 1px solid var(--accent-edge);
+  background: var(--accent-tint);
+  color: var(--accent-dark);
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-align: left;
+  line-height: 1.2;
+  transition: background-color var(--dur-fast) ease, color var(--dur-fast) ease, border-color var(--dur-fast) ease;
+}
+.int-chip[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #ffffff; }
+
+/* Scheda intervento in elenco */
+.int-card { text-align: left; width: 100%; }
+button.int-card:not(:disabled):active { transform: scale(0.985); }
+.int-thumb {
+  width: 64px; height: 64px; flex: none;
+  border-radius: 0.6rem; object-fit: cover;
+  background: #e7e9ed; border: 1px solid #c3c9d1;
+}
+.seg .category-tab[data-stato="effettuato"].category-tab-active { color: #ffffff !important; }

@@ -762,6 +762,40 @@
     </div>
 
     <!-- ============ VISTA DASHBOARD (solo Admin, raggiungibile da Impostazioni → Applicazioni → Report) ============ -->
+    <!-- =================== VISTA INTERVENTI (Blocco note soste di manutenzione) =================== -->
+    <section id="view-interventi" class="hidden">
+      <div id="int-seg" class="seg flex w-full rounded-lg border border-graphite-700 bg-graphite-800 p-0.5 mb-3" role="tablist">
+        <span class="seg-indicator" aria-hidden="true"></span>
+        <button type="button" data-int-tab="open" class="category-tab flex-1 min-w-0 rounded-md min-h-[44px] px-1.5 py-1.5 flex items-center justify-center text-center leading-tight text-xs font-display font-semibold uppercase tracking-wide category-tab-active">Da fare<span id="int-count-open" class="ml-1.5 font-mono"></span></button>
+        <button type="button" data-int-tab="done" class="category-tab flex-1 min-w-0 rounded-md min-h-[44px] px-1.5 py-1.5 flex items-center justify-center text-center leading-tight text-xs font-display font-semibold uppercase tracking-wide">Effettuati<span id="int-count-done" class="ml-1.5 font-mono"></span></button>
+      </div>
+
+      <div class="grid grid-cols-[1fr_1fr_auto] gap-2 mb-3">
+        <button type="button" id="int-filter-linea-btn" class="w-full flex items-center justify-between rounded-lg bg-graphite-800 border border-graphite-700 px-3.5 py-2.5 text-sm text-left hover:border-amber-400 transition-colors min-h-[44px]">
+          <span id="int-filter-linea-value" class="text-graphite-400 truncate">Tutte le linee</span>
+          <i data-lucide="chevron-down" class="w-4 h-4 text-graphite-500 shrink-0"></i>
+        </button>
+        <button type="button" id="int-filter-macchina-btn" class="w-full flex items-center justify-between rounded-lg bg-graphite-800 border border-graphite-700 px-3.5 py-2.5 text-sm text-left hover:border-amber-400 transition-colors min-h-[44px]">
+          <span id="int-filter-macchina-value" class="text-graphite-400 truncate">Tutte le macchine</span>
+          <i data-lucide="chevron-down" class="w-4 h-4 text-graphite-500 shrink-0"></i>
+        </button>
+        <button type="button" id="int-pdf-btn" aria-label="Esporta PDF degli interventi effettuati in una giornata" class="press-spring w-11 min-h-[44px] rounded-lg border border-graphite-700 hover:bg-graphite-800 flex items-center justify-center text-graphite-300 transition-colors">
+          <i data-lucide="file-down" class="w-5 h-5" stroke-width="2"></i>
+        </button>
+      </div>
+
+      <p id="int-notice" class="hidden text-xs rounded-lg px-3 py-2 mb-3 bg-rose-500/10 text-rose-700">Le tabelle degli interventi non sono ancora state create sul database.</p>
+      <div id="int-skeleton" class="space-y-2.5">
+        <div class="skeleton h-24 w-full"></div>
+        <div class="skeleton h-24 w-full"></div>
+      </div>
+      <div id="int-list" class="hidden space-y-2.5 pb-24"></div>
+
+      <button type="button" id="int-fab" aria-label="Nuovo intervento" class="int-fab fab-round press-spring w-14 h-14 rounded-full bg-amber-400 text-white flex items-center justify-center">
+        <i data-lucide="plus" class="w-7 h-7" stroke-width="2.6"></i>
+      </button>
+    </section>
+
     <section id="view-dashboard" class="hidden" data-admin-only>
       <!-- Filtro periodo: vale per la vita utile e per entrambi gli elenchi. "Personalizzato" apre il calendario dell'app. -->
       <div class="flex items-center gap-2 mb-4">
@@ -891,6 +925,13 @@
               <span class="flex items-center gap-2">
                 <i data-lucide="shelving-unit" class="w-4 h-4"></i>
                 Gestione scaffali
+              </span>
+              <i data-lucide="chevron-right" class="w-4 h-4 text-graphite-500"></i>
+            </button>
+            <button id="rapidi-manage-btn" type="button" class="w-full flex items-center justify-between gap-2 rounded-lg border border-graphite-700 hover:bg-graphite-800 px-3.5 py-2.5 text-sm font-display font-semibold uppercase tracking-wide transition-colors min-h-[44px]">
+              <span class="flex items-center gap-2">
+                <i data-lucide="zap" class="w-4 h-4"></i>
+                Interventi rapidi
               </span>
               <i data-lucide="chevron-right" class="w-4 h-4 text-graphite-500"></i>
             </button>
@@ -1117,6 +1158,18 @@
         </span>
         <span class="ui-label whitespace-nowrap font-display font-semibold uppercase tracking-wide">Manuali</span>
       </button>
+      <button type="button" data-nav-target="interventi" class="nav-item flex-1 min-w-0 rounded-md min-h-[56px] py-1.5 flex flex-col items-center justify-center gap-1 text-graphite-500">
+        <span class="nav-icon-wrap">
+          <svg class="nav-svg w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M9 3h6a1 1 0 0 1 1 1v1H8V4a1 1 0 0 1 1-1z"/>
+            <path d="M8 5H6a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1h-2"/>
+            <path class="nav-nt-line" pathLength="10" d="M8.5 11h7"/>
+            <path class="nav-nt-line" pathLength="10" d="M8.5 14.5h7"/>
+            <path class="nav-nt-line" pathLength="10" d="M8.5 18h4"/>
+          </svg>
+        </span>
+        <span class="ui-label whitespace-nowrap font-display font-semibold uppercase tracking-wide">Interventi</span>
+      </button>
       </div>
     </div>
   </nav>
@@ -1316,6 +1369,158 @@
         Salva articolo
       </button>
     </form>
+    </div>
+  </div>
+</div>
+
+<!-- =================== MODALE NUOVO INTERVENTO =================== -->
+<div id="int-new-modal" class="modal-overlay hidden fixed inset-0 z-[91] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm px-0 sm:px-4">
+  <div class="modal-panel w-full sm:max-w-md bg-graphite-900 border border-graphite-700 rounded-t-2xl sm:rounded-2xl max-h-[92vh] flex flex-col">
+    <div data-sheet-drag class="sheet-grabber sm:hidden"><span class="sheet-grabber-pill"></span></div>
+    <div data-sheet-drag class="flex items-center justify-between gap-2 px-5 pb-3 pt-1 sm:pt-3 border-b border-graphite-800 shrink-0">
+      <h3 class="font-display font-bold text-lg uppercase tracking-wide">Nuovo intervento</h3>
+      <div class="flex items-center gap-1">
+        <button id="int-new-reset" type="button" class="hidden text-xs font-display font-semibold uppercase tracking-wide text-graphite-500 hover:text-rose-700 px-2 min-h-[44px]">Azzera</button>
+        <button id="int-new-close" type="button" aria-label="Chiudi" class="modal-close modal-close--on-light"><i data-lucide="x" class="w-6 h-6" stroke-width="2.5"></i></button>
+      </div>
+    </div>
+    <div class="flex-1 overflow-y-auto px-5 py-4 space-y-4">
+      <div class="int-step" id="int-step-linea">
+        <label class="block text-xs font-display font-semibold uppercase tracking-wide text-graphite-400 mb-1.5">1 · Linea</label>
+        <div id="int-new-linea-seg" class="seg flex w-full rounded-lg border border-graphite-700 bg-graphite-800 p-0.5" role="group" aria-label="Linea">
+          <span class="seg-indicator" aria-hidden="true"></span>
+          <button type="button" data-linea="L1" class="category-tab flex-1 min-w-0 rounded-md min-h-[44px] px-1.5 py-1.5 flex items-center justify-center text-center leading-tight text-xs font-display font-semibold uppercase tracking-wide">Linea 1</button>
+          <button type="button" data-linea="L2" class="category-tab flex-1 min-w-0 rounded-md min-h-[44px] px-1.5 py-1.5 flex items-center justify-center text-center leading-tight text-xs font-display font-semibold uppercase tracking-wide">Linea 2</button>
+          <button type="button" data-linea="L1-L2" class="category-tab flex-1 min-w-0 rounded-md min-h-[44px] px-1.5 py-1.5 flex items-center justify-center text-center leading-tight text-xs font-display font-semibold uppercase tracking-wide">Linee 1-2</button>
+        </div>
+      </div>
+      <div class="int-step" id="int-step-macchina" data-locked="true">
+        <label class="block text-xs font-display font-semibold uppercase tracking-wide text-graphite-400 mb-1.5">2 · Macchina</label>
+        <button type="button" id="int-new-macchina-btn" class="w-full flex items-center justify-between rounded-lg bg-graphite-800 border border-graphite-700 px-3.5 py-2.5 text-sm text-left hover:border-amber-400 transition-colors min-h-[44px]">
+          <span id="int-new-macchina-value" class="text-graphite-400 truncate">Seleziona…</span>
+          <i data-lucide="chevron-down" class="w-4 h-4 text-graphite-500 shrink-0"></i>
+        </button>
+      </div>
+      <div class="int-step" id="int-step-desc" data-locked="true">
+        <label class="block text-xs font-display font-semibold uppercase tracking-wide text-graphite-400 mb-1.5" for="int-new-desc">3 · Intervento</label>
+        <div id="int-new-chips" class="hidden flex flex-wrap gap-2 mb-2" aria-label="Interventi rapidi"></div>
+        <textarea id="int-new-desc" rows="2" maxlength="300" placeholder="Cosa va fatto?" class="w-full rounded-lg bg-graphite-800 border border-graphite-700 px-3.5 py-2.5 text-sm focus:border-amber-400 outline-none transition-colors resize-none"></textarea>
+      </div>
+      <div class="int-step" id="int-step-photo" data-locked="true">
+        <div>
+          <label class="block text-xs font-display font-semibold uppercase tracking-wide text-graphite-400 mb-1.5">Foto promemoria <span class="normal-case tracking-normal text-graphite-500 font-sans font-normal">(facoltativa)</span></label>
+          <div id="int-new-photo-actions" class="grid grid-cols-2 gap-2">
+            <button type="button" id="int-new-photo-shoot" class="press-spring flex items-center justify-center gap-2 rounded-lg border border-graphite-700 hover:bg-graphite-800 px-3 text-xs font-display font-semibold uppercase tracking-wide transition-colors min-h-[44px]"><i data-lucide="camera" class="w-4 h-4"></i>Scatta</button>
+            <button type="button" id="int-new-photo-pick" class="press-spring flex items-center justify-center gap-2 rounded-lg border border-graphite-700 hover:bg-graphite-800 px-3 text-xs font-display font-semibold uppercase tracking-wide transition-colors min-h-[44px]"><i data-lucide="image" class="w-4 h-4"></i>Galleria</button>
+          </div>
+          <div id="int-new-photo-preview" class="hidden relative rounded-lg overflow-hidden border border-graphite-700 bg-graphite-800">
+            <img id="int-new-photo-img" alt="Anteprima foto" class="w-full max-h-48 object-cover">
+            <button type="button" id="int-new-photo-remove" aria-label="Rimuovi la foto" class="absolute top-2 right-2 w-9 h-9 rounded-full bg-black/60 text-white flex items-center justify-center"><i data-lucide="x" class="w-5 h-5" stroke-width="2.5"></i></button>
+          </div>
+          <input id="int-new-photo-input-cam" type="file" accept="image/*" capture="environment" class="hidden">
+          <input id="int-new-photo-input-gal" type="file" accept="image/*" class="hidden">
+        </div>
+      </div>
+    </div>
+    <div class="shrink-0 px-5 py-3 border-t border-graphite-800">
+      <button id="int-new-save" type="button" disabled class="press-spring w-full rounded-lg bg-amber-400 hover:bg-amber-300 text-white font-display font-semibold uppercase tracking-wide text-sm min-h-[48px] flex items-center justify-center gap-2">
+        <i data-lucide="check" class="w-5 h-5" stroke-width="2.5"></i>Salva intervento
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- =================== MODALE DETTAGLIO / ESITO INTERVENTO =================== -->
+<div id="int-detail-modal" class="modal-overlay hidden fixed inset-0 z-[91] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm px-0 sm:px-4">
+  <div class="modal-panel w-full sm:max-w-md bg-graphite-900 border border-graphite-700 rounded-t-2xl sm:rounded-2xl max-h-[92vh] flex flex-col">
+    <div data-sheet-drag class="sheet-grabber sm:hidden"><span class="sheet-grabber-pill"></span></div>
+    <div data-sheet-drag class="flex items-center justify-between gap-2 px-5 pb-3 pt-1 sm:pt-3 border-b border-graphite-800 shrink-0">
+      <h3 id="int-detail-title" class="min-w-0 truncate font-display font-bold text-lg uppercase tracking-wide">Intervento</h3>
+      <button id="int-detail-close" type="button" aria-label="Chiudi" class="modal-close modal-close--on-light shrink-0"><i data-lucide="x" class="w-6 h-6" stroke-width="2.5"></i></button>
+    </div>
+    <div class="flex-1 overflow-y-auto px-5 py-4 space-y-4">
+      <div class="card-plate rounded-xl p-3.5">
+        <div class="flex items-center gap-2 mb-2">
+          <span id="int-detail-linea" class="ui-label font-display font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-400 text-white"></span>
+          <span id="int-detail-stato" class="ui-label font-display font-bold uppercase tracking-wider px-2 py-0.5 rounded-full"></span>
+        </div>
+        <p id="int-detail-desc" class="text-sm text-graphite-100 leading-relaxed whitespace-pre-wrap"></p>
+        <p id="int-detail-meta" class="ui-note text-graphite-500 mt-2"></p>
+        <button type="button" id="int-detail-photo" class="hidden mt-3 block w-full rounded-lg overflow-hidden border border-graphite-700" aria-label="Ingrandisci la foto promemoria">
+          <img id="int-detail-photo-img" alt="Foto promemoria" class="w-full max-h-48 object-cover">
+        </button>
+      </div>
+      <div>
+        <label class="block text-xs font-display font-semibold uppercase tracking-wide text-graphite-400 mb-1.5">Esito</label>
+        <div id="int-esito-seg" class="seg flex w-full rounded-lg border border-graphite-700 bg-graphite-800 p-0.5" role="group" aria-label="Esito">
+          <span class="seg-indicator" aria-hidden="true"></span>
+          <button type="button" data-stato="da_effettuare" class="category-tab flex-1 min-w-0 rounded-md min-h-[44px] px-1.5 py-1.5 flex items-center justify-center text-center leading-tight text-xs font-display font-semibold uppercase tracking-wide">Da effettuare</button>
+          <button type="button" data-stato="sospeso" class="category-tab flex-1 min-w-0 rounded-md min-h-[44px] px-1.5 py-1.5 flex items-center justify-center text-center leading-tight text-xs font-display font-semibold uppercase tracking-wide">Da completare</button>
+          <button type="button" data-stato="effettuato" class="category-tab flex-1 min-w-0 rounded-md min-h-[44px] px-1.5 py-1.5 flex items-center justify-center text-center leading-tight text-xs font-display font-semibold uppercase tracking-wide">Effettuato</button>
+        </div>
+      </div>
+      <div>
+        <label class="block text-xs font-display font-semibold uppercase tracking-wide text-graphite-400 mb-1.5" for="int-esito-note">Note sull'esito <span class="normal-case tracking-normal text-graphite-500 font-sans font-normal">(facoltative)</span></label>
+        <textarea id="int-esito-note" rows="2" maxlength="500" placeholder="Cosa è stato fatto, cosa manca…" class="w-full rounded-lg bg-graphite-800 border border-graphite-700 px-3.5 py-2.5 text-sm focus:border-amber-400 outline-none transition-colors resize-none"></textarea>
+      </div>
+      <div>
+          <label class="block text-xs font-display font-semibold uppercase tracking-wide text-graphite-400 mb-1.5">Foto del lavoro svolto <span class="normal-case tracking-normal text-graphite-500 font-sans font-normal">(facoltativa)</span></label>
+          <div id="int-esito-photo-actions" class="grid grid-cols-2 gap-2">
+            <button type="button" id="int-esito-photo-shoot" class="press-spring flex items-center justify-center gap-2 rounded-lg border border-graphite-700 hover:bg-graphite-800 px-3 text-xs font-display font-semibold uppercase tracking-wide transition-colors min-h-[44px]"><i data-lucide="camera" class="w-4 h-4"></i>Scatta</button>
+            <button type="button" id="int-esito-photo-pick" class="press-spring flex items-center justify-center gap-2 rounded-lg border border-graphite-700 hover:bg-graphite-800 px-3 text-xs font-display font-semibold uppercase tracking-wide transition-colors min-h-[44px]"><i data-lucide="image" class="w-4 h-4"></i>Galleria</button>
+          </div>
+          <div id="int-esito-photo-preview" class="hidden relative rounded-lg overflow-hidden border border-graphite-700 bg-graphite-800">
+            <img id="int-esito-photo-img" alt="Anteprima foto" class="w-full max-h-48 object-cover">
+            <button type="button" id="int-esito-photo-remove" aria-label="Rimuovi la foto" class="absolute top-2 right-2 w-9 h-9 rounded-full bg-black/60 text-white flex items-center justify-center"><i data-lucide="x" class="w-5 h-5" stroke-width="2.5"></i></button>
+          </div>
+          <input id="int-esito-photo-input-cam" type="file" accept="image/*" capture="environment" class="hidden">
+          <input id="int-esito-photo-input-gal" type="file" accept="image/*" class="hidden">
+        </div>
+    </div>
+    <div class="shrink-0 px-5 py-3 border-t border-graphite-800 flex gap-2">
+      <button id="int-detail-delete" type="button" aria-label="Elimina intervento" class="shrink-0 w-12 min-h-[48px] rounded-lg border border-rose-500/40 text-rose-700 hover:bg-rose-50 flex items-center justify-center transition-colors"><i data-lucide="trash-2" class="w-5 h-5" stroke-width="2"></i></button>
+      <button id="int-detail-save" type="button" class="press-spring flex-1 rounded-lg bg-amber-400 hover:bg-amber-300 text-white font-display font-semibold uppercase tracking-wide text-sm min-h-[48px] flex items-center justify-center gap-2">
+        <i data-lucide="check" class="w-5 h-5" stroke-width="2.5"></i>Salva esito
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- =================== VISUALIZZATORE FOTO INTERVENTO =================== -->
+<div id="int-photo-modal" class="modal-overlay hidden fixed inset-0 z-[96] flex items-center justify-center bg-black/90">
+  <button id="int-photo-close" type="button" aria-label="Chiudi" class="absolute top-3 right-3 w-11 h-11 rounded-full bg-white/15 text-white flex items-center justify-center" style="margin-top: env(safe-area-inset-top, 0px)"><i data-lucide="x" class="w-6 h-6" stroke-width="2.5"></i></button>
+  <img id="int-photo-full" alt="Foto" class="max-w-full max-h-full object-contain">
+</div>
+
+<!-- =================== MODALE INTERVENTI RAPIDI (Admin) =================== -->
+<div id="rapidi-modal" class="modal-overlay hidden fixed inset-0 z-[92] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm px-0 sm:px-4">
+  <div class="modal-panel w-full sm:max-w-md bg-graphite-900 border border-graphite-700 rounded-t-2xl sm:rounded-2xl max-h-[88vh] flex flex-col">
+    <div data-sheet-drag class="sheet-grabber sm:hidden"><span class="sheet-grabber-pill"></span></div>
+    <div data-sheet-drag class="flex items-center justify-between px-5 pb-3 pt-1 sm:pt-3 border-b border-graphite-800 shrink-0">
+      <h3 class="font-display font-bold text-lg uppercase tracking-wide">Interventi rapidi</h3>
+      <button id="rapidi-modal-close" type="button" aria-label="Chiudi" class="modal-close modal-close--on-light"><i data-lucide="x" class="w-6 h-6" stroke-width="2.5"></i></button>
+    </div>
+    <div class="flex-1 overflow-y-auto px-5 py-4">
+      <p class="text-xs text-graphite-500 mb-3">Gli interventi registrati qui compaiono come scelta rapida nel Blocco Note Interventi, quando si sceglie la stessa linea e la stessa macchina. Un intervento su "Linee 1-2" vale per entrambe le linee.</p>
+      <p id="rapidi-notice" class="hidden text-xs rounded-lg px-3 py-2 mb-3 bg-rose-500/10 text-rose-700">Le tabelle degli interventi non sono ancora state create sul database.</p>
+      <form id="rapidi-form" class="space-y-2 mb-4">
+        <div id="rapidi-linea-seg" class="seg flex w-full rounded-lg border border-graphite-700 bg-graphite-800 p-0.5" role="group" aria-label="Linea">
+          <span class="seg-indicator" aria-hidden="true"></span>
+          <button type="button" data-linea="L1" class="category-tab flex-1 min-w-0 rounded-md min-h-[44px] px-1.5 py-1.5 flex items-center justify-center text-center leading-tight text-xs font-display font-semibold uppercase tracking-wide">Linea 1</button>
+          <button type="button" data-linea="L2" class="category-tab flex-1 min-w-0 rounded-md min-h-[44px] px-1.5 py-1.5 flex items-center justify-center text-center leading-tight text-xs font-display font-semibold uppercase tracking-wide">Linea 2</button>
+          <button type="button" data-linea="L1-L2" class="category-tab flex-1 min-w-0 rounded-md min-h-[44px] px-1.5 py-1.5 flex items-center justify-center text-center leading-tight text-xs font-display font-semibold uppercase tracking-wide">Linee 1-2</button>
+        </div>
+        <button type="button" id="rapidi-macchina-btn" class="w-full flex items-center justify-between rounded-lg bg-graphite-800 border border-graphite-700 px-3.5 py-2.5 text-sm text-left hover:border-amber-400 transition-colors min-h-[44px]">
+          <span id="rapidi-macchina-value" class="text-graphite-400 truncate">Macchina…</span>
+          <i data-lucide="chevron-down" class="w-4 h-4 text-graphite-500 shrink-0"></i>
+        </button>
+        <div class="flex gap-2">
+          <input id="rapidi-titolo" type="text" maxlength="120" autocomplete="off" placeholder="es. Sostituzione cinghia" class="flex-1 min-w-0 w-full rounded-lg bg-graphite-800 border border-graphite-700 px-3.5 py-2.5 text-sm focus:border-amber-400 outline-none transition-colors">
+          <button id="rapidi-add-btn" type="submit" class="press-spring shrink-0 rounded-lg bg-amber-400 hover:bg-amber-300 text-white font-display font-semibold uppercase tracking-wide text-xs px-4 min-h-[44px]">Aggiungi</button>
+        </div>
+      </form>
+      <div id="rapidi-skeleton" class="space-y-2"><div class="skeleton h-12 w-full"></div><div class="skeleton h-12 w-full"></div></div>
+      <div id="rapidi-list" class="hidden space-y-2"></div>
     </div>
   </div>
 </div>

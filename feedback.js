@@ -347,6 +347,65 @@ const feedback = {
     ]);
     vibrate([0, 20, 20, 20]);
   },
+
+  // ---- Blocco Note Interventi ----
+
+  /** Passo del modulo completato (es. macchina scelta): tick breve, più acuto del cambio modalità */
+  stepDone() {
+    tone(820, 45, { type: 'sine', gain: 0.07 });
+    vibrate(12);
+  },
+
+  /** Scelta rapida (intervento preimpostato) toccata */
+  presetPick() {
+    tone(960, 35, { type: 'sine', gain: 0.07 });
+    vibrate(10);
+  },
+
+  /** Foto acquisita/selezionata: due clic secchi, come un otturatore */
+  photoShutter() {
+    sequence([
+      [2400, 16, 0, { type: 'square', gain: 0.04 }],
+      [1700, 26, 38, { type: 'square', gain: 0.04 }],
+    ]);
+    vibrate([18, 25, 12]);
+  },
+
+  /** Nuovo intervento annotato nel blocco note: tre note veloci verso l'alto */
+  noteSaved() {
+    sequence([
+      [660, 50, 0, { type: 'sine', gain: 0.1 }],
+      [880, 60, 45, { type: 'sine', gain: 0.1 }],
+      [1175, 90, 95, { type: 'sine', gain: 0.1 }],
+    ]);
+    vibrate([15, 30, 25]);
+  },
+
+  /** Intervento segnato "Effettuato": accordo ascendente che si risolve, più pieno di una conferma */
+  interventoDone() {
+    sequence([
+      [523, 70, 0, { type: 'sine', gain: 0.11 }],
+      [659, 70, 70, { type: 'sine', gain: 0.11 }],
+      [784, 70, 140, { type: 'sine', gain: 0.11 }],
+      [1046, 140, 210, { type: 'sine', gain: 0.11 }],
+    ]);
+    vibrate([20, 30, 20, 30, 45]);
+  },
+
+  /** Intervento rimesso "Da effettuare" / "Da completare": due note discendenti, morbide */
+  interventoReopen() {
+    sequence([
+      [494, 70, 0, { type: 'triangle', gain: 0.1 }],
+      [392, 110, 75, { type: 'triangle', gain: 0.1 }],
+    ]);
+    vibrate([15, 40, 15]);
+  },
+
+  /** Filtro Linea/Macchina applicato o tolto */
+  filterChange() {
+    tone(560, 40, { type: 'sine', gain: 0.06 });
+    vibrate(12);
+  },
 };
 
 export default feedback;

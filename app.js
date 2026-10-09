@@ -14,6 +14,8 @@ import { initLowStock } from './low-stock.js';
 import { initManuals } from './manuals.js';
 import { initManualsBrowser, enterManualsBrowser, resetManualsBrowser } from './manuals-browser.js';
 import { initHistoryAdmin } from './history-admin.js';
+import { initInterventi, enterInterventi, resetInterventi } from './interventi.js';
+import { initInterventiRapidi } from './interventi-rapidi.js';
 import { initPicker } from './picker.js';
 import { initGlobalSearch, resetGlobalSearch, closePanel as closeGlobalSearch } from './global-search.js';
 import feedback, { initFeedbackSettings } from './feedback.js';
@@ -26,11 +28,11 @@ import { getPdfCacheInfo, clearPdfCache } from './pdf-cache.js';
 import { confirmDialog } from './ui-modal.js';
 import './input-clear.js'; // tasto X in ogni campo di testo (si aggancia da solo)
 
-const VIEWS = ['scanner', 'products', 'manuals', 'dashboard', 'settings'];
+const VIEWS = ['scanner', 'products', 'manuals', 'interventi', 'dashboard', 'settings'];
 // Titolo mostrato in alto nell'header: stessi nomi della barra di navigazione
 // in basso, così l'utente legge sempre "dove si trova" invece del nome fisso
 // dell'app.
-const VIEW_TITLES = { scanner: 'Movimenti', products: 'Magazzino', manuals: 'Manuali', dashboard: 'Report', settings: 'Impostazioni' };
+const VIEW_TITLES = { scanner: 'Movimenti', products: 'Magazzino', manuals: 'Manuali', interventi: 'Interventi', dashboard: 'Report', settings: 'Impostazioni' };
 let modulesInitialized = false;
 let currentView = null;
 let isTransitioning = false;
@@ -73,6 +75,8 @@ function onAuthed(profile) {
     initManuals();
     initManualsBrowser();
     initHistoryAdmin();
+    initInterventi();
+    initInterventiRapidi();
     initNavHistory();
     initNav();
     initSwipeNav();
@@ -132,6 +136,7 @@ function onSignedOut() {
     resetProducts(); // al prossimo accesso la lista si ricarica da capo (e non resta quella di un altro utente)
     resetDashboard();
     resetManualsBrowser();
+    resetInterventi();
     resetGlobalSearch();
     for (const v of VIEWS) {
       document.getElementById(`view-${v}`)?.classList.add('hidden');
@@ -179,11 +184,11 @@ function initPdfCacheButton() {
 
 /**
  * Swipe orizzontale per spostarsi tra le sezioni della barra in basso
- * (Movimenti ⇄ Magazzino ⇄ Manuali): da destra a sinistra si va avanti, al contrario indietro.
+ * (Movimenti ⇄ Magazzino ⇄ Manuali ⇄ Interventi): da destra a sinistra si va avanti, al contrario indietro.
  * Non scatta su campi di testo, aree che scorrono in orizzontale, modali aperte,
  * gesti a più dita o partiti dai bordi dello schermo (gesto "indietro" del sistema).
  */
-const SWIPE_ORDER = ['scanner', 'products', 'manuals'];
+const SWIPE_ORDER = ['scanner', 'products', 'manuals', 'interventi'];
 function initSwipeNav() {
   const MIN_DX = 70;        // spostamento minimo (px)
   const MAX_MS = 700;       // durata massima del gesto
@@ -361,6 +366,7 @@ export function switchView(view, { animate = true, onStart, fromBack = false } =
     // lista già in memoria compare subito (se qualcosa è cambiato si aggiorna in silenzio).
     if (view === 'products') enterProducts();
     if (view === 'manuals') enterManualsBrowser();
+    if (view === 'interventi') enterInterventi();
     if (view === 'dashboard') enterDashboard();
     if (view === 'settings' && isAdmin()) {
       refreshUsers();
