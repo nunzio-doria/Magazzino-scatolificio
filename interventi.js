@@ -11,7 +11,7 @@ import { listDistinctMacchine } from './supabase.js';
 import {
   LINEE, STATI, lineaLabel, rapidoMatches,
   listInterventi, createIntervento, updateEsito, deleteIntervento, signedUrls, listRapidi,
-  listEffettuatiRange, listEffettuatiDays, dayKey, keyToDate, listOperatori,
+  listEffettuatiRange, listEffettuatiDays, dayKey, keyToDate, listOperatori, operatoriDi,
 } from './interventi-data.js';
 import { openPicker } from './picker.js';
 import { toastSuccess, toastError, toastWarning, toastInfo } from './toast.js';
@@ -502,7 +502,8 @@ function renderList() {
         row.type = 'button';
         row.dataset.id = r.id;
         row.className = 'int-row w-full text-left px-3.5 py-3 flex items-start gap-3 border-t border-graphite-700/70';
-        const who = r.stato === 'effettuato' ? r.operatore_nome || r.esito_by_name : r.created_by_name;
+        const ops = operatoriDi(r);
+        const who = r.stato === 'effettuato' ? (ops.length ? ops.join(', ') : r.esito_by_name) : r.created_by_name;
         const when = r.stato === 'effettuato' ? `Fatto ${fmtDateTime(r.esito_at)}${who ? ` · ${who}` : ''}` : `${fmtDateTime(r.created_at)}${who ? ` · ${who}` : ''}`;
         row.innerHTML = `
           <div class="min-w-0 flex-1">
@@ -759,7 +760,7 @@ function initDetailSheet() {
 let wirePhotoDetail = null;
 
 async function openDetail(row) {
-  detail = { row, stato: row.stato, operatore: row.operatore_nome || '', foto: null, fotoUrl: '', rimuovi: false, promemoriaUrl: '' };
+  detail = { row, stato: row.stato, operatori: operatoriDi(row), foto: null, fotoUrl: '', rimuovi: false, promemoriaUrl: '' };
   ensureOperatori().then(() => detail?.row === row && paintDetail());
   els.detNote.value = row.note_esito || '';
   $('int-detail-title').textContent = row.macchina;
@@ -805,22 +806,25 @@ function paintDetail() {
   paintOperatore();
 }
 
-/** Sezione "Operatore": si sblocca solo quando l'esito è "Effettuato". Il nome non finisce nel PDF. */
+/** Sezione "Operatori": si sblocca solo quando l'esito è "Effettuato"; si possono scegliere più persone. I nomi non finiscono nel PDF. */
 function paintOperatore() {
   const step = $('int-operatore-step');
   step.dataset.locked = String(detail.stato !== 'effettuato');
   const names = [...state.operatori];
-  if (detail.operatore && !names.includes(detail.operatore)) names.unshift(detail.operatore); // operatore tolto dall'elenco ma già registrato
+  detail.operatori.forEach((n) => {
+    if (!names.includes(n)) names.unshift(n); // operatore tolto dall'elenco ma già registrato su questo intervento
+  });
   const box = $('int-operatore-chips');
   box.innerHTML = '';
   names.forEach((n) => {
     const b = document.createElement('button');
     b.type = 'button';
     b.className = 'int-chip press-spring';
-    b.setAttribute('aria-pressed', String(n === detail.operatore));
+    b.setAttribute('aria-pressed', String(detail.operatori.includes(n)));
     b.textContent = n; // testo, mai HTML
     b.addEventListener('click', () => {
-      detail.operatore = detail.operatore === n ? '' : n; // un secondo tocco toglie la scelta
+      // Selezione multipla: ogni tocco aggiunge o toglie quel nome
+      detail.operatori = detail.operatori.includes(n) ? detail.operatori.filter((x) => x !== n) : [...detail.operatori, n];
       feedback.presetPick();
       paintOperatore();
     });
@@ -833,14 +837,14 @@ async function saveDetail() {
   if (!detail) return;
   const { row } = detail;
   const note = els.detNote.value.trim();
-  const unchanged = detail.stato === row.stato && note === (row.note_esito || '') && !detail.foto && !detail.rimuovi && (detail.stato !== 'effettuato' || detail.operatore === (row.operatore_nome || ''));
+  const unchanged = detail.stato === row.stato && note === (row.note_esito || '') && !detail.foto && !detail.rimuovi && (detail.stato !== 'effettuato' || [...detail.operatori].sort().join('|') === [...operatoriDi(row)].sort().join('|'));
   if (unchanged) {
     closeOverlay(els.detModal);
     return;
   }
   setButtonBusy(els.detSave, true, 'Salvataggio…');
   try {
-    const updated = await updateEsito(row, { stato: detail.stato, note, operatore: detail.operatore, foto: detail.foto, rimuoviFoto: detail.rimuovi, authorName: authorName() });
+    const updated = await updateEsito(row, { stato: detail.stato, note, operatori: detail.operatori, foto: detail.foto, rimuoviFoto: detail.rimuovi, authorName: authorName() });
     state.open = state.open.filter((r) => r.id !== updated.id);
     state.done = state.done.filter((r) => r.id !== updated.id);
     state.doneRecent = state.doneRecent.filter((r) => r.id !== updated.id);

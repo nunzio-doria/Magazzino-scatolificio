@@ -18,6 +18,9 @@ export const STATI = {
   effettuato: 'Effettuato',
 };
 
+/** Operatori di un intervento: elenco nuovo, con ripiego sul vecchio campo a nome singolo */
+export const operatoriDi = (r) => (Array.isArray(r?.operatori) && r.operatori.length ? r.operatori : r?.operatore_nome ? [r.operatore_nome] : []);
+
 export const lineaLabel = (v) => LINEE.find((l) => l.value === v)?.label || v || '';
 
 /** Un intervento rapido vale per la stessa linea e la stessa macchina (senza distinzione di maiuscole) */
@@ -32,7 +35,7 @@ function isMissingTable(error) {
 }
 
 const COLS =
-  'id, linea, macchina, descrizione, stato, foto_promemoria_path, note_esito, foto_esito_path, created_by, created_by_name, created_at, esito_by, esito_by_name, esito_at, operatore_nome';
+  'id, linea, macchina, descrizione, stato, foto_promemoria_path, note_esito, foto_esito_path, created_by, created_by_name, created_at, esito_by, esito_by_name, esito_at, operatore_nome, operatori';
 
 /** Interventi aperti (da effettuare + da completare) e ultimi effettuati */
 export async function listInterventi() {
@@ -99,7 +102,7 @@ export async function createIntervento({ linea, macchina, descrizione, foto = nu
 /**
  * Aggiorna l'esito. `foto`: Blob nuovo | null (nessun cambio); `rimuoviFoto`: true per toglierla.
  */
-export async function updateEsito(row, { stato, note, operatore = '', foto = null, rimuoviFoto = false, authorName = '' }) {
+export async function updateEsito(row, { stato, note, operatori = [], foto = null, rimuoviFoto = false, authorName = '' }) {
   let fotoPath = row.foto_esito_path || null;
   let newPath = null;
   if (foto) {
@@ -111,8 +114,8 @@ export async function updateEsito(row, { stato, note, operatore = '', foto = nul
   const patch = {
     stato,
     note_esito: note || null,
-    // Chi ha eseguito il lavoro: ha senso solo per gli interventi effettuati (non compare nel PDF)
-    operatore_nome: stato === 'effettuato' ? operatore || null : null,
+    // Chi ha eseguito il lavoro (uno o più operatori): ha senso solo per gli effettuati e non compare nel PDF
+    operatori: stato === 'effettuato' ? operatori : [],
     foto_esito_path: fotoPath,
     esito_by_name: stato === 'da_effettuare' ? null : authorName || null,
     esito_at: stato === 'da_effettuare' ? null : stato === row.stato && row.esito_at ? row.esito_at : new Date().toISOString(),
