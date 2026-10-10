@@ -259,6 +259,31 @@ async function ensureRapidi(force = false) {
     console.warn('Interventi rapidi non disponibili.', err);
   }
 }
+/** Ricerca per la barra in testata: testo libero su descrizione, macchina, linea, esito e nomi. Cerca in tutti gli interventi (da fare ed effettuati), ignorando i filtri. */
+export async function searchInterventi(term) {
+  if (!state.loaded) {
+    await refreshInterventi({ silent: true });
+    // Se un caricamento era già in corso (entrata nella vista) si attende che finisca
+    for (let i = 0; i < 30 && state.loading; i += 1) await new Promise((r) => setTimeout(r, 100));
+  }
+  const words = term.toLowerCase().split(/\s+/).filter(Boolean);
+  if (!words.length) return [];
+  const hay = (r) =>
+    [r.descrizione, r.macchina, lineaLabel(r.linea), r.linea, r.note_esito, r.created_by_name, r.esito_by_name, STATI[r.stato]]
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase();
+  return [...state.open, ...state.done].filter((r) => {
+    const h = hay(r);
+    return words.every((w) => h.includes(w));
+  });
+}
+
+/** Apre il foglio di un intervento (dai risultati della ricerca in testata) */
+export function openInterventoDetail(row) {
+  return openDetail(row);
+}
+
 /** Chiamata dalle Impostazioni quando cambiano gli interventi rapidi */
 export function invalidateRapidi() {
   state.rapidiLoaded = false;

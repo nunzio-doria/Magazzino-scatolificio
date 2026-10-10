@@ -15,6 +15,8 @@ import { startCamera, stopCamera } from './camera.js';
 import { openOverlay, closeOverlay, enableSheetDrag, replayAnimation, modalCloseMs } from './ui-utils.js';
 import { pushLayer, releaseLayer } from './nav-history.js';
 import { openDetail } from './products-detail.js';
+import { searchInterventi, openInterventoDetail } from './interventi.js';
+import { lineaLabel, STATI } from './interventi-data.js';
 import { startMovement } from './scanner.js';
 import { CATEGORY_LABELS, shelfLabel, escapeHtml } from './products-shared.js';
 import { toastError } from './toast.js';
@@ -34,7 +36,33 @@ let layer = null; // voce della cronologia (tasto indietro)
 let seq = 0;
 let debounce = null;
 let results = [];
+let resultsKind = 'articoli'; // 'articoli' | 'interventi'
 let initialized = false;
+
+const inInterventi = () => {
+  const v = document.getElementById('view-interventi');
+  return !!v && !v.classList.contains('hidden');
+};
+
+const STATO_BADGE = {
+  da_effettuare: 'bg-[#eaedf4] text-amber-300',
+  sospeso: 'bg-orange-100 text-orange-800',
+  effettuato: 'bg-emerald-100 text-emerald-800',
+};
+
+/**
+ * Nella sezione Interventi la barra in testata cerca negli interventi (non negli articoli) e la
+ * fotocamera, che legge i codici degli articoli, non serve: si nasconde. Chiamata a ogni cambio di sezione.
+ */
+export function syncSearchContext(view) {
+  const input = document.getElementById('hsearch-input');
+  if (!input) return;
+  const on = view ? view === 'interventi' : inInterventi();
+  input.placeholder = on ? 'Cerca intervento…' : 'Cerca articolo…';
+  input.setAttribute('aria-label', on ? 'Cerca intervento' : 'Cerca articolo');
+  const scan = document.getElementById('hsearch-scan-btn');
+  if (scan) scan.style.display = on ? 'none' : '';
+}
 
 const inMovements = () => {
   const v = document.getElementById('view-scanner');
@@ -57,6 +85,7 @@ export function initGlobalSearch() {
   el.qsReader = document.getElementById('qs-reader');
   el.qsResult = document.getElementById('qs-result');
   if (!el.input || !el.panel) return;
+  syncSearchContext();
 
   el.input.addEventListener('focus', openPanel);
   el.input.addEventListener('input', onInput);
@@ -64,7 +93,11 @@ export function initGlobalSearch() {
     if (e.key === 'Escape') closePanel();
     if (e.key === 'Enter' && results[0]) {
       e.preventDefault();
-      pick(results[0], 'scheda');
+      if (resultsKind === 'interventi') {
+        const first = results[0];
+        closePanel({ clear: true });
+        setTimeout(() => openInterventoDetail(first), 140);
+      } else pick(results[0], 'scheda');
     }
   });
   el.clear.addEventListener('click', () => {
@@ -155,7 +188,9 @@ function onInput() {
 }
 
 function renderHint() {
-  el.panel.innerHTML = `<div class="hs-hint">${SEARCH_SVG}<p>Digita il codice dell'articolo<br>oppure scansionalo con la fotocamera.</p></div>`;
+  el.panel.innerHTML = inInterventi()
+    ? `<div class="hs-hint">${SEARCH_SVG}<p>Cerca negli interventi per descrizione,<br>macchina, linea, esito o nome.</p></div>`
+    : `<div class="hs-hint">${SEARCH_SVG}<p>Digita il codice dell'articolo<br>oppure scansionalo con la fotocamera.</p></div>`;
 }
 
 async function runSearch(term) {
@@ -164,6 +199,20 @@ async function runSearch(term) {
     el.panel.innerHTML =
       '<div class="hs-skel space-y-3"><div class="skeleton h-10 w-full"></div><div class="skeleton h-10 w-4/5"></div><div class="skeleton h-10 w-3/5"></div></div>';
   }
+  if (inInterventi()) {
+    let found = [];
+    try {
+      found = await searchInterventi(term);
+    } catch (err) {
+      console.error(err);
+    }
+    if (mySeq !== seq || !panelOpen) return;
+    resultsKind = 'interventi';
+    results = found.slice(0, 40);
+    renderInterventiResults();
+    return;
+  }
+  resultsKind = 'articoli';
   let list = [];
   let offline = false;
   try {
@@ -212,11 +261,39 @@ function renderResults(offline) {
   el.panel.innerHTML = (offline ? '<p class="hs-note">Offline: risultati dall\'ultima sincronizzazione.</p>' : '') + rows;
 }
 
+function renderInterventiResults() {
+  if (!results.length) {
+    el.panel.innerHTML = `<div class="hs-hint">${SEARCH_SVG}<p>Nessun intervento trovato.</p></div>`;
+    return;
+  }
+  el.panel.innerHTML = results
+    .map((r, i) => {
+      const sub = [lineaLabel(r.linea), r.macchina].filter(Boolean).join(' · ');
+      return `
+        <div class="hs-row" style="--i:${Math.min(i, 7)}">
+          <button type="button" class="hs-main" data-i="${i}" data-act="intervento">
+            <span class="min-w-0">
+              <span class="hs-code hs-code--text">${escapeHtml(r.descrizione)}</span>
+              <span class="hs-sub">${escapeHtml(sub)}</span>
+            </span>
+            <span class="shrink-0 whitespace-nowrap px-2 py-0.5 rounded-full ui-label font-display font-semibold uppercase tracking-wide ${STATO_BADGE[r.stato] || ''}">${escapeHtml(STATI[r.stato] || r.stato)}</span>
+          </button>
+        </div>`;
+    })
+    .join('');
+}
+
 function onPanelClick(e) {
   const btn = e.target.closest('[data-act]');
   if (!btn) return;
-  const product = results[Number(btn.dataset.i)];
-  if (product) pick(product, btn.dataset.act);
+  const item = results[Number(btn.dataset.i)];
+  if (!item) return;
+  if (resultsKind === 'interventi') {
+    closePanel({ clear: true });
+    setTimeout(() => openInterventoDetail(item), 140);
+    return;
+  }
+  pick(item, btn.dataset.act);
 }
 
 /** Azione scelta su un articolo: 'scheda' | 'deposito' | 'prelievo'. */

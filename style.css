@@ -2333,6 +2333,7 @@ button.hdr-btn:not(:disabled):active { background: rgba(255,255,255,0.3); }
 }
 button.hs-main:not(:disabled):active { transform: none; background: var(--accent-tint); transition-duration: var(--dur-press); }
 .hs-code { display: block; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-weight: 600; color: #0d1117; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hs-code--text { font-family: inherit; font-weight: 600; }
 .hs-sub { display: block; font-size: 12px; color: #5c6672; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .hs-actions { display: flex; gap: 8px; padding: 0 14px 12px; }
 .hs-hint { padding: 22px 20px; text-align: center; color: #5c6672; font-size: 13px; line-height: 1.45; animation: empty-state-in var(--dur-slow) var(--ease-out); }

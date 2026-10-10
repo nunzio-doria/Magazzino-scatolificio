@@ -17,7 +17,7 @@ import { initHistoryAdmin } from './history-admin.js';
 import { initInterventi, enterInterventi, resetInterventi, setInterventiFab } from './interventi.js';
 import { initInterventiRapidi } from './interventi-rapidi.js';
 import { initPicker } from './picker.js';
-import { initGlobalSearch, resetGlobalSearch, closePanel as closeGlobalSearch } from './global-search.js';
+import { initGlobalSearch, resetGlobalSearch, syncSearchContext, closePanel as closeGlobalSearch } from './global-search.js';
 import feedback, { initFeedbackSettings } from './feedback.js';
 import { initOfflineSync } from './offline-queue.js';
 import { processTransaction, adjustCachedProductQuantity, bumpProductsVersion } from './supabase.js';
@@ -341,6 +341,7 @@ export function switchView(view, { animate = true, onStart, fromBack = false } =
 
   currentView = view;
   setInterventiFab(view === 'interventi');
+  syncSearchContext(view);
   const headerTitle = document.getElementById('app-header-title');
   if (headerTitle) headerTitle.textContent = VIEW_TITLES[view] || VIEW_TITLES.scanner;
 
