@@ -5,7 +5,7 @@
 // registrate compaiono nel form articolo e nel filtro "per macchina".
 // =============================================================
 
-import { listMachinesWithCounts, createMachine, deleteMachine, bumpProductsVersion, uploadMachineManual, deleteMachineManual, uploadOperatorManual, deleteOperatorManual } from './supabase.js';
+import { listMachinesWithCounts, createMachine, deleteMachine, updateMachineLinee, updateMachinesOrder, compareMachines, MACHINE_LINES, bumpProductsVersion, uploadMachineManual, deleteMachineManual, uploadOperatorManual, deleteOperatorManual } from './supabase.js';
 import { toastSuccess, toastError } from './toast.js';
 import { isAdmin } from './auth.js';
 import { staggerIndex, setButtonBusy, openOverlay, closeOverlay, enableSheetDrag, startUploadProgress } from './ui-utils.js';
@@ -23,8 +23,35 @@ const LINEA_SLOTS = [
   { value: 'L1-L2', label: 'Linea 1-2' },
 ];
 
+const LINEA_LABELS = { L1: 'Linea 1', L2: 'Linea 2' };
+
 const els = {};
 let tableMissing = false;
+let currentMachines = []; // ultimo elenco disegnato (con linee e ordine), per riordino e linee
+let orderTimer = null;
+let orderDirty = false;
+
+/** Le altre schermate tengono in memoria l'elenco macchine (es. il prelievo): le si avvisa del cambio */
+function notifyMachinesChanged() {
+  window.dispatchEvent(new CustomEvent('machines-changed'));
+}
+
+/** Salva l'ordine in sospeso (i tocchi ravvicinati sulle frecce si raccolgono in un solo salvataggio) */
+async function flushOrder() {
+  clearTimeout(orderTimer);
+  if (!orderDirty) return;
+  orderDirty = false;
+  const ids = currentMachines.filter((m) => m.id).map((m) => m.id);
+  try {
+    await updateMachinesOrder(ids);
+    notifyMachinesChanged();
+  } catch (err) {
+    console.error(err);
+    feedback.errorAction();
+    toastError(err.message || 'Impossibile salvare l\'ordine delle macchine.');
+    refreshMachines();
+  }
+}
 
 export function initMachines() {
   els.form = document.getElementById('machine-form');
@@ -42,11 +69,15 @@ export function initMachines() {
     openOverlay(els.modal);
     refreshMachines();
   });
-  els.closeBtn?.addEventListener('click', () => closeOverlay(els.modal));
+  const closeModal = () => {
+    flushOrder();
+    closeOverlay(els.modal);
+  };
+  els.closeBtn?.addEventListener('click', closeModal);
   els.modal?.addEventListener('click', (e) => {
-    if (e.target === els.modal) closeOverlay(els.modal);
+    if (e.target === els.modal) closeModal();
   });
-  enableSheetDrag(els.modal?.querySelector('.modal-panel'), () => closeOverlay(els.modal));
+  enableSheetDrag(els.modal?.querySelector('.modal-panel'), closeModal);
 }
 
 export async function refreshMachines() {
@@ -65,13 +96,14 @@ export async function refreshMachines() {
   }
 }
 
-function render(machines) {
+function render(machines, { animate = true } = {}) {
   // Se la tabella non esiste ancora si avvisa e si blocca il modulo: aggiungere non potrebbe funzionare
   els.notice.classList.toggle('hidden', !tableMissing);
   els.input.disabled = tableMissing;
   // Il grigiore arriva dalla regola globale su :disabled, non serve una classe manuale qui.
   els.addBtn.disabled = tableMissing;
 
+  currentMachines = machines;
   els.list.innerHTML = '';
   if (machines.length === 0) {
     const empty = document.createElement('p');
@@ -81,7 +113,7 @@ function render(machines) {
   }
   machines.forEach((m, i) => {
     const row = document.createElement('div');
-    row.className = 'list-item-in card-plate rounded-xl pl-3.5 pr-1.5 py-1.5';
+    row.className = `${animate ? 'list-item-in ' : ''}card-plate rounded-xl pl-3.5 pr-1.5 py-1.5`;
     row.style.setProperty('--i', staggerIndex(i));
 
     const topLine = document.createElement('div');
@@ -101,11 +133,105 @@ function render(machines) {
     topLine.append(name, meta, removeBtn);
     row.appendChild(topLine);
 
+    if (m.id) row.appendChild(buildLineeRow(m));
     row.appendChild(buildManualRow(m));
     els.list.appendChild(row);
   });
   els.list.classList.remove('hidden');
   window.lucide?.createIcons();
+}
+
+/** Linee su cui sta la macchina (almeno una) e frecce per spostarla nell'elenco: vale per tutta l'app */
+function buildLineeRow(machine) {
+  const wrap = document.createElement('div');
+  wrap.className = 'mt-1 pt-1.5 border-t border-graphite-800/70 flex items-center justify-between gap-2';
+
+  const left = document.createElement('div');
+  left.className = 'flex items-center gap-1.5 min-w-0';
+  const label = document.createElement('span');
+  label.className = 'ui-note font-semibold uppercase tracking-wide text-graphite-500 mr-0.5';
+  label.textContent = 'Linee';
+  left.appendChild(label);
+  const active = Array.isArray(machine.linee) && machine.linee.length ? machine.linee : MACHINE_LINES;
+  MACHINE_LINES.forEach((l) => {
+    const on = active.includes(l);
+    const chip = document.createElement('button');
+    chip.type = 'button';
+    chip.setAttribute('aria-pressed', String(on));
+    chip.setAttribute('aria-label', `${LINEA_LABELS[l]}: ${on ? 'presente' : 'assente'}`);
+    chip.className = `min-h-[40px] px-3 rounded-lg border text-xs font-display font-semibold uppercase tracking-wide transition-colors ${
+      on ? 'bg-amber-400 border-amber-400 text-white' : 'bg-graphite-900 border-graphite-700 text-graphite-400'
+    }`;
+    chip.textContent = LINEA_LABELS[l];
+    chip.addEventListener('click', () => toggleLinea(machine, l, chip));
+    left.appendChild(chip);
+  });
+
+  const right = document.createElement('div');
+  right.className = 'flex items-center shrink-0';
+  const registered = currentMachines.filter((x) => x.id);
+  const pos = registered.findIndex((x) => x.id === machine.id);
+  [['up', 'chevron-up', 'Sposta su', pos <= 0], ['down', 'chevron-down', 'Sposta giù', pos === registered.length - 1]].forEach(([dir, icon, text, disabled]) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.disabled = disabled;
+    b.setAttribute('aria-label', `${text}: ${machine.nome}`);
+    b.className = 'w-10 h-10 rounded-lg flex items-center justify-center text-graphite-300 hover:bg-graphite-800 transition-colors';
+    b.innerHTML = `<i data-lucide="${icon}" class="w-5 h-5" stroke-width="2.2"></i>`;
+    b.addEventListener('click', () => moveMachine(machine, dir === 'up' ? -1 : 1));
+    right.appendChild(b);
+  });
+
+  wrap.append(left, right);
+  return wrap;
+}
+
+async function toggleLinea(machine, linea, chip) {
+  const current = Array.isArray(machine.linee) && machine.linee.length ? machine.linee : [...MACHINE_LINES];
+  const next = current.includes(linea) ? current.filter((l) => l !== linea) : [...current, linea];
+  if (!next.length) {
+    feedback.errorAction();
+    toastError('Una macchina deve stare su almeno una linea.');
+    return;
+  }
+  chip.disabled = true;
+  try {
+    machine.linee = await updateMachineLinee(machine.id, next);
+    feedback.modeSelect();
+    notifyMachinesChanged();
+    render(currentMachines, { animate: false }); // si ridisegnano anche gli slot dei manuali, che dipendono dalle linee
+  } catch (err) {
+    console.error(err);
+    feedback.errorAction();
+    toastError(err.message || 'Impossibile salvare le linee della macchina.');
+    chip.disabled = false;
+  }
+}
+
+/** Sposta una macchina di una posizione (tra quelle registrate) e salva l'ordine */
+function moveMachine(machine, delta) {
+  const registered = currentMachines.filter((x) => x.id);
+  const i = registered.findIndex((x) => x.id === machine.id);
+  const j = i + delta;
+  if (i < 0 || j < 0 || j >= registered.length) return;
+  [registered[i], registered[j]] = [registered[j], registered[i]];
+  registered.forEach((x, idx) => {
+    x.sort_order = idx;
+  });
+  currentMachines = [...currentMachines].sort(compareMachines);
+  feedback.tap();
+  orderDirty = true;
+  clearTimeout(orderTimer);
+  orderTimer = setTimeout(flushOrder, 700);
+  render(currentMachines, { animate: false });
+}
+
+/** Gli slot manuale per linea hanno senso solo per le linee su cui sta la macchina (o dove un manuale esiste già) */
+function slotVisible(machine, slot, manuals) {
+  if (slot.value === '' || manuals.has(slot.value)) return true;
+  const active = Array.isArray(machine.linee) && machine.linee.length ? machine.linee : MACHINE_LINES;
+  if (slot.value === 'L1-L2') return MACHINE_LINES.every((l) => active.includes(l));
+  return active.includes(slot.value);
 }
 
 /** Riga secondaria con i manuali ricambi (uno per linea, o "Generale") e i manuali operatore (più di uno) di una macchina, con i relativi controlli (solo Admin). */
@@ -129,7 +255,7 @@ function buildManualRow(machine) {
   wrap.appendChild(spareLabel);
 
   const manuals = getManualsForMachine(machine.id); // Map<linea, riga>
-  LINEA_SLOTS.forEach((slot) => {
+  LINEA_SLOTS.filter((slot) => slotVisible(machine, slot, manuals)).forEach((slot) => {
     wrap.appendChild(buildManualSlotRow(machine, slot, manuals.get(slot.value) || null));
   });
 
@@ -387,6 +513,7 @@ async function handleRemove(machine, btn) {
     if (articoliSvuotati > 0) bumpProductsVersion(); // la lista del Magazzino si aggiorna al rientro
     // Se il Magazzino stava filtrando proprio per questa macchina, il filtro va tolto
     document.dispatchEvent(new CustomEvent('machine-removed', { detail: { nome: machine.nome } }));
+    notifyMachinesChanged();
     await refreshMachines();
   } catch (err) {
     console.error(err);
@@ -405,6 +532,7 @@ async function handleAdd(e) {
     els.input.value = '';
     feedback.confirmAction();
     toastSuccess(`Macchina "${row.nome}" aggiunta.`);
+    notifyMachinesChanged();
     await refreshMachines();
   } catch (err) {
     feedback.errorAction();

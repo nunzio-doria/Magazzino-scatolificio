@@ -126,7 +126,8 @@ export function initProductsDetail() {
     hiddenInput: els.macchinaHidden,
     getOptions: async () => {
       try {
-        return await listDistinctMacchine();
+        // Solo le macchine presenti sulla linea scelta nel form (tutte se la linea non è scelta o è L1-L2)
+        return await listDistinctMacchine({ linea: els.lineaHidden.value });
       } catch (err) {
         console.warn('Impossibile caricare l\'elenco delle macchine registrate.', err);
         return [];
@@ -136,6 +137,7 @@ export function initProductsDetail() {
     // tabella delle macchine (solo admin, come tutto il form articolo) e selezionata.
     allowCustom: true,
     hideSearch: false,
+    keepOrder: true,
     onChange: updateManualButtonVisibility,
     onCreate: async (nome) => {
       try {

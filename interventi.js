@@ -156,13 +156,25 @@ export function initInterventi() {
     const picked = await openPicker({ title: 'Filtra per linea', options: labels, currentValue: lineaLabel(state.filterLinea) });
     if (picked === null) return;
     state.filterLinea = LINEE.find((l) => l.label === picked)?.value || '';
+    if (state.filterLinea && state.filterMacchina) {
+      const onLine = await listDistinctMacchine({ linea: state.filterLinea }).catch(() => null);
+      if (onLine && !onLine.includes(state.filterMacchina)) state.filterMacchina = '';
+    }
     feedback.filterChange();
     paintFilters();
     renderList();
   });
   $('int-filter-macchina-btn').addEventListener('click', async () => {
-    const all = [...state.open, ...state.done].map((r) => r.macchina);
-    const picked = await openPicker({ title: 'Filtra per macchina', options: all, currentValue: state.filterMacchina });
+    // Macchine presenti negli interventi (della linea filtrata, se scelta), nell'ordine scelto dall'admin
+    const used = new Set([...state.open, ...state.done].filter((r) => !state.filterLinea || r.linea === state.filterLinea).map((r) => r.macchina));
+    let ordered = [];
+    try {
+      ordered = await listDistinctMacchine({ linea: state.filterLinea });
+    } catch (err) {
+      console.warn('Ordine macchine non disponibile.', err);
+    }
+    const options = [...ordered.filter((n) => used.has(n)), ...[...used].filter((n) => !ordered.includes(n))];
+    const picked = await openPicker({ title: 'Filtra per macchina', options, keepOrder: true, currentValue: state.filterMacchina });
     if (picked === null) return;
     state.filterMacchina = picked;
     feedback.filterChange();
@@ -375,6 +387,11 @@ function initNewSheet() {
     const changed = draft.linea !== btn.dataset.linea;
     draft.linea = btn.dataset.linea;
     feedback.modeSelect();
+    if (changed && draft.macchina) {
+      // La macchina già scelta deve esistere anche sulla nuova linea, altrimenti si riparte da qui
+      const onLine = await listDistinctMacchine({ linea: draft.linea }).catch(() => null);
+      if (onLine && !onLine.includes(draft.macchina)) draft.macchina = '';
+    }
     paintNew();
     // Veloce: scelta la linea, si apre subito la macchina (se non già scelta)
     if (changed && !draft.macchina) pickNewMacchina();
@@ -425,13 +442,14 @@ async function pickNewMacchina() {
   if (!draft.linea) return;
   let options = [];
   try {
-    options = await listDistinctMacchine();
+    // Solo le macchine presenti sulla linea scelta
+    options = await listDistinctMacchine({ linea: draft.linea });
   } catch (err) {
     feedback.errorAction();
     toastError('Impossibile caricare l\'elenco delle macchine.');
     return;
   }
-  const picked = await openPicker({ title: `Macchina · ${lineaLabel(draft.linea)}`, options, currentValue: draft.macchina });
+  const picked = await openPicker({ title: `Macchina · ${lineaLabel(draft.linea)}`, options, keepOrder: true, currentValue: draft.macchina });
   if (!picked) return;
   const changed = picked !== draft.macchina;
   draft.macchina = picked;

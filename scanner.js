@@ -11,7 +11,8 @@ import {
   searchCachedProducts,
   adjustCachedProductQuantity,
   bumpProductsVersion,
-  listDistinctMacchine,
+  listMachineEntries,
+  machineOnLinea,
   getProductLocations,
 } from './supabase.js';
 import { toastSuccess, toastError, toastWarning } from './toast.js';
@@ -25,7 +26,7 @@ import { shelfLabel } from './products-shared.js';
 let currentMode = null; // 'deposito' | 'prelievo'
 let currentProduct = null;
 let currentLocationId = null; // scaffale scelto per il movimento (obbligatorio se l'articolo sta su più scaffali)
-let machinesCache = null; // elenco macchine per il campo Macchinario del prelievo cuscinetti
+let machinesCache = null; // macchine (con linee) per il campo Macchinario del prelievo cuscinetti
 
 const els = {};
 
@@ -83,6 +84,10 @@ export function initScanner() {
   els.offlineBadge = document.getElementById('scanner-offline-badge');
   els.offlineBadgeCount = document.getElementById('scanner-offline-badge-count');
 
+  // Linee/ordine/elenco delle macchine cambiati dalle Impostazioni: si rilegge al prossimo prelievo
+  window.addEventListener('machines-changed', () => {
+    machinesCache = null;
+  });
   els.lineaGroup?.querySelectorAll('[data-linea]').forEach((btn) => {
     btn.addEventListener('click', () => {
       feedback.focusTap();
@@ -610,6 +615,17 @@ function setLinea(value) {
     const on = btn.dataset.linea === value;
     btn.setAttribute('aria-pressed', String(on));
   });
+  // Il Macchinario segue la linea: su Linea 1 non compaiono le macchine che stanno solo su Linea 2 (e viceversa)
+  if (machinesCache && currentMode === 'prelievo' && !els.macchinarioWrap.classList.contains('hidden')) {
+    const names = machineNamesForLinea(value);
+    const cur = els.macchinarioSelect.value;
+    renderMacchinariOptions(names, names.some((n) => n.toLowerCase() === cur.toLowerCase()) ? cur : '');
+  }
+}
+
+/** Nomi delle macchine presenti sulla linea (tutte se la linea non è ancora scelta), nell'ordine dell'admin */
+function machineNamesForLinea(linea) {
+  return (machinesCache || []).filter((e) => machineOnLinea(e, linea)).map((e) => e.nome);
 }
 
 /**
@@ -656,19 +672,20 @@ function renderMacchinariOptions(names, selected) {
 
 async function fillMacchinari(productMacchina) {
   const preferred = (productMacchina || '').trim();
-  renderMacchinariOptions(machinesCache || [], preferred);
+  const linea = () => els.lineaInput.value;
+  renderMacchinariOptions(machineNamesForLinea(linea()), preferred);
   if (machinesCache) return;
   try {
-    machinesCache = await listDistinctMacchine();
+    machinesCache = await listMachineEntries();
   } catch (err) {
     console.warn('Elenco macchine non disponibile (offline?): resta solo quella dell\'articolo.', err);
     return;
   }
   // Se nel frattempo l'operatore ha già scelto qualcosa, non glielo cambio
   if (currentMode === 'prelievo' && currentProduct && !els.macchinarioSelect.value) {
-    renderMacchinariOptions(machinesCache, preferred);
+    renderMacchinariOptions(machineNamesForLinea(linea()), preferred);
   } else if (currentMode === 'prelievo' && currentProduct) {
-    renderMacchinariOptions(machinesCache, els.macchinarioSelect.value);
+    renderMacchinariOptions(machineNamesForLinea(linea()), els.macchinarioSelect.value);
   }
 }
 

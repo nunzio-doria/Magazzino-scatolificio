@@ -34,13 +34,15 @@ export function initPicker() {
 
 /**
  * Apre il picker e risolve una Promise con il valore scelto.
- * @param {{title:string, options:string[], allowCustom?:boolean, currentValue?:string}} opts
+ * @param {{title:string, options:string[], allowCustom?:boolean, currentValue?:string, keepOrder?:boolean}} opts
  * @returns {Promise<string|null>} valore selezionato, '' se svuotato, null se annullato
  */
-export function openPicker({ title, options, allowCustom = false, currentValue = '' }) {
+export function openPicker({ title, options, allowCustom = false, currentValue = '', keepOrder = false }) {
   return new Promise((resolve) => {
     resolveFn = resolve;
-    allOptions = [...new Set(options.filter(Boolean))].sort((a, b) => a.localeCompare(b, 'it'));
+    // keepOrder: l'elenco ha già un ordine voluto (es. macchine ordinate dall'admin): non si riordina in alfabetico
+    const unique = [...new Set(options.filter(Boolean))];
+    allOptions = keepOrder ? unique : unique.sort((a, b) => a.localeCompare(b, 'it'));
     allowCustomValue = allowCustom;
 
     els.title.textContent = title;
@@ -65,7 +67,8 @@ function renderList(filterText, currentValue) {
     els.list.innerHTML = '<p class="text-center text-sm text-graphite-500 py-6">Nessun valore ancora registrato.</p>';
   }
 
-  for (const opt of filtered) {
+  filtered.forEach((opt, idx) => {
+    if (idx > 0) els.list.appendChild(makeDivider('mx-4'));
     const row = document.createElement('button');
     row.type = 'button';
     row.className =
@@ -77,7 +80,7 @@ function renderList(filterText, currentValue) {
     }`;
     row.addEventListener('click', () => closePicker(opt));
     els.list.appendChild(row);
-  }
+  });
 
   // Se è permesso un valore libero e il testo digitato non corrisponde a nessuna opzione esistente,
   // offre la possibilità di aggiungerlo come nuovo valore.
@@ -95,6 +98,14 @@ function renderList(filterText, currentValue) {
   }
 
   window.lucide?.createIcons();
+}
+
+/** Filo sottile tra una voce e l'altra degli elenchi */
+function makeDivider(extra = '') {
+  const d = document.createElement('div');
+  d.setAttribute('role', 'separator');
+  d.className = `h-px bg-graphite-700/70 ${extra}`;
+  return d;
 }
 
 function closePicker(value) {
@@ -133,7 +144,7 @@ function escapeHtml(str) {
  * @param {(value: string) => Promise<string|null>} [opts.onCreate] - richiamata quando l'utente sceglie "Aggiungi …" (valore nuovo):
  *   deve registrarlo (es. su database) e restituire il valore da usare, oppure null per non selezionare nulla
  */
-export function attachFieldDropdown({ triggerBtn, valueEl, hiddenInput, getOptions, allowCustom = false, hideSearch = false, onChange, onCreate }) {
+export function attachFieldDropdown({ triggerBtn, valueEl, hiddenInput, getOptions, allowCustom = false, hideSearch = false, keepOrder = false, onChange, onCreate }) {
   if (!triggerBtn || triggerBtn.dataset.fieldDropdown === 'true') return;
   triggerBtn.dataset.fieldDropdown = 'true';
   triggerBtn.classList.add('custom-select-trigger');
@@ -175,20 +186,26 @@ export function attachFieldDropdown({ triggerBtn, valueEl, hiddenInput, getOptio
   let loading = false;
   let allOptions = [];
 
+  // keepOrder: l'elenco ha già un ordine voluto (es. macchine ordinate dall'admin)
+  function normalizeOptions(list) {
+    const unique = [...new Set(list.filter(Boolean))];
+    return keepOrder ? unique : unique.sort((a, b) => a.localeCompare(b, 'it'));
+  }
+
   function currentValue() {
     return hiddenInput.value || '';
   }
 
   async function loadOptions() {
     if (typeof getOptions !== 'function') {
-      allOptions = [...new Set((getOptions || []).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'it'));
+      allOptions = normalizeOptions(getOptions || []);
       return;
     }
     loading = true;
     renderList(searchInput.value);
     try {
       const result = await getOptions();
-      allOptions = [...new Set((result || []).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'it'));
+      allOptions = normalizeOptions(result || []);
     } catch (err) {
       console.warn('Impossibile caricare le opzioni per questo campo.', err);
       allOptions = [];
@@ -211,7 +228,8 @@ export function attachFieldDropdown({ triggerBtn, valueEl, hiddenInput, getOptio
       listEl.innerHTML = '<p class="text-center text-xs text-graphite-500 py-4">Nessun valore ancora registrato.</p>';
     }
 
-    filtered.forEach((opt) => {
+    filtered.forEach((opt, idx) => {
+      if (idx > 0) listEl.appendChild(makeDivider('mx-3.5'));
       const row = document.createElement('button');
       row.type = 'button';
       row.className = 'custom-select-option w-full text-left px-3.5 py-2.5 text-sm rounded-md flex items-center justify-between gap-2';

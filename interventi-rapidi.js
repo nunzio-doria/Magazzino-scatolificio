@@ -40,11 +40,22 @@ export function initInterventiRapidi() {
   els.modal.addEventListener('click', (e) => e.target === els.modal && closeOverlay(els.modal));
   enableSheetDrag(els.modal.querySelector('.modal-panel'), () => closeOverlay(els.modal));
 
-  els.seg.addEventListener('click', (e) => {
+  els.seg.addEventListener('click', async (e) => {
     const btn = e.target.closest('[data-linea]');
     if (!btn) return;
+    const changed = linea !== btn.dataset.linea;
     linea = btn.dataset.linea;
     feedback.modeSelect();
+    if (changed && macchina) {
+      // La macchina già scelta deve esistere anche sulla nuova linea
+      const onLine = await listDistinctMacchine({ linea }).catch(() => null);
+      if (onLine && !onLine.includes(macchina)) {
+        macchina = '';
+        const v = $('rapidi-macchina-value');
+        v.textContent = 'Macchina…';
+        v.classList.replace('text-graphite-100', 'text-graphite-400');
+      }
+    }
     els.seg.querySelectorAll('[data-linea]').forEach((b) => b.classList.toggle('category-tab-active', b.dataset.linea === linea));
     syncSegIndicator(els.seg);
   });
@@ -52,13 +63,14 @@ export function initInterventiRapidi() {
   $('rapidi-macchina-btn').addEventListener('click', async () => {
     let options = [];
     try {
-      options = await listDistinctMacchine();
+      // Solo le macchine presenti sulla linea scelta (tutte se non ancora scelta)
+    options = await listDistinctMacchine({ linea });
     } catch (err) {
       feedback.errorAction();
       toastError('Impossibile caricare l\'elenco delle macchine.');
       return;
     }
-    const picked = await openPicker({ title: 'Macchina', options, currentValue: macchina });
+    const picked = await openPicker({ title: 'Macchina', options, keepOrder: true, currentValue: macchina });
     if (!picked) return;
     macchina = picked;
     feedback.stepDone();

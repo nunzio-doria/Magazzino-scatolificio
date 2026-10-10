@@ -719,6 +719,15 @@ async function pickLineaFilter() {
   });
   if (val === null) return; // annullato
   state.lineaFilterValue = val;
+  // Il filtro macchina non può restare su una macchina che non sta sulla linea appena scelta
+  if (val && state.macchinaFilterValue) {
+    try {
+      const onLine = await listDistinctMacchine({ linea: val });
+      if (!onLine.some((n) => n.toLowerCase() === state.macchinaFilterValue.toLowerCase())) state.macchinaFilterValue = '';
+    } catch (err) {
+      console.warn('Impossibile verificare le macchine della linea.', err);
+    }
+  }
   updateFilterLabels();
   refresh();
 }
@@ -726,13 +735,14 @@ async function pickLineaFilter() {
 async function pickMacchinaFilter() {
   let options = [];
   try {
-    options = await listDistinctMacchine();
+    options = await listDistinctMacchine({ linea: state.lineaFilterValue });
   } catch (err) {
     console.warn('Impossibile caricare l\'elenco delle macchine registrate.', err);
   }
   const val = await openPicker({
     title: 'Filtra per macchina',
     options,
+    keepOrder: true,
     allowCustom: false,
     currentValue: state.macchinaFilterValue,
   });
