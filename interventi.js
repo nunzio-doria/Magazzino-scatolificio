@@ -15,7 +15,7 @@ import {
 import { openPicker } from './picker.js';
 import { toastSuccess, toastError, toastWarning, toastInfo } from './toast.js';
 import { confirmDialog } from './ui-modal.js';
-import { exportGiornoPdf } from './interventi-pdf.js';
+import { exportGiornoPdf, listEffettuatiRange } from './interventi-pdf.js';
 import { pickDateRange } from './date-range-modal.js';
 import { openOverlay, closeOverlay, enableSheetDrag, setButtonBusy, syncSegIndicator, staggerIndex, emptyStateHtml } from './ui-utils.js';
 import { escapeHtml } from './products-shared.js';
@@ -190,6 +190,7 @@ export function initInterventi() {
   initNewSheet();
   initDetailSheet();
   initPhotoViewer();
+  initPdfSheet();
   paintFilters();
 }
 
@@ -323,6 +324,10 @@ function fmtDateTime(iso) {
 
 function renderList() {
   els.notice.classList.toggle('hidden', !state.tableMissing);
+  // Il pulsante PDF è bianco e toccabile solo se esiste almeno un intervento effettuato
+  const pdfBtn = $('int-pdf-btn');
+  pdfBtn.disabled = !state.done.length;
+  pdfBtn.title = state.done.length ? 'Esporta PDF degli interventi effettuati' : 'Nessun intervento effettuato da esportare';
   const openCount = applyFilters(state.open).length;
   const doneCount = applyFilters(state.done).length;
   $('int-count-open').textContent = openCount ? `(${openCount})` : '';
@@ -717,29 +722,128 @@ function showFullPhoto(url) {
 }
 
 // ---------------------------------------------------------------
-// PDF DELLA GIORNATA
+// PDF DEGLI INTERVENTI EFFETTUATI: scelta del giorno e degli interventi da inserire
 // ---------------------------------------------------------------
+const pdf = { from: null, to: null, rows: [], selected: new Set(), busy: false };
+
+const fmtDay = (d) => d.toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', year: 'numeric' });
+const periodLabel = () => (pdf.from.toDateString() === pdf.to.toDateString() ? fmtDay(pdf.from) : `${fmtDay(pdf.from)} - ${fmtDay(pdf.to)}`);
+
+function initPdfSheet() {
+  els.pdfModal = $('int-pdf-modal');
+  const close = () => closeOverlay(els.pdfModal);
+  $('int-pdf-close').addEventListener('click', close);
+  els.pdfModal.addEventListener('click', (e) => e.target === els.pdfModal && close());
+  enableSheetDrag(els.pdfModal.querySelector('.modal-panel'), close);
+  $('int-pdf-change').addEventListener('click', async () => {
+    const range = await pickDateRange({ from: pdf.from, to: pdf.to });
+    if (range) await loadPdfRange(range);
+  });
+  $('int-pdf-all').addEventListener('click', () => {
+    const all = pdf.selected.size !== pdf.rows.length;
+    pdf.selected = new Set(all ? pdf.rows.map((r) => r.id) : []);
+    feedback.modeSelect();
+    paintPdfSheet();
+  });
+  $('int-pdf-go').addEventListener('click', generatePdf);
+}
+
 async function onExportPdf() {
   feedback.tap();
   const range = await pickDateRange({ from: new Date(), to: new Date() });
   if (!range) return;
+  await loadPdfRange(range, { open: true });
+}
+
+/** Legge gli interventi effettuati nel periodo e apre l'elenco da cui scegliere */
+async function loadPdfRange(range, { open = false } = {}) {
   const btn = $('int-pdf-btn');
   btn.disabled = true;
   try {
-    toastInfo('Preparo il PDF…', 2000);
-    const result = await exportGiornoPdf(range.from, range.to, { authorName: authorName() });
-    if (result === 'empty') {
+    const rows = await listEffettuatiRange(range.from.toISOString(), range.to.toISOString());
+    if (!rows.length) {
       feedback.cancelAction();
       toastWarning('Nessun intervento effettuato nel periodo scelto.');
-    } else if (result === true) {
+      return;
+    }
+    // Stesso ordine del PDF: per linea, poi per ora di esecuzione
+    const order = (v) => LINEE.findIndex((l) => l.value === v);
+    rows.sort((a, b) => order(a.linea) - order(b.linea) || new Date(a.esito_at) - new Date(b.esito_at));
+    pdf.from = range.from;
+    pdf.to = range.to;
+    pdf.rows = rows;
+    pdf.selected = new Set(rows.map((r) => r.id)); // di partenza sono tutti selezionati
+    paintPdfSheet();
+    if (open) openOverlay(els.pdfModal);
+  } catch (err) {
+    console.error(err);
+    feedback.errorAction();
+    toastError('Impossibile leggere gli interventi. Controlla la connessione.');
+  } finally {
+    btn.disabled = !state.done.length;
+  }
+}
+
+function paintPdfSheet() {
+  $('int-pdf-period').textContent = periodLabel();
+  const total = pdf.rows.length;
+  const n = pdf.selected.size;
+  $('int-pdf-count').textContent = `${n} di ${total} selezionati`;
+  $('int-pdf-all').textContent = n === total ? 'Deseleziona tutti' : 'Seleziona tutti';
+  const go = $('int-pdf-go');
+  go.disabled = n === 0 || pdf.busy;
+  $('int-pdf-go-label').textContent = n === 0 ? 'Scegli almeno un intervento' : `Genera PDF (${n})`;
+
+  const list = $('int-pdf-list');
+  list.innerHTML = '';
+  pdf.rows.forEach((r) => {
+    const on = pdf.selected.has(r.id);
+    const row = document.createElement('button');
+    row.type = 'button';
+    row.setAttribute('role', 'checkbox');
+    row.setAttribute('aria-checked', String(on));
+    row.className = 'int-card card-plate rounded-xl p-3 flex items-start gap-3 press-spring';
+    row.innerHTML = `
+      <span class="int-check mt-0.5"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="opacity:${on ? 1 : 0}"><path d="m5 12 5 5 9-10"/></svg></span>
+      <span class="min-w-0 flex-1">
+        <span class="flex items-center gap-1.5 mb-1">
+          <span class="ui-label font-display font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-400 text-white">${escapeHtml(lineaLabel(r.linea))}</span>
+          <span class="ui-note text-graphite-500">${escapeHtml(new Date(r.esito_at).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }))}</span>
+        </span>
+        <span class="block font-display font-semibold text-sm uppercase tracking-wide text-graphite-100 truncate">${escapeHtml(r.macchina)}</span>
+        <span class="block text-sm text-graphite-200 leading-snug line-clamp-2">${escapeHtml(r.descrizione)}</span>
+      </span>`;
+    row.addEventListener('click', () => {
+      if (pdf.selected.has(r.id)) pdf.selected.delete(r.id);
+      else pdf.selected.add(r.id);
+      feedback.presetPick();
+      paintPdfSheet();
+    });
+    list.appendChild(row);
+  });
+}
+
+async function generatePdf() {
+  const chosen = pdf.rows.filter((r) => pdf.selected.has(r.id));
+  if (!chosen.length || pdf.busy) return;
+  pdf.busy = true;
+  const go = $('int-pdf-go');
+  setButtonBusy(go, true, 'Preparo il PDF…');
+  try {
+    const result = await exportGiornoPdf(pdf.from, pdf.to, { authorName: authorName(), rows: chosen });
+    if (result === true) {
       feedback.confirmAction();
       toastSuccess('PDF pronto.', 2500);
+      closeOverlay(els.pdfModal);
     }
+    // 'cancelled': l'invio è stato annullato, la scelta resta aperta per riprovare
   } catch (err) {
     console.error(err);
     feedback.errorAction();
     toastError(err?.message || 'Impossibile creare il PDF.');
   } finally {
-    btn.disabled = false;
+    pdf.busy = false;
+    setButtonBusy(go, false);
+    paintPdfSheet();
   }
 }

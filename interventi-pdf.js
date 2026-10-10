@@ -5,6 +5,8 @@
 // =============================================================
 
 import { listEffettuatiRange, LINEE } from './interventi-data.js';
+
+export { listEffettuatiRange };
 import { loadLib } from './ui-utils.js';
 import { confirmDialog } from './ui-modal.js';
 
@@ -23,8 +25,9 @@ const isoDay = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2,
  * @param {Date} to   fine (23:59:59 dell'ultimo giorno)
  * @returns {Promise<'empty'|'cancelled'|true>}
  */
-export async function exportGiornoPdf(from, to, { authorName = '' } = {}) {
-  const rows = await listEffettuatiRange(from.toISOString(), to.toISOString());
+export async function exportGiornoPdf(from, to, { authorName = '', rows: given = null } = {}) {
+  // `rows`: gli interventi scelti dall'utente; senza, si prendono tutti quelli effettuati nel periodo
+  const rows = given ?? (await listEffettuatiRange(from.toISOString(), to.toISOString()));
   if (!rows.length) return 'empty';
 
   await loadLib('jspdf');

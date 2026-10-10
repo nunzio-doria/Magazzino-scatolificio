@@ -779,7 +779,7 @@
           <span id="int-filter-macchina-value" class="text-graphite-400 truncate">Tutte le macchine</span>
           <i data-lucide="chevron-down" class="w-4 h-4 text-graphite-500 shrink-0"></i>
         </button>
-        <button type="button" id="int-pdf-btn" aria-label="Esporta PDF degli interventi effettuati in una giornata" class="press-spring w-11 min-h-[44px] rounded-lg border border-graphite-700 hover:bg-graphite-800 flex items-center justify-center text-graphite-300 transition-colors">
+        <button type="button" id="int-pdf-btn" disabled aria-label="Esporta PDF degli interventi effettuati" class="int-pdf-btn no-dim press-spring w-11 min-h-[44px] rounded-lg flex items-center justify-center">
           <i data-lucide="file-down" class="w-5 h-5" stroke-width="2"></i>
         </button>
       </div>
@@ -1482,6 +1482,31 @@
       <button id="int-detail-delete" type="button" aria-label="Elimina intervento" class="shrink-0 w-12 min-h-[48px] rounded-lg border border-rose-500/40 text-rose-700 hover:bg-rose-50 flex items-center justify-center transition-colors"><i data-lucide="trash-2" class="w-5 h-5" stroke-width="2"></i></button>
       <button id="int-detail-save" type="button" class="press-spring flex-1 rounded-lg bg-amber-400 hover:bg-amber-300 text-white font-display font-semibold uppercase tracking-wide text-sm min-h-[48px] flex items-center justify-center gap-2">
         <i data-lucide="check" class="w-5 h-5" stroke-width="2.5"></i>Salva esito
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- =================== MODALE ESPORTA PDF (scelta degli interventi) =================== -->
+<div id="int-pdf-modal" class="modal-overlay hidden fixed inset-0 z-[91] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm px-0 sm:px-4">
+  <div class="modal-panel w-full sm:max-w-md bg-graphite-900 border border-graphite-700 rounded-t-2xl sm:rounded-2xl max-h-[92vh] flex flex-col">
+    <div data-sheet-drag class="sheet-grabber sm:hidden"><span class="sheet-grabber-pill"></span></div>
+    <div data-sheet-drag class="flex items-center justify-between gap-2 px-5 pb-3 pt-1 sm:pt-3 border-b border-graphite-800 shrink-0">
+      <h3 class="font-display font-bold text-lg uppercase tracking-wide">Esporta PDF</h3>
+      <button id="int-pdf-close" type="button" aria-label="Chiudi" class="modal-close modal-close--on-light"><i data-lucide="x" class="w-6 h-6" stroke-width="2.5"></i></button>
+    </div>
+    <div class="shrink-0 px-5 pt-3 pb-2 flex items-center justify-between gap-2">
+      <p class="text-sm text-graphite-300">Interventi effettuati: <span id="int-pdf-period" class="font-semibold text-graphite-100"></span></p>
+      <button id="int-pdf-change" type="button" class="shrink-0 text-xs font-display font-semibold uppercase tracking-wide text-amber-400 hover:text-amber-300 px-2 min-h-[40px]">Cambia giorno</button>
+    </div>
+    <div class="shrink-0 px-5 pb-2 flex items-center justify-between gap-2">
+      <p id="int-pdf-count" class="ui-note text-graphite-500"></p>
+      <button id="int-pdf-all" type="button" class="text-xs font-display font-semibold uppercase tracking-wide text-graphite-300 hover:text-graphite-100 px-2 min-h-[40px]">Deseleziona tutti</button>
+    </div>
+    <div id="int-pdf-list" class="flex-1 overflow-y-auto px-5 pb-3 space-y-2"></div>
+    <div class="shrink-0 px-5 py-3 border-t border-graphite-800">
+      <button id="int-pdf-go" type="button" class="press-spring w-full rounded-lg bg-amber-400 hover:bg-amber-300 text-white font-display font-semibold uppercase tracking-wide text-sm min-h-[48px] flex items-center justify-center gap-2">
+        <i data-lucide="file-down" class="w-5 h-5" stroke-width="2.2"></i><span id="int-pdf-go-label">Genera PDF</span>
       </button>
     </div>
   </div>

@@ -2495,3 +2495,26 @@ button.int-card:not(:disabled):active { transform: scale(0.985); }
   background: #e7e9ed; border: 1px solid #c3c9d1;
 }
 .seg .category-tab[data-stato="effettuato"].category-tab-active { color: #ffffff !important; }
+
+/* Pulsante PDF degli interventi: bianco e pieno se si può toccare, grigio pieno (mai trasparente) se non c'è nulla da esportare */
+.int-pdf-btn {
+  background: #ffffff;
+  border: 1px solid #c3c9d1;
+  color: #3b4552;
+  transition: background-color var(--dur-fast) ease, color var(--dur-fast) ease;
+}
+.int-pdf-btn:not(:disabled):active { background: #eef0f3; }
+.int-pdf-btn:disabled {
+  background: #d9dce1;
+  border-color: #c3c9d1;
+  color: #8b94a0;
+  opacity: 1;
+}
+/* Casella di selezione nella scelta degli interventi da esportare */
+.int-check {
+  width: 24px; height: 24px; flex: none; border-radius: 0.45rem;
+  border: 2px solid #aab2bd; background: #ffffff; color: #ffffff;
+  display: flex; align-items: center; justify-content: center;
+  transition: background-color var(--dur-fast) ease, border-color var(--dur-fast) ease;
+}
+button[aria-checked="true"] > .int-check { background: var(--accent); border-color: var(--accent); }
