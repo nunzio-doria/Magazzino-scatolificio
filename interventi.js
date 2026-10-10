@@ -754,13 +754,20 @@ function initDetailSheet() {
   });
 
   $('int-detail-photo').addEventListener('click', () => detail?.promemoriaUrl && showFullPhoto(detail.promemoriaUrl));
+  // Tendina degli operatori: si apre e si chiude dal campo
+  $('int-operatore-btn').addEventListener('click', () => {
+    if (!detail) return;
+    detail.opOpen = !detail.opOpen;
+    feedback.tap();
+    paintOperatore();
+  });
   els.detSave.addEventListener('click', saveDetail);
   $('int-detail-delete').addEventListener('click', removeDetail);
 }
 let wirePhotoDetail = null;
 
 async function openDetail(row) {
-  detail = { row, stato: row.stato, operatori: operatoriDi(row), foto: null, fotoUrl: '', rimuovi: false, promemoriaUrl: '' };
+  detail = { row, stato: row.stato, operatori: operatoriDi(row), opOpen: false, foto: null, fotoUrl: '', rimuovi: false, promemoriaUrl: '' };
   ensureOperatori().then(() => detail?.row === row && paintDetail());
   els.detNote.value = row.note_esito || '';
   $('int-detail-title').textContent = row.macchina;
@@ -806,31 +813,54 @@ function paintDetail() {
   paintOperatore();
 }
 
-/** Sezione "Operatori": si sblocca solo quando l'esito è "Effettuato"; si possono scegliere più persone. I nomi non finiscono nel PDF. */
+/** Tendina "Operatori": compare solo con esito "Effettuato" (con "Da effettuare" o "Da completare" non si vede) e permette di sceglierne più d'uno. I nomi non finiscono nel PDF. */
 function paintOperatore() {
-  const step = $('int-operatore-step');
-  step.dataset.locked = String(detail.stato !== 'effettuato');
+  const show = detail.stato === 'effettuato';
+  $('int-operatore-step').classList.toggle('hidden', !show);
+  if (!show) {
+    detail.opOpen = false;
+    return;
+  }
   const names = [...state.operatori];
   detail.operatori.forEach((n) => {
     if (!names.includes(n)) names.unshift(n); // operatore tolto dall'elenco ma già registrato su questo intervento
   });
-  const box = $('int-operatore-chips');
-  box.innerHTML = '';
-  names.forEach((n) => {
-    const b = document.createElement('button');
-    b.type = 'button';
-    b.className = 'int-chip press-spring';
-    b.setAttribute('aria-pressed', String(detail.operatori.includes(n)));
-    b.textContent = n; // testo, mai HTML
-    b.addEventListener('click', () => {
-      // Selezione multipla: ogni tocco aggiunge o toglie quel nome
-      detail.operatori = detail.operatori.includes(n) ? detail.operatori.filter((x) => x !== n) : [...detail.operatori, n];
+  const open = !!detail.opOpen && names.length > 0;
+
+  const value = $('int-operatore-value');
+  value.textContent = detail.operatori.length ? detail.operatori.join(', ') : 'Seleziona operatori…';
+  value.classList.toggle('text-graphite-400', !detail.operatori.length);
+  value.classList.toggle('text-graphite-100', !!detail.operatori.length);
+  $('int-operatore-btn').setAttribute('aria-expanded', String(open));
+  $('int-operatore-chevron').style.transform = open ? 'rotate(180deg)' : '';
+
+  const list = $('int-operatore-list');
+  list.classList.toggle('hidden', !open);
+  list.innerHTML = '';
+  names.forEach((n, idx) => {
+    if (idx > 0) {
+      const d = document.createElement('div');
+      d.setAttribute('role', 'separator');
+      d.className = 'h-px bg-graphite-700/70 mx-3.5';
+      list.appendChild(d);
+    }
+    const on = detail.operatori.includes(n);
+    const row = document.createElement('button');
+    row.type = 'button';
+    row.setAttribute('role', 'checkbox');
+    row.setAttribute('aria-checked', String(on));
+    row.className = 'w-full flex items-center gap-3 px-3.5 min-h-[48px] text-left text-sm text-graphite-100';
+    row.innerHTML = `<span class="int-check"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="opacity:${on ? 1 : 0}"><path d="m5 12 5 5 9-10"/></svg></span><span class="min-w-0 truncate" data-name></span>`;
+    row.querySelector('[data-name]').textContent = n; // testo, mai HTML
+    row.addEventListener('click', () => {
+      // Selezione multipla: la tendina resta aperta, ogni tocco aggiunge o toglie quel nome
+      detail.operatori = on ? detail.operatori.filter((x) => x !== n) : [...detail.operatori, n];
       feedback.presetPick();
       paintOperatore();
     });
-    box.appendChild(b);
+    list.appendChild(row);
   });
-  $('int-operatore-empty').classList.toggle('hidden', names.length > 0);
+  $('int-operatore-empty').classList.toggle('hidden', names.length > 0 || !detail.opOpen);
 }
 
 async function saveDetail() {

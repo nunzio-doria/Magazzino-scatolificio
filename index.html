@@ -1481,10 +1481,15 @@
           <button type="button" data-stato="effettuato" class="category-tab flex-1 min-w-0 rounded-md min-h-[44px] px-1.5 py-1.5 flex items-center justify-center text-center leading-tight text-xs font-display font-semibold uppercase tracking-wide">Effettuato</button>
         </div>
       </div>
-      <div id="int-operatore-step" class="int-step" data-locked="true">
-        <label class="block text-xs font-display font-semibold uppercase tracking-wide text-graphite-400 mb-1.5">Operatori che hanno effettuato il lavoro <span class="normal-case tracking-normal text-graphite-500 font-sans font-normal">(si sblocca con "Effettuato", puoi sceglierne più di uno)</span></label>
-        <div id="int-operatore-chips" class="flex flex-wrap gap-2"></div>
-        <p id="int-operatore-empty" class="hidden text-xs text-graphite-500">Nessun operatore in elenco: l'amministratore li aggiunge da Impostazioni → Operatori.</p>
+      <!-- Operatori: la tendina compare solo quando l'esito è "Effettuato" -->
+      <div id="int-operatore-step" class="hidden">
+        <label class="block text-xs font-display font-semibold uppercase tracking-wide text-graphite-400 mb-1.5">Operatori che hanno effettuato il lavoro <span class="normal-case tracking-normal text-graphite-500 font-sans font-normal">(puoi sceglierne più di uno)</span></label>
+        <button type="button" id="int-operatore-btn" aria-expanded="false" class="w-full flex items-center justify-between rounded-lg bg-graphite-800 border border-graphite-700 px-3.5 py-2.5 text-sm text-left hover:border-amber-400 transition-colors min-h-[44px]">
+          <span id="int-operatore-value" class="truncate text-graphite-400">Seleziona operatori…</span>
+          <i data-lucide="chevron-down" id="int-operatore-chevron" class="w-4 h-4 text-graphite-500 shrink-0 transition-transform"></i>
+        </button>
+        <div id="int-operatore-list" class="hidden mt-1.5 rounded-lg border border-graphite-700 bg-graphite-900 overflow-hidden max-h-60 overflow-y-auto"></div>
+        <p id="int-operatore-empty" class="hidden text-xs text-graphite-500 mt-1.5">Nessun operatore in elenco: l'amministratore li aggiunge da Impostazioni → Operatori.</p>
       </div>
       <div>
         <label class="block text-xs font-display font-semibold uppercase tracking-wide text-graphite-400 mb-1.5" for="int-esito-note">Note sull'esito <span class="normal-case tracking-normal text-graphite-500 font-sans font-normal">(facoltative)</span></label>
