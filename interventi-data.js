@@ -204,13 +204,35 @@ export async function listEffettuatiDays() {
 }
 
 // ---- Operatori (elenco gestito dall'admin dalle Impostazioni) ----
+const cleanName = (n) => String(n || '').trim().replace(/\s+/g, ' ');
+
+/** Cognome di un operatore scritto "Nome Cognome" (tutto ciò che segue il primo nome) */
+export function cognomeDi(n) {
+  const p = cleanName(n).split(' ');
+  return p.length < 2 ? cleanName(n) : p.slice(1).join(' ');
+}
+
+/** "Nicola Vorraro" -> "N. VORRARO" (iniziale puntata e cognome, tutto maiuscolo) */
+export function formatOperatore(n) {
+  const c = cleanName(n);
+  const p = c.split(' ');
+  if (p.length < 2) return c.toUpperCase();
+  const ini = (p[0].match(/\p{L}/u) || [''])[0].toUpperCase();
+  return `${ini}. ${p.slice(1).join(' ').toUpperCase()}`;
+}
+
+/** Ordine alfabetico per cognome (poi per nome) */
+export const compareOperatori = (a, b) =>
+  cognomeDi(a).localeCompare(cognomeDi(b), 'it', { sensitivity: 'base' }) || cleanName(a).localeCompare(cleanName(b), 'it', { sensitivity: 'base' });
+export const sortOperatori = (list) => [...list].sort(compareOperatori);
+
 export async function listOperatori() {
   const { data, error } = await supabase.from('interventi_operatori').select('id, nome').order('nome', { ascending: true });
   if (error) {
     if (isMissingTable(error)) return { tableMissing: true, operatori: [] };
     throw error;
   }
-  return { tableMissing: false, operatori: data };
+  return { tableMissing: false, operatori: [...data].sort((a, b) => compareOperatori(a.nome, b.nome)) };
 }
 
 export async function createOperatore(nome) {

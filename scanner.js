@@ -838,8 +838,7 @@ export function startMovement(product, mode) {
    Ingresso animato di Movimenti (solo al primo arrivo dopo l'apertura/accesso):
    1. le schede "Articoli sotto scorta" e "Ultimi movimenti" salgono una dopo l'altra
       da dietro la barra in basso;
-   2. Deposito arriva da sinistra e Prelievo da destra, si scontrano al centro,
-      rimbalzano e si assestano dove stanno sempre.
+   2. Deposito e poi Prelievo entrano uno dopo l'altro, in modo semplice (nessun rimbalzo).
    Web Animations API: solo transform/opacity, nessuno stato lasciato dietro.
    ------------------------------------------------------------------ */
 export function playScannerIntro() {
@@ -872,26 +871,20 @@ export function playScannerIntro() {
         );
       });
 
-      // 2) Pulsanti: arrivano dai lati, si toccano al centro, rimbalzano e si assestano
+      // 2) Pulsanti: dopo la lista, entrano semplicemente uno dopo l'altro (Deposito, poi Prelievo): niente rimbalzo
       if (dep && pre) {
-        const rd = dep.getBoundingClientRect();
-        const rp = pre.getBoundingClientRect();
-        const half = Math.max(2, (rp.left - rd.right) / 2); // metà spazio tra i due = punto di contatto
-        const fromLeft = rd.right + 28; // fuori schermo a sinistra
-        const fromRight = window.innerWidth - rp.left + 28; // fuori schermo a destra
-        const delay = 160 + Math.max(0, cards.length - 1) * 170 + 0;
-        const timing = { duration: 1050, delay, fill: 'backwards' };
-        const P = 'perspective(700px)';
-        const frames = (dir, from) => [
-          { offset: 0, transform: `${P} translateX(${-dir * from}px) rotateY(${-dir * 16}deg)`, easing: 'cubic-bezier(0.45, 0, 0.9, 0.55)' },
-          { offset: 0.5, transform: `${P} translateX(${dir * half}px) rotateY(${-dir * 5}deg) scaleX(1)`, easing: 'ease-out' },
-          { offset: 0.56, transform: `${P} translateX(${dir * (half - 1)}px) rotateY(0deg) scaleX(0.93)`, easing: 'cubic-bezier(0.2, 0.7, 0.3, 1)' },
-          { offset: 0.74, transform: `${P} translateX(${-dir * 11}px) rotateY(${dir * 6}deg) scaleX(1.02)`, easing: 'ease-in-out' },
-          { offset: 0.88, transform: `${P} translateX(${dir * 3}px) rotateY(${-dir * 1.5}deg) scaleX(1)`, easing: 'ease-in-out' },
-          { offset: 1, transform: `${P} translateX(0) rotateY(0deg) scaleX(1)` },
-        ];
-        anims.push(dep.animate(frames(1, fromLeft), timing));
-        anims.push(pre.animate(frames(-1, fromRight), timing));
+        const base = 160 + Math.max(0, cards.length) * 170;
+        [dep, pre].forEach((btn, i) => {
+          anims.push(
+            btn.animate(
+              [
+                { transform: 'translateY(22px)', opacity: 0 },
+                { transform: 'translateY(0)', opacity: 1 },
+              ],
+              { duration: 480, delay: base + i * 130, easing: 'cubic-bezier(0.16, 1, 0.3, 1)', fill: 'backwards' }
+            )
+          );
+        });
       }
 
       view.classList.remove('intro-pending'); // le animazioni (fill backwards) tengono già la posizione di partenza

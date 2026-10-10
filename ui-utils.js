@@ -310,8 +310,15 @@ export function syncSegIndicator(seg) {
   const active = seg.querySelector('.category-tab-active, .view-mode-tab-active, .nav-active');
   // Controlli con .seg-optional (barra in basso): nessuna voce attiva (es. Impostazioni) =
   // l'indicatore si dissolve sul posto, senza perdere la posizione per il ritorno.
-  if (!active && seg.classList.contains('seg-optional') && seg.offsetWidth) {
+  const optional = seg.classList.contains('seg-optional');
+  if (!active && optional && seg.offsetWidth) {
     seg.classList.add('seg-empty');
+    return;
+  }
+  // Nessuna voce scelta (es. Linea di un nuovo intervento): l'indicatore non deve restare sulla scelta precedente
+  if (!active && !optional) {
+    seg.classList.add('seg-empty');
+    seg._segHidden = true;
     return;
   }
   seg.classList.remove('seg-empty');

@@ -2538,3 +2538,9 @@ button[aria-checked="true"] > .int-check { background: var(--accent); border-col
 /* Riga intervento dentro la scheda della macchina */
 .int-row { transition: background-color var(--dur-fast) ease; }
 .int-row:active { background-color: var(--accent-tint-soft); }
+
+/* Foto a tutto schermo con zoom: i gesti li gestisce il programma, non il browser */
+.int-zoom-stage { touch-action: none; user-select: none; -webkit-user-select: none; }
+#int-photo-full { transform-origin: center center; will-change: transform; -webkit-user-drag: none; }
+/* Segmenti senza voce attiva: l'indicatore blu non resta sulla scelta precedente */
+.seg.seg-empty .seg-indicator { opacity: 0; }

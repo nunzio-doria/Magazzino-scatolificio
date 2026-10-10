@@ -4,7 +4,7 @@
 // Interventi, scelte linea e macchina, compaiono da soli come scelte rapide.
 // =============================================================
 
-import { LINEE, lineaLabel, listRapidi, createRapido, deleteRapido, listOperatori, createOperatore, deleteOperatore } from './interventi-data.js';
+import { LINEE, lineaLabel, listRapidi, createRapido, deleteRapido, listOperatori, createOperatore, deleteOperatore, formatOperatore, compareOperatori } from './interventi-data.js';
 import { listDistinctMacchine } from './supabase.js';
 import { invalidateRapidi, invalidateOperatori } from './interventi.js';
 import { openPicker } from './picker.js';
@@ -231,16 +231,16 @@ function renderOperatori(operatori) {
     p.textContent = 'Nessun operatore ancora in elenco.';
     op.list.appendChild(p);
   }
-  operatori.forEach((o, i) => {
+  [...operatori].sort((a, b) => compareOperatori(a.nome, b.nome)).forEach((o, i) => {
     const row = document.createElement('div');
     row.className = 'list-item-in card-plate rounded-xl pl-3.5 pr-1.5 py-1.5 flex items-center justify-between gap-2';
     row.style.setProperty('--i', staggerIndex(i));
     const name = document.createElement('span');
     name.className = 'min-w-0 text-sm font-medium text-graphite-100';
-    name.textContent = o.nome; // testo, mai HTML
+    name.textContent = formatOperatore(o.nome); // es. "N. VORRARO" (testo, mai HTML)
     const del = document.createElement('button');
     del.type = 'button';
-    del.setAttribute('aria-label', `Rimuovi ${o.nome}`);
+    del.setAttribute('aria-label', `Rimuovi ${formatOperatore(o.nome)}`);
     del.className = 'shrink-0 w-11 h-11 rounded-lg flex items-center justify-center text-rose-700 hover:bg-rose-50 transition-colors';
     del.innerHTML = '<i data-lucide="trash-2" class="w-5 h-5" stroke-width="2"></i>';
     del.addEventListener('click', () => onRemoveOperatore(o));
@@ -269,7 +269,7 @@ async function onAddOperatore(e) {
 }
 
 async function onRemoveOperatore(o) {
-  const ok = await confirmDialog({ title: 'Rimuovere l\'operatore?', message: `${o.nome} non comparirà più tra le scelte. Gli interventi già chiusi con il suo nome non cambiano.`, confirmLabel: 'Rimuovi', danger: true });
+  const ok = await confirmDialog({ title: 'Rimuovere l\'operatore?', message: `${formatOperatore(o.nome)} non comparirà più tra le scelte. Gli interventi già chiusi con il suo nome non cambiano.`, confirmLabel: 'Rimuovi', danger: true });
   if (!ok) return;
   try {
     await deleteOperatore(o.id);

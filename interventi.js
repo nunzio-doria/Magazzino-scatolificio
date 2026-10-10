@@ -11,7 +11,7 @@ import { listDistinctMacchine } from './supabase.js';
 import {
   LINEE, STATI, lineaLabel, rapidoMatches,
   listInterventi, createIntervento, updateEsito, deleteIntervento, signedUrls, listRapidi,
-  listEffettuatiRange, listEffettuatiDays, dayKey, keyToDate, listOperatori, operatoriDi,
+  listEffettuatiRange, listEffettuatiDays, dayKey, keyToDate, listOperatori, operatoriDi, formatOperatore, sortOperatori,
 } from './interventi-data.js';
 import { openPicker } from './picker.js';
 import { toastSuccess, toastError, toastWarning, toastInfo } from './toast.js';
@@ -111,6 +111,9 @@ function wirePhoto(pfx, onChange) {
     feedback.cancelAction();
     onChange(null, '');
   });
+  // La foto già scelta si può ingrandire e zoomare toccandola
+  img.classList.add('cursor-zoom-in');
+  img.addEventListener('click', () => img.src && openPhotoViewer(img.src));
   const handle = async (input) => {
     const file = input.files?.[0];
     input.value = '';
@@ -388,7 +391,7 @@ export function openInterventoDetail(row) {
 async function ensureOperatori() {
   if (state.operatoriLoaded) return;
   try {
-    state.operatori = (await listOperatori()).operatori.map((o) => o.nome);
+    state.operatori = sortOperatori((await listOperatori()).operatori.map((o) => o.nome));
     state.operatoriLoaded = true;
   } catch (err) {
     console.warn('Operatori non disponibili.', err);
@@ -503,7 +506,7 @@ function renderList() {
         row.dataset.id = r.id;
         row.className = 'int-row w-full text-left px-3.5 py-3 flex items-start gap-3 border-t border-graphite-700/70';
         const ops = operatoriDi(r);
-        const who = r.stato === 'effettuato' ? (ops.length ? ops.join(', ') : r.esito_by_name) : r.created_by_name;
+        const who = r.stato === 'effettuato' ? (ops.length ? ops.map(formatOperatore).join(', ') : r.esito_by_name) : r.created_by_name;
         const when = r.stato === 'effettuato' ? `Fatto ${fmtDateTime(r.esito_at)}${who ? ` · ${who}` : ''}` : `${fmtDateTime(r.created_at)}${who ? ` · ${who}` : ''}`;
         row.innerHTML = `
           <div class="min-w-0 flex-1">
@@ -537,6 +540,12 @@ async function loadThumbs(rows) {
       if (p && urls[p] && img) {
         img.src = urls[p];
         img.classList.remove('hidden');
+        img.classList.add('cursor-zoom-in');
+        // Toccando la miniatura si ingrandisce la foto (senza aprire l'intervento)
+        img.addEventListener('click', (e) => {
+          e.stopPropagation();
+          openPhotoViewer(urls[p]);
+        });
       }
     });
   } catch (err) {
@@ -575,8 +584,7 @@ function initNewSheet() {
       if (onLine && !onLine.includes(draft.macchina)) draft.macchina = '';
     }
     paintNew();
-    // Veloce: scelta la linea, si apre subito la macchina (se non già scelta)
-    if (changed && !draft.macchina) pickNewMacchina();
+    // La macchina si sceglie a mano, toccando il campo: non si apre più da sola
   });
 
   // 2 · Macchina
@@ -753,7 +761,7 @@ function initDetailSheet() {
     paintDetail();
   });
 
-  $('int-detail-photo').addEventListener('click', () => detail?.promemoriaUrl && showFullPhoto(detail.promemoriaUrl));
+  $('int-detail-photo').addEventListener('click', () => detail?.promemoriaUrl && openPhotoViewer(detail.promemoriaUrl));
   // Tendina degli operatori: si apre e si chiude dal campo
   $('int-operatore-btn').addEventListener('click', () => {
     if (!detail) return;
@@ -823,12 +831,15 @@ function paintOperatore() {
   }
   const names = [...state.operatori];
   detail.operatori.forEach((n) => {
-    if (!names.includes(n)) names.unshift(n); // operatore tolto dall'elenco ma già registrato su questo intervento
+    if (!names.includes(n)) names.push(n); // operatore tolto dall'elenco ma già registrato su questo intervento
   });
+  const sortedNames = sortOperatori(names); // alfabetico per cognome
+  names.length = 0;
+  names.push(...sortedNames);
   const open = !!detail.opOpen && names.length > 0;
 
   const value = $('int-operatore-value');
-  value.textContent = detail.operatori.length ? detail.operatori.join(', ') : 'Seleziona operatori…';
+  value.textContent = detail.operatori.length ? sortOperatori(detail.operatori).map(formatOperatore).join(', ') : 'Seleziona operatori…';
   value.classList.toggle('text-graphite-400', !detail.operatori.length);
   value.classList.toggle('text-graphite-100', !!detail.operatori.length);
   $('int-operatore-btn').setAttribute('aria-expanded', String(open));
@@ -851,7 +862,7 @@ function paintOperatore() {
     row.setAttribute('aria-checked', String(on));
     row.className = 'w-full flex items-center gap-3 px-3.5 min-h-[48px] text-left text-sm text-graphite-100';
     row.innerHTML = `<span class="int-check"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="opacity:${on ? 1 : 0}"><path d="m5 12 5 5 9-10"/></svg></span><span class="min-w-0 truncate" data-name></span>`;
-    row.querySelector('[data-name]').textContent = n; // testo, mai HTML
+    row.querySelector('[data-name]').textContent = formatOperatore(n); // es. "N. VORRARO" (testo, mai HTML)
     row.addEventListener('click', () => {
       // Selezione multipla: la tendina resta aperta, ogni tocco aggiunge o toglie quel nome
       detail.operatori = on ? detail.operatori.filter((x) => x !== n) : [...detail.operatori, n];
@@ -927,16 +938,134 @@ async function removeDetail() {
 }
 
 // ---------------------------------------------------------------
-// FOTO A TUTTO SCHERMO
+// FOTO A TUTTO SCHERMO, con zoom: pizzico con due dita, doppio tocco, rotella, trascinamento
 // ---------------------------------------------------------------
+const zoom = { scale: 1, x: 0, y: 0, pointers: new Map(), pinch: null, pan: null, tap: null, lastTap: 0 };
+const ZOOM_MAX = 6;
+
 function initPhotoViewer() {
   els.photoModal = $('int-photo-modal');
-  const close = () => closeOverlay(els.photoModal);
-  $('int-photo-close').addEventListener('click', close);
-  els.photoModal.addEventListener('click', close);
+  els.photoStage = $('int-photo-stage');
+  els.photoImg = $('int-photo-full');
+  $('int-photo-close').addEventListener('click', () => closeOverlay(els.photoModal));
+
+  const stage = els.photoStage;
+  stage.addEventListener('pointerdown', (e) => {
+    stage.setPointerCapture?.(e.pointerId);
+    zoom.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    zoom.tap = zoom.pointers.size === 1 ? { t: Date.now(), x: e.clientX, y: e.clientY, moved: false } : null;
+    startGesture();
+  });
+  stage.addEventListener('pointermove', (e) => {
+    if (!zoom.pointers.has(e.pointerId)) return;
+    zoom.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (zoom.tap && Math.hypot(e.clientX - zoom.tap.x, e.clientY - zoom.tap.y) > 8) zoom.tap.moved = true;
+    if (zoom.pointers.size >= 2 && zoom.pinch) {
+      const [a, b] = [...zoom.pointers.values()];
+      const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+      const scale = Math.min(ZOOM_MAX, Math.max(1, (zoom.pinch.scale * Math.hypot(a.x - b.x, a.y - b.y)) / zoom.pinch.dist));
+      const c = stageCenter();
+      // il punto dell'immagine sotto le dita resta sotto le dita
+      zoom.x = mid.x - c.x - ((zoom.pinch.mid.x - c.x - zoom.pinch.x) / zoom.pinch.scale) * scale;
+      zoom.y = mid.y - c.y - ((zoom.pinch.mid.y - c.y - zoom.pinch.y) / zoom.pinch.scale) * scale;
+      zoom.scale = scale;
+      applyZoom();
+    } else if (zoom.pointers.size === 1 && zoom.pan && zoom.scale > 1) {
+      zoom.x = zoom.pan.x + (e.clientX - zoom.pan.px);
+      zoom.y = zoom.pan.y + (e.clientY - zoom.pan.py);
+      applyZoom();
+    }
+  });
+  const end = (e) => {
+    if (!zoom.pointers.has(e.pointerId)) return;
+    const wasSingle = zoom.pointers.size === 1;
+    zoom.pointers.delete(e.pointerId);
+    if (wasSingle && zoom.tap && !zoom.tap.moved && Date.now() - zoom.tap.t < 300) {
+      const now = Date.now();
+      if (now - zoom.lastTap < 320) {
+        zoom.lastTap = 0;
+        toggleZoomAt(e.clientX, e.clientY); // doppio tocco: ingrandisce / torna intero
+      } else {
+        zoom.lastTap = now;
+      }
+    }
+    zoom.tap = null;
+    if (zoom.scale < 1.02) {
+      zoom.scale = 1;
+      zoom.x = zoom.y = 0;
+      applyZoom(true);
+    }
+    startGesture(); // con un dito rimasto si riparte dal trascinamento
+  };
+  stage.addEventListener('pointerup', end);
+  stage.addEventListener('pointercancel', end);
+  stage.addEventListener(
+    'wheel',
+    (e) => {
+      e.preventDefault();
+      zoomAt(e.clientX, e.clientY, Math.min(ZOOM_MAX, Math.max(1, zoom.scale * Math.exp(-e.deltaY * 0.0018))));
+    },
+    { passive: false }
+  );
 }
-function showFullPhoto(url) {
-  $('int-photo-full').src = url;
+
+const stageCenter = () => {
+  const r = els.photoStage.getBoundingClientRect();
+  return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+};
+
+/** Fissa il punto di partenza di pizzico o trascinamento con i dita attuali */
+function startGesture() {
+  const pts = [...zoom.pointers.values()];
+  zoom.pinch = null;
+  zoom.pan = null;
+  if (pts.length >= 2) {
+    const [a, b] = pts;
+    zoom.pinch = { dist: Math.max(1, Math.hypot(a.x - b.x, a.y - b.y)), mid: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }, scale: zoom.scale, x: zoom.x, y: zoom.y };
+  } else if (pts.length === 1) {
+    zoom.pan = { x: zoom.x, y: zoom.y, px: pts[0].x, py: pts[0].y };
+  }
+}
+
+/** Porta lo zoom a `scale` tenendo fermo il punto (cx, cy) dello schermo */
+function zoomAt(cx, cy, scale, animated = false) {
+  const c = stageCenter();
+  const k = scale / zoom.scale;
+  zoom.x = cx - c.x - (cx - c.x - zoom.x) * k;
+  zoom.y = cy - c.y - (cy - c.y - zoom.y) * k;
+  zoom.scale = scale;
+  if (scale <= 1.02) {
+    zoom.scale = 1;
+    zoom.x = zoom.y = 0;
+  }
+  applyZoom(animated);
+}
+
+function toggleZoomAt(cx, cy) {
+  zoomAt(cx, cy, zoom.scale > 1.05 ? 1 : 2.6, true);
+}
+
+/** Applica lo zoom tenendo l'immagine dentro lo schermo (niente bordi vuoti quando è ingrandita) */
+function applyZoom(animated = false) {
+  const img = els.photoImg;
+  const stage = els.photoStage.getBoundingClientRect();
+  const maxX = Math.max(0, (img.offsetWidth * zoom.scale - stage.width) / 2);
+  const maxY = Math.max(0, (img.offsetHeight * zoom.scale - stage.height) / 2);
+  zoom.x = Math.min(maxX, Math.max(-maxX, zoom.x));
+  zoom.y = Math.min(maxY, Math.max(-maxY, zoom.y));
+  img.style.transition = animated ? 'transform 200ms cubic-bezier(0.16, 1, 0.3, 1)' : 'none';
+  img.style.transform = `translate(${zoom.x}px, ${zoom.y}px) scale(${zoom.scale})`;
+}
+
+/** Apre la foto a tutto schermo, sempre intera all'inizio */
+function openPhotoViewer(url) {
+  zoom.scale = 1;
+  zoom.x = zoom.y = 0;
+  zoom.pointers.clear();
+  zoom.lastTap = 0;
+  els.photoImg.style.transition = 'none';
+  els.photoImg.style.transform = '';
+  els.photoImg.src = url;
   openOverlay(els.photoModal);
 }
 
