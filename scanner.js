@@ -22,6 +22,7 @@ import { enqueueTransaction, onQueueChange, getQueueCount, isNetworkError } from
 import { animateNumber, replayAnimation, emptyStateHtml, openOverlay, closeOverlay, enableSheetDrag, setButtonBusy } from './ui-utils.js';
 import { CATEGORY_LABELS } from './products.js';
 import { shelfLabel } from './products-shared.js';
+import { listPuntiSuggeriti, normPunto } from './punti-utilizzo.js';
 
 let currentMode = null; // 'deposito' | 'prelievo'
 let currentProduct = null;
@@ -60,6 +61,8 @@ export function initScanner() {
   els.puntoInput = document.getElementById('scan-punto-input');
   els.puntoWrap = document.getElementById('scan-punto-wrap');
   els.puntoLabel = document.getElementById('scan-punto-label');
+els.puntoToggle = document.getElementById('scan-punto-toggle');
+els.puntoSuggest = document.getElementById('scan-punto-suggest');
   els.prelievoFields = document.getElementById('scan-prelievo-fields');
   els.lineaGroup = document.getElementById('scan-linea-group');
   els.lineaInput = document.getElementById('scan-linea-input');
@@ -87,6 +90,28 @@ export function initScanner() {
   // Linee/ordine/elenco delle macchine cambiati dalle Impostazioni: si rilegge al prossimo prelievo
   window.addEventListener('machines-changed', () => {
     machinesCache = null;
+  });
+
+  // Punto di utilizzo dei cuscinetti: tendina con i punti già usati per questo cuscinetto su questa linea e macchina
+  els.puntoInput.addEventListener('focus', () => {
+    puntiOpen = true;
+    paintPunti();
+  });
+  els.puntoInput.addEventListener('input', () => {
+    puntiOpen = true;
+    paintPunti();
+  });
+  els.puntoToggle.addEventListener('click', () => {
+    puntiOpen = !puntiOpen;
+    feedback.tap();
+    paintPunti();
+  });
+  els.macchinarioSelect.addEventListener('change', refreshPuntiSuggeriti);
+  document.addEventListener('pointerdown', (e) => {
+    if (puntiOpen && !els.puntoWrap.contains(e.target)) {
+      puntiOpen = false;
+      paintPunti();
+    }
   });
   els.lineaGroup?.querySelectorAll('[data-linea]').forEach((btn) => {
     btn.addEventListener('click', () => {
@@ -615,6 +640,7 @@ function setLinea(value) {
     const on = btn.dataset.linea === value;
     btn.setAttribute('aria-pressed', String(on));
   });
+  refreshPuntiSuggeriti();
   // Il Macchinario segue la linea: su Linea 1 non compaiono le macchine che stanno solo su Linea 2 (e viceversa)
   if (machinesCache && currentMode === 'prelievo' && !els.macchinarioWrap.classList.contains('hidden')) {
     const names = machineNamesForLinea(value);
@@ -649,6 +675,79 @@ function setupPrelievoFields(product) {
   els.lineaFixed.classList.toggle('hidden', !fixedLinea);
   els.lineaFixedName.textContent = fixedLinea === 'L1' ? 'Linea 1' : fixedLinea === 'L2' ? 'Linea 2' : '';
   if (isPrelievo && isBearing) fillMacchinari(product.macchina);
+  puntiOpen = false;
+  refreshPuntiSuggeriti();
+}
+
+// ---------------------------------------------------------------
+// Punto di utilizzo: suggerimenti (solo cuscinetti, Prelievo)
+// ---------------------------------------------------------------
+let puntiSuggeriti = [];
+let puntiSeq = 0;
+let puntiOpen = false;
+
+const isBearingPrelievo = () => currentMode === 'prelievo' && currentProduct?.categoria === 'cuscinetti';
+
+/** Rilegge i punti già usati per questo cuscinetto su questa linea e macchina (si chiama a ogni cambio di scelta) */
+async function refreshPuntiSuggeriti() {
+  const seq = ++puntiSeq;
+  puntiSuggeriti = [];
+  if (isBearingPrelievo() && els.lineaInput.value && els.macchinarioSelect.value) {
+    try {
+      const list = await listPuntiSuggeriti({ productId: currentProduct.id, linea: els.lineaInput.value, macchinario: els.macchinarioSelect.value });
+      if (seq !== puntiSeq) return; // nel frattempo è cambiata la scelta
+      puntiSuggeriti = list;
+    } catch (err) {
+      console.warn('Punti di utilizzo non disponibili (offline?).', err);
+    }
+  }
+  paintPunti();
+}
+
+function paintPunti() {
+  const has = isBearingPrelievo() && puntiSuggeriti.length > 0;
+  els.puntoToggle.style.display = has ? '' : 'none'; // (non [hidden]: la classe flex lo annullerebbe)
+  els.puntoInput.classList.toggle('pr-12', has);
+  const q = normPunto(els.puntoInput.value);
+  const shown = has ? puntiSuggeriti.filter((s) => !q || normPunto(s.punto).includes(q)) : [];
+  const open = has && puntiOpen && shown.length > 0;
+  els.puntoSuggest.hidden = !open;
+  els.puntoToggle.setAttribute('aria-expanded', String(open));
+  const chevron = els.puntoToggle.firstElementChild;
+  if (chevron) chevron.style.transform = open ? 'rotate(180deg)' : '';
+  if (!open) return;
+
+  els.puntoSuggest.innerHTML = '';
+  const cap = document.createElement('p');
+  cap.className = 'px-3 pt-2 pb-1 ui-note font-semibold uppercase tracking-wide text-graphite-500';
+  cap.textContent = 'Già montato qui';
+  els.puntoSuggest.appendChild(cap);
+  shown.forEach((s) => {
+    const d = document.createElement('div');
+    d.setAttribute('role', 'separator');
+    d.className = 'h-px bg-graphite-700/70 mx-3';
+    els.puntoSuggest.appendChild(d);
+    const row = document.createElement('button');
+    row.type = 'button';
+    row.setAttribute('role', 'option');
+    row.className = 'w-full text-left px-3 py-2.5 min-h-[48px] active:bg-graphite-800';
+    const name = document.createElement('span');
+    name.className = 'block text-sm font-medium text-graphite-100';
+    name.textContent = s.punto; // testo, mai HTML
+    const meta = document.createElement('span');
+    meta.className = 'block ui-note text-graphite-500';
+    meta.textContent = `montato ${s.volte} ${s.volte === 1 ? 'volta' : 'volte'} · ultimo ${new Date(s.ultimo).toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', year: '2-digit' })}`;
+    row.append(name, meta);
+    // pointerdown: la scelta avviene prima che il campo perda il focus
+    row.addEventListener('pointerdown', (e) => e.preventDefault());
+    row.addEventListener('click', () => {
+      els.puntoInput.value = s.punto;
+      puntiOpen = false;
+      feedback.presetPick();
+      paintPunti();
+    });
+    els.puntoSuggest.appendChild(row);
+  });
 }
 
 function renderMacchinariOptions(names, selected) {
@@ -668,6 +767,7 @@ function renderMacchinariOptions(names, selected) {
   });
   const match = selected ? list.find((n) => n.toLowerCase() === selected.toLowerCase()) : '';
   sel.value = match || '';
+  refreshPuntiSuggeriti();
 }
 
 async function fillMacchinari(productMacchina) {
@@ -691,6 +791,9 @@ async function fillMacchinari(productMacchina) {
 
 function resetResult() {
   currentProduct = null;
+  puntiSuggeriti = [];
+  puntiOpen = false;
+  if (els.puntoSuggest) paintPunti();
   currentLocationId = null;
   els.resultCard.classList.add('hidden');
   els.resultSkeleton.classList.add('hidden');
@@ -783,7 +886,7 @@ async function confirmTransaction() {
   // Prelievo: linea sempre obbligatoria; per i cuscinetti anche macchinario e punto di utilizzo
   let linea = null;
   let macchinario = null;
-  const punto = els.puntoInput.value.trim();
+  let punto = els.puntoInput.value.trim();
   if (currentMode === 'prelievo') {
     linea = els.lineaInput.value;
     if (!linea) {
@@ -803,6 +906,10 @@ async function confirmTransaction() {
         toastError('Indica il punto di utilizzo del cuscinetto.');
         return;
       }
+      // Se coincide (a meno di maiuscole, accenti, punteggiatura) con un punto già usato, si registra scritto come quello:
+      // così lo stesso posto resta sempre un solo posto nel calcolo della vita utile
+      const same = puntiSuggeriti.find((s) => normPunto(s.punto) === normPunto(punto));
+      if (same) punto = same.punto;
     }
   }
 
