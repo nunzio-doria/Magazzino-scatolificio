@@ -770,6 +770,20 @@
         <button type="button" data-int-tab="done" class="category-tab flex-1 min-w-0 rounded-md min-h-[44px] px-1.5 py-1.5 flex items-center justify-center text-center leading-tight text-xs font-display font-semibold uppercase tracking-wide">Effettuati<span id="int-count-done" class="ml-1.5 font-mono"></span></button>
       </div>
 
+      <!-- Giorno degli interventi effettuati: un giorno alla volta, con pallino blu nel calendario sui giorni con interventi -->
+      <div id="int-date-row" class="hidden flex items-center gap-2 mb-3">
+        <button type="button" id="int-date-prev" aria-label="Giorno precedente con interventi" class="press-spring shrink-0 w-11 min-h-[44px] rounded-lg border border-graphite-700 bg-white flex items-center justify-center text-graphite-300 no-dim">
+          <i data-lucide="chevron-left" class="w-5 h-5" stroke-width="2.4"></i>
+        </button>
+        <button type="button" id="int-date-btn" class="press-spring flex-1 min-w-0 rounded-lg border border-graphite-700 bg-white px-3 min-h-[44px] flex items-center justify-center gap-2 text-sm font-display font-semibold uppercase tracking-wide text-graphite-100">
+          <i data-lucide="calendar-days" class="w-4 h-4 text-amber-400 shrink-0"></i>
+          <span id="int-date-label" class="truncate">Scegli il giorno</span>
+        </button>
+        <button type="button" id="int-date-next" aria-label="Giorno successivo con interventi" class="press-spring shrink-0 w-11 min-h-[44px] rounded-lg border border-graphite-700 bg-white flex items-center justify-center text-graphite-300 no-dim">
+          <i data-lucide="chevron-right" class="w-5 h-5" stroke-width="2.4"></i>
+        </button>
+      </div>
+
       <div class="grid grid-cols-[1fr_1fr_auto] gap-2 mb-3">
         <button type="button" id="int-filter-linea-btn" class="w-full flex items-center justify-between rounded-lg bg-graphite-800 border border-graphite-700 px-3.5 py-2.5 text-sm text-left hover:border-amber-400 transition-colors min-h-[44px]">
           <span id="int-filter-linea-value" class="text-graphite-400 truncate">Tutte le linee</span>

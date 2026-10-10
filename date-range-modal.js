@@ -22,11 +22,15 @@ const startOfDay = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
 const endOfDay = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 59, 999);
 const fmt = (d) => (d ? d.toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—');
 
+const dayKeyOf = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
 /**
- * @param {{ from?: Date|null, to?: Date|null }} [initial]
+ * @param {{ from?: Date|null, to?: Date|null, marks?: Set<string>|null, single?: boolean, title?: string }} [initial]
+ *   marks: giorni ('AAAA-MM-GG') da segnare con un pallino blu sotto il numero (es. giorni con interventi)
+ *   single: si sceglie un solo giorno e basta un tocco (niente Dal/Al né Applica)
  * @returns {Promise<{ from: Date, to: Date } | null>}
  */
-export function pickDateRange({ from = null, to = null } = {}) {
+export function pickDateRange({ from = null, to = null, marks = null, single = false, title = 'Periodo personalizzato' } = {}) {
   return new Promise((resolve) => {
     const today = startOfDay(new Date());
     let selFrom = from ? startOfDay(from) : null;
@@ -44,13 +48,13 @@ export function pickDateRange({ from = null, to = null } = {}) {
     card.innerHTML = `
       <div data-sheet-drag class="sheet-grabber sm:hidden"><span class="sheet-grabber-pill"></span></div>
       <div data-sheet-drag class="flex items-center justify-between px-5 pb-3 pt-1 sm:pt-3 border-b border-graphite-800 shrink-0">
-        <h3 class="font-display font-bold text-lg uppercase tracking-wide">Periodo personalizzato</h3>
+        <h3 class="font-display font-bold text-lg uppercase tracking-wide">${title}</h3>
         <button type="button" data-action="close" aria-label="Chiudi" class="modal-close modal-close--on-light">
           <i data-lucide="x" class="w-6 h-6" stroke-width="2.5"></i>
         </button>
       </div>
       <div class="px-5 pt-4 pb-1">
-        <div class="grid grid-cols-2 gap-2 mb-3">
+        <div class="${single ? 'hidden ' : ''}grid grid-cols-2 gap-2 mb-3">
           <div data-role="box-from" class="cal-box rounded-lg border border-graphite-700 px-3 py-2">
             <p class="ui-label uppercase tracking-wide text-graphite-500">Dal</p>
             <p data-role="val-from" class="font-mono text-sm font-semibold text-graphite-100 mt-0.5"></p>
@@ -80,7 +84,7 @@ export function pickDateRange({ from = null, to = null } = {}) {
         <button type="button" data-action="cancel"
           class="flex-1 rounded-lg py-3 font-display font-semibold uppercase tracking-wide text-graphite-400 hover:text-graphite-200 hover:bg-graphite-800 transition-colors">Annulla</button>
         <button type="button" data-action="apply"
-          class="cal-apply flex-1 rounded-lg py-3 font-display font-semibold uppercase tracking-wide text-white bg-amber-400 hover:bg-amber-300 transition-colors">Applica</button>
+          class="${single ? 'hidden ' : ''}cal-apply flex-1 rounded-lg py-3 font-display font-semibold uppercase tracking-wide text-white bg-amber-400 hover:bg-amber-300 transition-colors">Applica</button>
       </div>
     `;
     overlay.appendChild(card);
@@ -120,6 +124,7 @@ export function pickDateRange({ from = null, to = null } = {}) {
         const inside = selFrom && selTo && t > selFrom.getTime() && t < selTo.getTime();
         const cls = ['cal-day'];
         if (date.getTime() === today.getTime()) cls.push('cal-day-today');
+        if (marks && marks.has(dayKeyOf(date))) cls.push('cal-day-mark');
         if (isFrom || isTo) cls.push('cal-day-edge');
         else if (inside) cls.push('cal-day-in');
         html += `<button type="button" data-ts="${t}" class="${cls.join(' ')}" ${future ? 'disabled' : ''}>${d}</button>`;
@@ -141,6 +146,11 @@ export function pickDateRange({ from = null, to = null } = {}) {
       const btn = e.target.closest('[data-ts]');
       if (!btn || btn.disabled) return;
       const picked = startOfDay(new Date(Number(btn.dataset.ts)));
+      if (single) {
+        feedback.tap();
+        settle({ from: picked, to: endOfDay(picked) });
+        return;
+      }
       if (!selFrom || selTo) {
         selFrom = picked; // nuovo inizio
         selTo = null;

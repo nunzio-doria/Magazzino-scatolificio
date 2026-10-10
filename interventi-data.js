@@ -177,3 +177,23 @@ export async function deleteRapido(id) {
   const { error } = await supabase.from('interventi_rapidi').delete().eq('id', id);
   if (error) throw error;
 }
+
+const pad2 = (n) => String(n).padStart(2, '0');
+export const dayKey = (d) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+export const keyToDate = (k) => new Date(Number(k.slice(0, 4)), Number(k.slice(5, 7)) - 1, Number(k.slice(8, 10)));
+
+/** Giorni (AAAA-MM-GG, ora locale) in cui è stato effettuato almeno un intervento: servono ai pallini blu del calendario */
+export async function listEffettuatiDays() {
+  const { data, error } = await supabase
+    .from('manutenzioni_soste')
+    .select('esito_at')
+    .eq('stato', 'effettuato')
+    .not('esito_at', 'is', null)
+    .order('esito_at', { ascending: false })
+    .limit(5000);
+  if (error) {
+    if (isMissingTable(error)) return [];
+    throw error;
+  }
+  return [...new Set(data.map((r) => dayKey(new Date(r.esito_at))))];
+}

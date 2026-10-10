@@ -1,13 +1,15 @@
 // =============================================================
 // interventi-pdf.js — PDF degli interventi effettuati in una giornata (o periodo)
-// Raggruppa per linea, con macchina, descrizione, esito, operatori e orari (senza foto). Sui telefoni che lo supportano si apre il foglio di
+// Raggruppa per macchina (nell'ordine scelto in Impostazioni, come nell'app), con linea, descrizione,
+// esito, operatori e orari (senza foto). Sui telefoni che lo supportano si apre il foglio di
 // condivisione (mail, WhatsApp…); altrimenti il file viene scaricato.
 // =============================================================
 
-import { listEffettuatiRange, LINEE } from './interventi-data.js';
+import { listEffettuatiRange, LINEE, lineaLabel } from './interventi-data.js';
 
 export { listEffettuatiRange };
 import { loadLib } from './ui-utils.js';
+import { listDistinctMacchine } from './supabase.js';
 import { confirmDialog } from './ui-modal.js';
 
 const ACCENT = [47, 79, 146];
@@ -84,10 +86,22 @@ export async function exportGiornoPdf(from, to, { authorName = '', rows: given =
     }
   };
 
-  // ---- Interventi, per linea ----
-  for (const l of LINEE) {
-    const group = rows.filter((r) => r.linea === l.value);
-    if (!group.length) continue;
+  // ---- Interventi, per macchina (ordine delle macchine come nell'app) ----
+  let order = [];
+  try {
+    order = await listDistinctMacchine();
+  } catch (err) {
+    console.warn('Ordine delle macchine non disponibile: si usa l\'alfabetico.', err);
+  }
+  const orderIdx = new Map(order.map((n, i) => [n.toLowerCase(), i]));
+  const idxOf = (m) => (orderIdx.has(m.toLowerCase()) ? orderIdx.get(m.toLowerCase()) : 9999);
+  const lineaIdx = (v) => LINEE.findIndex((l) => l.value === v);
+  const machines = [...new Set(rows.map((r) => r.macchina))].sort((a, b) => idxOf(a) - idxOf(b) || a.localeCompare(b, 'it'));
+
+  for (const macchina of machines) {
+    const group = rows
+      .filter((r) => r.macchina === macchina)
+      .sort((a, b) => lineaIdx(a.linea) - lineaIdx(b.linea) || new Date(a.esito_at) - new Date(b.esito_at));
 
     ensure(16);
     doc.setFillColor(...DEEP);
@@ -95,7 +109,7 @@ export async function exportGiornoPdf(from, to, { authorName = '', rows: given =
     doc.setTextColor(255, 255, 255);
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(10.5);
-    doc.text(l.label.toUpperCase(), M + 3, y + 5.2);
+    doc.text(macchina.toUpperCase(), M + 3, y + 5.2, { maxWidth: CW - 20 });
     doc.setFont('helvetica', 'normal');
     doc.text(`${group.length}`, PW - M - 3, y + 5.2, { align: 'right' });
     y += 11;
@@ -119,14 +133,15 @@ export async function exportGiornoPdf(from, to, { authorName = '', rows: given =
       doc.rect(M, y + 0.6, 1.4, h - 1.2, 'F');
 
       let cy = y + 6.5;
-      doc.setTextColor(...DEEP);
+      // La macchina è già nell'intestazione del gruppo: nella scheda si indica la linea
+      doc.setTextColor(...ACCENT);
       doc.setFont('helvetica', 'bold');
-      doc.setFontSize(11);
-      doc.text((r.macchina || '').toUpperCase(), M + 5, cy, { maxWidth: CW - 30 });
+      doc.setFontSize(10);
+      doc.text(lineaLabel(r.linea).toUpperCase(), M + 5, cy);
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(9);
       doc.setTextColor(...GREY);
-      doc.text(fmtTime(r.esito_at), PW - M - 4, cy, { align: 'right' });
+      doc.text(sameDay ? fmtTime(r.esito_at) : fmtDT(r.esito_at), PW - M - 4, cy, { align: 'right' });
       cy += 5.5;
 
       doc.setTextColor(30, 30, 34);

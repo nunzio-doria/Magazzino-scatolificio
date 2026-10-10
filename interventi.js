@@ -11,11 +11,12 @@ import { listDistinctMacchine } from './supabase.js';
 import {
   LINEE, STATI, lineaLabel, rapidoMatches,
   listInterventi, createIntervento, updateEsito, deleteIntervento, signedUrls, listRapidi,
+  listEffettuatiRange, listEffettuatiDays, dayKey, keyToDate,
 } from './interventi-data.js';
 import { openPicker } from './picker.js';
 import { toastSuccess, toastError, toastWarning, toastInfo } from './toast.js';
 import { confirmDialog } from './ui-modal.js';
-import { exportGiornoPdf, listEffettuatiRange } from './interventi-pdf.js';
+import { exportGiornoPdf } from './interventi-pdf.js';
 import { pickDateRange } from './date-range-modal.js';
 import { openOverlay, closeOverlay, enableSheetDrag, setButtonBusy, syncSegIndicator, staggerIndex, emptyStateHtml } from './ui-utils.js';
 import { escapeHtml } from './products-shared.js';
@@ -27,7 +28,11 @@ const els = {};
 const state = {
   tab: 'open',            // 'open' | 'done'
   open: [],
-  done: [],
+  done: [],               // effettuati del giorno scelto (scheda Effettuati)
+  doneRecent: [],         // ultimi effettuati di qualunque giorno: servono solo alla ricerca in testata
+  doneDays: new Set(),    // giorni (AAAA-MM-GG) con almeno un intervento effettuato: pallini blu del calendario
+  doneDay: '',            // giorno mostrato nella scheda Effettuati
+  machineOrder: [],       // macchine nell'ordine scelto dall'admin: raggruppamento dell'elenco
   tableMissing: false,
   loaded: false,
   loading: false,
@@ -150,6 +155,15 @@ export function initInterventi() {
     renderList();
   });
 
+  // Giorno degli effettuati: freccia indietro/avanti sui soli giorni con interventi, o calendario con i pallini blu
+  $('int-date-prev').addEventListener('click', () => stepDay(-1));
+  $('int-date-next').addEventListener('click', () => stepDay(1));
+  $('int-date-btn').addEventListener('click', async () => {
+    feedback.tap();
+    const range = await pickDateRange({ from: state.doneDay ? keyToDate(state.doneDay) : new Date(), single: true, marks: state.doneDays, title: 'Giorno degli interventi' });
+    if (range) await selectDay(dayKey(range.from));
+  });
+
   // Filtri
   $('int-filter-linea-btn').addEventListener('click', async () => {
     const labels = LINEE.map((l) => l.label);
@@ -209,6 +223,10 @@ export function resetInterventi() {
   setInterventiFab(false);
   state.open = [];
   state.done = [];
+  state.doneRecent = [];
+  state.doneDays = new Set();
+  state.doneDay = '';
+  state.machineOrder = [];
   state.loaded = false;
   state.rapidi = [];
   state.rapidiLoaded = false;
@@ -232,10 +250,19 @@ export async function refreshInterventi({ silent = false } = {}) {
     els.list.classList.add('hidden');
   }
   try {
-    const res = await listInterventi();
+    const [res, days, order] = await Promise.all([
+      listInterventi(),
+      listEffettuatiDays().catch(() => null),
+      listDistinctMacchine().catch(() => null),
+    ]);
     state.tableMissing = res.tableMissing;
     state.open = res.open;
-    state.done = res.done;
+    state.doneRecent = res.done;
+    state.doneDays = new Set(days || res.done.map((r) => dayKey(new Date(r.esito_at))));
+    if (order) state.machineOrder = order;
+    // Scheda Effettuati: un giorno alla volta (oggi se ci sono interventi, altrimenti l'ultimo giorno con interventi)
+    if (!state.doneDay) state.doneDay = defaultDay();
+    await loadDay();
     state.loaded = true;
     renderList();
   } catch (err) {
@@ -248,6 +275,75 @@ export async function refreshInterventi({ silent = false } = {}) {
     els.skeleton.classList.add('hidden');
     els.list.classList.remove('hidden');
   }
+}
+
+function defaultDay() {
+  const today = dayKey(new Date());
+  if (state.doneDays.has(today) || !state.doneDays.size) return today;
+  return [...state.doneDays].sort().pop();
+}
+
+/** Effettuati del giorno scelto, in ordine di esecuzione */
+async function loadDay() {
+  if (!state.doneDay) {
+    state.done = [];
+    return;
+  }
+  const d = keyToDate(state.doneDay);
+  const from = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const to = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 59, 999);
+  state.done = await listEffettuatiRange(from.toISOString(), to.toISOString());
+}
+
+async function selectDay(key) {
+  if (!key || key === state.doneDay) return;
+  const previous = state.doneDay;
+  state.doneDay = key;
+  try {
+    await loadDay();
+  } catch (err) {
+    console.error(err);
+    state.doneDay = previous;
+    feedback.errorAction();
+    toastError('Impossibile caricare gli interventi del giorno.');
+    return;
+  }
+  feedback.filterChange();
+  renderList();
+}
+
+/** Ricalcola i giorni con interventi (dopo aver chiuso, riaperto o eliminato un intervento) */
+async function refreshDays() {
+  try {
+    state.doneDays = new Set(await listEffettuatiDays());
+    renderList();
+  } catch (err) {
+    console.warn('Giorni con interventi non aggiornati.', err);
+  }
+}
+
+const dayLabel = (key) => {
+  const d = keyToDate(key);
+  const today = new Date();
+  const yest = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 1);
+  const rel = key === dayKey(today) ? 'Oggi' : key === dayKey(yest) ? 'Ieri' : d.toLocaleDateString('it-IT', { weekday: 'short' }).replace(/^./, (c) => c.toUpperCase());
+  return `${rel} · ${d.toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', year: 'numeric' })}`;
+};
+
+function paintDateRow() {
+  const row = $('int-date-row');
+  row.classList.toggle('hidden', state.tab !== 'done');
+  if (state.tab !== 'done') return;
+  $('int-date-label').textContent = state.doneDay ? dayLabel(state.doneDay) : 'Scegli il giorno';
+  const days = [...state.doneDays].sort();
+  $('int-date-prev').disabled = !days.some((k) => k < state.doneDay);
+  $('int-date-next').disabled = !days.some((k) => k > state.doneDay);
+}
+
+async function stepDay(delta) {
+  const days = [...state.doneDays].sort();
+  const target = delta < 0 ? [...days].reverse().find((k) => k < state.doneDay) : days.find((k) => k > state.doneDay);
+  if (target) await selectDay(target);
 }
 
 async function ensureRapidi(force = false) {
@@ -274,7 +370,7 @@ export async function searchInterventi(term) {
       .filter(Boolean)
       .join(' ')
       .toLowerCase();
-  return [...state.open, ...state.done].filter((r) => {
+  return [...state.open, ...state.doneRecent].filter((r) => {
     const h = hay(r);
     return words.every((w) => h.includes(w));
   });
@@ -296,6 +392,7 @@ export function invalidateRapidi() {
 function paintTabs() {
   els.seg.querySelectorAll('[data-int-tab]').forEach((b) => b.classList.toggle('category-tab-active', b.dataset.intTab === state.tab));
   syncSegIndicator(els.seg);
+  paintDateRow();
 }
 
 function paintFilters() {
@@ -326,8 +423,9 @@ function renderList() {
   els.notice.classList.toggle('hidden', !state.tableMissing);
   // Il pulsante PDF è bianco e toccabile solo se esiste almeno un intervento effettuato
   const pdfBtn = $('int-pdf-btn');
-  pdfBtn.disabled = !state.done.length;
-  pdfBtn.title = state.done.length ? 'Esporta PDF degli interventi effettuati' : 'Nessun intervento effettuato da esportare';
+  pdfBtn.disabled = !state.doneDays.size;
+  pdfBtn.title = state.doneDays.size ? 'Esporta PDF degli interventi effettuati' : 'Nessun intervento effettuato da esportare';
+  paintDateRow();
   const openCount = applyFilters(state.open).length;
   const doneCount = applyFilters(state.done).length;
   $('int-count-open').textContent = openCount ? `(${openCount})` : '';
@@ -339,33 +437,58 @@ function renderList() {
     const filtered = state.filterLinea || state.filterMacchina;
     els.list.innerHTML = emptyStateHtml(
       state.tab === 'open' ? 'clipboard-check' : 'clipboard-list',
-      filtered ? 'Nessun intervento con questi filtri' : state.tab === 'open' ? 'Nessun intervento da fare' : 'Nessun intervento effettuato',
-      filtered ? 'Cambia o togli i filtri di linea e macchina.' : state.tab === 'open' ? 'Tocca + per annotarne uno durante la sosta.' : ''
+      filtered ? 'Nessun intervento con questi filtri' : state.tab === 'open' ? 'Nessun intervento da fare' : 'Nessun intervento effettuato in questo giorno',
+      filtered ? 'Cambia o togli i filtri di linea e macchina.' : state.tab === 'open' ? 'Tocca + per annotarne uno durante la sosta.' : 'Scegli un giorno con il pallino blu nel calendario.'
     );
     window.lucide?.createIcons();
     return;
   }
 
-  rows.forEach((r, i) => {
-    const card = document.createElement('button');
-    card.type = 'button';
-    card.className = 'int-card list-item-in card-plate rounded-xl p-3.5 flex items-start gap-3 press-spring';
-    card.style.setProperty('--i', staggerIndex(i));
-    const when = r.stato === 'effettuato' ? `Fatto ${fmtDateTime(r.esito_at)}${r.esito_by_name ? ` · ${r.esito_by_name}` : ''}` : `${fmtDateTime(r.created_at)}${r.created_by_name ? ` · ${r.created_by_name}` : ''}`;
-    card.innerHTML = `
-      <div class="min-w-0 flex-1">
-        <div class="flex items-center gap-1.5 flex-wrap mb-1.5">
-          <span class="ui-label font-display font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-400 text-white">${escapeHtml(lineaLabel(r.linea))}</span>
-          <span class="ui-label font-display font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${STATO_CHIP[r.stato]}">${STATI[r.stato]}</span>
+  // Raggruppati per macchina, nell'ordine scelto dall'admin (le altre in fondo, in alfabetico)
+  const orderIdx = new Map(state.machineOrder.map((n, i) => [n.toLowerCase(), i]));
+  const idxOf = (m) => (orderIdx.has(m.toLowerCase()) ? orderIdx.get(m.toLowerCase()) : 9999);
+  const lineaIdx = (v) => LINEE.findIndex((l) => l.value === v);
+  const groups = new Map();
+  rows.forEach((r) => {
+    if (!groups.has(r.macchina)) groups.set(r.macchina, []);
+    groups.get(r.macchina).push(r);
+  });
+  const names = [...groups.keys()].sort((a, b) => idxOf(a) - idxOf(b) || a.localeCompare(b, 'it'));
+  let i = 0;
+  names.forEach((name) => {
+    const items = groups.get(name).sort((a, b) =>
+      lineaIdx(a.linea) - lineaIdx(b.linea) ||
+      (state.tab === 'done' ? new Date(a.esito_at) - new Date(b.esito_at) : new Date(b.created_at) - new Date(a.created_at))
+    );
+    const section = document.createElement('section');
+    section.className = 'space-y-2';
+    section.innerHTML = `
+      <div class="flex items-center justify-between gap-2 pt-1 px-0.5">
+        <h4 class="min-w-0 truncate font-display font-bold text-sm uppercase tracking-wider text-graphite-300">${escapeHtml(name)}</h4>
+        <span class="shrink-0 ui-note font-mono text-graphite-500">${items.length}</span>
+      </div>`;
+    items.forEach((r) => {
+      const card = document.createElement('button');
+      card.type = 'button';
+      card.dataset.id = r.id;
+      card.className = 'int-card list-item-in card-plate rounded-xl p-3.5 flex items-start gap-3 press-spring';
+      card.style.setProperty('--i', staggerIndex(i++));
+      const when = r.stato === 'effettuato' ? `Fatto ${fmtDateTime(r.esito_at)}${r.esito_by_name ? ` · ${r.esito_by_name}` : ''}` : `${fmtDateTime(r.created_at)}${r.created_by_name ? ` · ${r.created_by_name}` : ''}`;
+      card.innerHTML = `
+        <div class="min-w-0 flex-1">
+          <div class="flex items-center gap-1.5 flex-wrap mb-1.5">
+            <span class="ui-label font-display font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-400 text-white">${escapeHtml(lineaLabel(r.linea))}</span>
+            <span class="ui-label font-display font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${STATO_CHIP[r.stato]}">${STATI[r.stato]}</span>
+          </div>
+          <p class="text-sm font-medium text-graphite-100 leading-snug line-clamp-3">${escapeHtml(r.descrizione)}</p>
+          ${r.note_esito ? `<p class="text-xs text-graphite-500 mt-1 line-clamp-1">Esito: ${escapeHtml(r.note_esito)}</p>` : ''}
+          <p class="ui-note text-graphite-500 mt-1.5">${escapeHtml(when)}</p>
         </div>
-        <p class="font-display font-semibold text-base uppercase tracking-wide text-graphite-100 truncate">${escapeHtml(r.macchina)}</p>
-        <p class="text-sm text-graphite-200 leading-snug mt-0.5 line-clamp-2">${escapeHtml(r.descrizione)}</p>
-        ${r.note_esito ? `<p class="text-xs text-graphite-500 mt-1 line-clamp-1">Esito: ${escapeHtml(r.note_esito)}</p>` : ''}
-        <p class="ui-note text-graphite-500 mt-1.5">${escapeHtml(when)}</p>
-      </div>
-      <img class="int-thumb hidden" alt="" data-thumb>`;
-    card.addEventListener('click', () => openDetail(r));
-    els.list.appendChild(card);
+        <img class="int-thumb hidden" alt="" data-thumb>`;
+      card.addEventListener('click', () => openDetail(r));
+      section.appendChild(card);
+    });
+    els.list.appendChild(section);
   });
   window.lucide?.createIcons();
   loadThumbs(rows);
@@ -378,10 +501,9 @@ async function loadThumbs(rows) {
   if (!paths.length) return;
   try {
     const urls = await signedUrls(paths);
-    const cards = els.list.querySelectorAll('.int-card');
-    rows.forEach((r, i) => {
+    rows.forEach((r) => {
       const p = pathOf(r);
-      const img = cards[i]?.querySelector('[data-thumb]');
+      const img = els.list.querySelector(`[data-id="${r.id}"] [data-thumb]`);
       if (p && urls[p] && img) {
         img.src = urls[p];
         img.classList.remove('hidden');
@@ -666,9 +788,14 @@ async function saveDetail() {
     const updated = await updateEsito(row, { stato: detail.stato, note, foto: detail.foto, rimuoviFoto: detail.rimuovi, authorName: authorName() });
     state.open = state.open.filter((r) => r.id !== updated.id);
     state.done = state.done.filter((r) => r.id !== updated.id);
+    state.doneRecent = state.doneRecent.filter((r) => r.id !== updated.id);
     if (updated.stato === 'effettuato') {
-      state.done.unshift(updated);
-      state.done.sort((a, b) => new Date(b.esito_at) - new Date(a.esito_at));
+      state.doneRecent.unshift(updated);
+      state.doneRecent.sort((a, b) => new Date(b.esito_at) - new Date(a.esito_at));
+      const k = dayKey(new Date(updated.esito_at));
+      state.doneDays.add(k);
+      // Se è stato eseguito nel giorno mostrato compare subito lì
+      if (k === state.doneDay) state.done.push(updated);
       feedback.interventoDone();
       toastSuccess('Intervento effettuato.', 2500);
     } else {
@@ -679,6 +806,7 @@ async function saveDetail() {
     }
     closeOverlay(els.detModal);
     renderList();
+    refreshDays(); // un giorno senza più interventi perde il pallino blu
   } catch (err) {
     console.error(err);
     feedback.errorAction();
@@ -697,8 +825,10 @@ async function removeDetail() {
     await deleteIntervento(row);
     state.open = state.open.filter((r) => r.id !== row.id);
     state.done = state.done.filter((r) => r.id !== row.id);
+    state.doneRecent = state.doneRecent.filter((r) => r.id !== row.id);
     closeOverlay(els.detModal);
     renderList();
+    refreshDays();
     toastSuccess('Intervento eliminato.', 2500);
   } catch (err) {
     console.error(err);
@@ -736,7 +866,7 @@ function initPdfSheet() {
   els.pdfModal.addEventListener('click', (e) => e.target === els.pdfModal && close());
   enableSheetDrag(els.pdfModal.querySelector('.modal-panel'), close);
   $('int-pdf-change').addEventListener('click', async () => {
-    const range = await pickDateRange({ from: pdf.from, to: pdf.to });
+    const range = await pickDateRange({ from: pdf.from, to: pdf.to, marks: state.doneDays });
     if (range) await loadPdfRange(range);
   });
   $('int-pdf-all').addEventListener('click', () => {
@@ -750,7 +880,7 @@ function initPdfSheet() {
 
 async function onExportPdf() {
   feedback.tap();
-  const range = await pickDateRange({ from: new Date(), to: new Date() });
+  const range = await pickDateRange({ from: state.doneDay ? keyToDate(state.doneDay) : new Date(), to: state.doneDay ? keyToDate(state.doneDay) : new Date(), marks: state.doneDays });
   if (!range) return;
   await loadPdfRange(range, { open: true });
 }
@@ -766,9 +896,8 @@ async function loadPdfRange(range, { open = false } = {}) {
       toastWarning('Nessun intervento effettuato nel periodo scelto.');
       return;
     }
-    // Stesso ordine del PDF: per linea, poi per ora di esecuzione
-    const order = (v) => LINEE.findIndex((l) => l.value === v);
-    rows.sort((a, b) => order(a.linea) - order(b.linea) || new Date(a.esito_at) - new Date(b.esito_at));
+    // Stesso ordine del PDF: per macchina (ordine dell'admin), poi per linea e ora di esecuzione
+    rows.sort(machineRowSort);
     pdf.from = range.from;
     pdf.to = range.to;
     pdf.rows = rows;
@@ -784,6 +913,14 @@ async function loadPdfRange(range, { open = false } = {}) {
   }
 }
 
+/** Ordine di elenco e PDF: macchina (come scelto dall'admin), poi linea, poi ora di esecuzione */
+function machineRowSort(a, b) {
+  const orderIdx = new Map(state.machineOrder.map((n, i) => [n.toLowerCase(), i]));
+  const idxOf = (m) => (orderIdx.has(m.toLowerCase()) ? orderIdx.get(m.toLowerCase()) : 9999);
+  const lineaIdx = (v) => LINEE.findIndex((l) => l.value === v);
+  return idxOf(a.macchina) - idxOf(b.macchina) || a.macchina.localeCompare(b.macchina, 'it') || lineaIdx(a.linea) - lineaIdx(b.linea) || new Date(a.esito_at) - new Date(b.esito_at);
+}
+
 function paintPdfSheet() {
   $('int-pdf-period').textContent = periodLabel();
   const total = pdf.rows.length;
@@ -796,7 +933,15 @@ function paintPdfSheet() {
 
   const list = $('int-pdf-list');
   list.innerHTML = '';
+  let lastMachine = null;
   pdf.rows.forEach((r) => {
+    if (r.macchina !== lastMachine) {
+      lastMachine = r.macchina;
+      const h = document.createElement('p');
+      h.className = 'font-display font-bold text-xs uppercase tracking-wider text-graphite-400 pt-1.5';
+      h.textContent = r.macchina; // testo, mai HTML
+      list.appendChild(h);
+    }
     const on = pdf.selected.has(r.id);
     const row = document.createElement('button');
     row.type = 'button';
@@ -810,8 +955,7 @@ function paintPdfSheet() {
           <span class="ui-label font-display font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-400 text-white">${escapeHtml(lineaLabel(r.linea))}</span>
           <span class="ui-note text-graphite-500">${escapeHtml(new Date(r.esito_at).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }))}</span>
         </span>
-        <span class="block font-display font-semibold text-sm uppercase tracking-wide text-graphite-100 truncate">${escapeHtml(r.macchina)}</span>
-        <span class="block text-sm text-graphite-200 leading-snug line-clamp-2">${escapeHtml(r.descrizione)}</span>
+        <span class="block text-sm font-medium text-graphite-100 leading-snug line-clamp-2">${escapeHtml(r.descrizione)}</span>
       </span>`;
     row.addEventListener('click', () => {
       if (pdf.selected.has(r.id)) pdf.selected.delete(r.id);

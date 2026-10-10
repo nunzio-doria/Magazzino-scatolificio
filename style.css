@@ -2518,3 +2518,19 @@ button.int-card:not(:disabled):active { transform: scale(0.985); }
   transition: background-color var(--dur-fast) ease, border-color var(--dur-fast) ease;
 }
 button[aria-checked="true"] > .int-check { background: var(--accent); border-color: var(--accent); }
+
+/* Giorni con interventi: pallino blu sotto il numero (calendario) */
+.cal-day { position: relative; }
+.cal-day-mark::after {
+  content: '';
+  position: absolute;
+  left: 50%; bottom: 4px;
+  width: 5px; height: 5px; margin-left: -2.5px;
+  border-radius: 9999px;
+  background: var(--accent);
+}
+.cal-day-edge.cal-day-mark::after { background: #ffffff; }
+.cal-day:disabled.cal-day-mark::after { opacity: 0.4; }
+
+/* Frecce del giorno: pieno bianco se si può andare avanti/indietro, grigio pieno se non ci sono altri giorni con interventi */
+#int-date-prev:disabled, #int-date-next:disabled { background: #d9dce1; color: #8b94a0; opacity: 1; }
