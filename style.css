@@ -2534,3 +2534,7 @@ button[aria-checked="true"] > .int-check { background: var(--accent); border-col
 
 /* Frecce del giorno: pieno bianco se si può andare avanti/indietro, grigio pieno se non ci sono altri giorni con interventi */
 #int-date-prev:disabled, #int-date-next:disabled { background: #d9dce1; color: #8b94a0; opacity: 1; }
+
+/* Riga intervento dentro la scheda della macchina */
+.int-row { transition: background-color var(--dur-fast) ease; }
+.int-row:active { background-color: var(--accent-tint-soft); }

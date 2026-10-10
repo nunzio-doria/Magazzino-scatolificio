@@ -4,9 +4,9 @@
 // Interventi, scelte linea e macchina, compaiono da soli come scelte rapide.
 // =============================================================
 
-import { LINEE, lineaLabel, listRapidi, createRapido, deleteRapido } from './interventi-data.js';
+import { LINEE, lineaLabel, listRapidi, createRapido, deleteRapido, listOperatori, createOperatore, deleteOperatore } from './interventi-data.js';
 import { listDistinctMacchine } from './supabase.js';
-import { invalidateRapidi } from './interventi.js';
+import { invalidateRapidi, invalidateOperatori } from './interventi.js';
 import { openPicker } from './picker.js';
 import { toastSuccess, toastError, toastWarning } from './toast.js';
 import { isAdmin } from './auth.js';
@@ -175,5 +175,108 @@ async function onRemove(r) {
   } catch (err) {
     feedback.errorAction();
     toastError('Impossibile rimuovere l\'intervento rapido.');
+  }
+}
+
+
+// ---------------------------------------------------------------
+// OPERATORI (Impostazioni → Operatori, solo Admin)
+// ---------------------------------------------------------------
+const op = {};
+
+export function initOperatori() {
+  op.modal = $('operatori-modal');
+  if (!op.modal) return;
+  op.form = $('operatori-form');
+  op.input = $('operatori-nome');
+  op.addBtn = $('operatori-add-btn');
+  op.list = $('operatori-list');
+  op.skeleton = $('operatori-skeleton');
+  op.notice = $('operatori-notice');
+
+  $('operatori-manage-btn')?.addEventListener('click', () => {
+    openOverlay(op.modal);
+    refreshOperatori();
+  });
+  const close = () => closeOverlay(op.modal);
+  $('operatori-modal-close').addEventListener('click', close);
+  op.modal.addEventListener('click', (e) => e.target === op.modal && close());
+  enableSheetDrag(op.modal.querySelector('.modal-panel'), close);
+  op.form.addEventListener('submit', onAddOperatore);
+}
+
+async function refreshOperatori() {
+  if (!isAdmin()) return;
+  op.skeleton.classList.remove('hidden');
+  op.list.classList.add('hidden');
+  try {
+    const res = await listOperatori();
+    op.notice.classList.toggle('hidden', !res.tableMissing);
+    op.addBtn.disabled = res.tableMissing;
+    op.input.disabled = res.tableMissing;
+    renderOperatori(res.operatori);
+  } catch (err) {
+    console.error(err);
+    toastError('Impossibile caricare gli operatori.');
+  } finally {
+    op.skeleton.classList.add('hidden');
+  }
+}
+
+function renderOperatori(operatori) {
+  op.list.innerHTML = '';
+  if (!operatori.length) {
+    const p = document.createElement('p');
+    p.className = 'text-sm text-graphite-500 py-2';
+    p.textContent = 'Nessun operatore ancora in elenco.';
+    op.list.appendChild(p);
+  }
+  operatori.forEach((o, i) => {
+    const row = document.createElement('div');
+    row.className = 'list-item-in card-plate rounded-xl pl-3.5 pr-1.5 py-1.5 flex items-center justify-between gap-2';
+    row.style.setProperty('--i', staggerIndex(i));
+    const name = document.createElement('span');
+    name.className = 'min-w-0 text-sm font-medium text-graphite-100';
+    name.textContent = o.nome; // testo, mai HTML
+    const del = document.createElement('button');
+    del.type = 'button';
+    del.setAttribute('aria-label', `Rimuovi ${o.nome}`);
+    del.className = 'shrink-0 w-11 h-11 rounded-lg flex items-center justify-center text-rose-700 hover:bg-rose-50 transition-colors';
+    del.innerHTML = '<i data-lucide="trash-2" class="w-5 h-5" stroke-width="2"></i>';
+    del.addEventListener('click', () => onRemoveOperatore(o));
+    row.append(name, del);
+    op.list.appendChild(row);
+  });
+  op.list.classList.remove('hidden');
+  window.lucide?.createIcons();
+}
+
+async function onAddOperatore(e) {
+  e.preventDefault();
+  setButtonBusy(op.addBtn, true);
+  try {
+    await createOperatore(op.input.value);
+    op.input.value = '';
+    invalidateOperatori();
+    feedback.confirmAction();
+    await refreshOperatori();
+  } catch (err) {
+    feedback.errorAction();
+    toastError(err.message || 'Impossibile aggiungere l\'operatore.');
+  } finally {
+    setButtonBusy(op.addBtn, false);
+  }
+}
+
+async function onRemoveOperatore(o) {
+  const ok = await confirmDialog({ title: 'Rimuovere l\'operatore?', message: `${o.nome} non comparirà più tra le scelte. Gli interventi già chiusi con il suo nome non cambiano.`, confirmLabel: 'Rimuovi', danger: true });
+  if (!ok) return;
+  try {
+    await deleteOperatore(o.id);
+    invalidateOperatori();
+    await refreshOperatori();
+  } catch (err) {
+    feedback.errorAction();
+    toastError('Impossibile rimuovere l\'operatore.');
   }
 }

@@ -32,7 +32,7 @@ function isMissingTable(error) {
 }
 
 const COLS =
-  'id, linea, macchina, descrizione, stato, foto_promemoria_path, note_esito, foto_esito_path, created_by, created_by_name, created_at, esito_by, esito_by_name, esito_at';
+  'id, linea, macchina, descrizione, stato, foto_promemoria_path, note_esito, foto_esito_path, created_by, created_by_name, created_at, esito_by, esito_by_name, esito_at, operatore_nome';
 
 /** Interventi aperti (da effettuare + da completare) e ultimi effettuati */
 export async function listInterventi() {
@@ -99,7 +99,7 @@ export async function createIntervento({ linea, macchina, descrizione, foto = nu
 /**
  * Aggiorna l'esito. `foto`: Blob nuovo | null (nessun cambio); `rimuoviFoto`: true per toglierla.
  */
-export async function updateEsito(row, { stato, note, foto = null, rimuoviFoto = false, authorName = '' }) {
+export async function updateEsito(row, { stato, note, operatore = '', foto = null, rimuoviFoto = false, authorName = '' }) {
   let fotoPath = row.foto_esito_path || null;
   let newPath = null;
   if (foto) {
@@ -111,6 +111,8 @@ export async function updateEsito(row, { stato, note, foto = null, rimuoviFoto =
   const patch = {
     stato,
     note_esito: note || null,
+    // Chi ha eseguito il lavoro: ha senso solo per gli interventi effettuati (non compare nel PDF)
+    operatore_nome: stato === 'effettuato' ? operatore || null : null,
     foto_esito_path: fotoPath,
     esito_by_name: stato === 'da_effettuare' ? null : authorName || null,
     esito_at: stato === 'da_effettuare' ? null : stato === row.stato && row.esito_at ? row.esito_at : new Date().toISOString(),
@@ -196,4 +198,30 @@ export async function listEffettuatiDays() {
     throw error;
   }
   return [...new Set(data.map((r) => dayKey(new Date(r.esito_at))))];
+}
+
+// ---- Operatori (elenco gestito dall'admin dalle Impostazioni) ----
+export async function listOperatori() {
+  const { data, error } = await supabase.from('interventi_operatori').select('id, nome').order('nome', { ascending: true });
+  if (error) {
+    if (isMissingTable(error)) return { tableMissing: true, operatori: [] };
+    throw error;
+  }
+  return { tableMissing: false, operatori: data };
+}
+
+export async function createOperatore(nome) {
+  const clean = (nome || '').trim().replace(/\s+/g, ' ');
+  if (!clean) throw new Error('Scrivi il nome dell\'operatore.');
+  const { data, error } = await supabase.from('interventi_operatori').insert({ nome: clean }).select('id, nome').single();
+  if (error) {
+    if (error.code === '23505') throw new Error('Questo operatore è già in elenco.');
+    throw error;
+  }
+  return data;
+}
+
+export async function deleteOperatore(id) {
+  const { error } = await supabase.from('interventi_operatori').delete().eq('id', id);
+  if (error) throw error;
 }

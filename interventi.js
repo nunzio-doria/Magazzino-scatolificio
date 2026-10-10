@@ -11,7 +11,7 @@ import { listDistinctMacchine } from './supabase.js';
 import {
   LINEE, STATI, lineaLabel, rapidoMatches,
   listInterventi, createIntervento, updateEsito, deleteIntervento, signedUrls, listRapidi,
-  listEffettuatiRange, listEffettuatiDays, dayKey, keyToDate,
+  listEffettuatiRange, listEffettuatiDays, dayKey, keyToDate, listOperatori,
 } from './interventi-data.js';
 import { openPicker } from './picker.js';
 import { toastSuccess, toastError, toastWarning, toastInfo } from './toast.js';
@@ -40,6 +40,8 @@ const state = {
   filterMacchina: '',
   rapidi: [],
   rapidiLoaded: false,
+  operatori: [],          // persone che eseguono gli interventi (elenco gestito dall'admin)
+  operatoriLoaded: false,
 };
 
 // Bozza del nuovo intervento: resta in memoria se si chiude il foglio, così non si perde
@@ -230,6 +232,8 @@ export function resetInterventi() {
   state.loaded = false;
   state.rapidi = [];
   state.rapidiLoaded = false;
+  state.operatori = [];
+  state.operatoriLoaded = false;
   state.filterLinea = '';
   state.filterMacchina = '';
   state.tab = 'open';
@@ -381,6 +385,20 @@ export function openInterventoDetail(row) {
   return openDetail(row);
 }
 
+async function ensureOperatori() {
+  if (state.operatoriLoaded) return;
+  try {
+    state.operatori = (await listOperatori()).operatori.map((o) => o.nome);
+    state.operatoriLoaded = true;
+  } catch (err) {
+    console.warn('Operatori non disponibili.', err);
+  }
+}
+/** Chiamata dalle Impostazioni quando cambia l'elenco degli operatori */
+export function invalidateOperatori() {
+  state.operatoriLoaded = false;
+}
+
 /** Chiamata dalle Impostazioni quando cambiano gli interventi rapidi */
 export function invalidateRapidi() {
   state.rapidiLoaded = false;
@@ -444,48 +462,59 @@ function renderList() {
     return;
   }
 
-  // Raggruppati per macchina, nell'ordine scelto dall'admin (le altre in fondo, in alfabetico)
+  // Ordine: prima per linea, poi per macchina (ordine scelto dall'admin). Una scheda per macchina
+  // con dentro tutti i suoi interventi, così l'elenco resta ordinato e si legge a colpo d'occhio.
   const orderIdx = new Map(state.machineOrder.map((n, i) => [n.toLowerCase(), i]));
   const idxOf = (m) => (orderIdx.has(m.toLowerCase()) ? orderIdx.get(m.toLowerCase()) : 9999);
-  const lineaIdx = (v) => LINEE.findIndex((l) => l.value === v);
-  const groups = new Map();
+  const byLinea = new Map();
   rows.forEach((r) => {
-    if (!groups.has(r.macchina)) groups.set(r.macchina, []);
-    groups.get(r.macchina).push(r);
+    if (!byLinea.has(r.linea)) byLinea.set(r.linea, new Map());
+    const machines = byLinea.get(r.linea);
+    if (!machines.has(r.macchina)) machines.set(r.macchina, []);
+    machines.get(r.macchina).push(r);
   });
-  const names = [...groups.keys()].sort((a, b) => idxOf(a) - idxOf(b) || a.localeCompare(b, 'it'));
+  const lineaIdx = (v) => (LINEE.findIndex((l) => l.value === v) + 1 || 99);
+  const timeSort = (a, b) => (state.tab === 'done' ? new Date(a.esito_at) - new Date(b.esito_at) : new Date(b.created_at) - new Date(a.created_at));
+
   let i = 0;
-  names.forEach((name) => {
-    const items = groups.get(name).sort((a, b) =>
-      lineaIdx(a.linea) - lineaIdx(b.linea) ||
-      (state.tab === 'done' ? new Date(a.esito_at) - new Date(b.esito_at) : new Date(b.created_at) - new Date(a.created_at))
-    );
+  [...byLinea.keys()].sort((a, b) => lineaIdx(a) - lineaIdx(b)).forEach((linea) => {
+    const machines = byLinea.get(linea);
+    const total = [...machines.values()].reduce((n, list) => n + list.length, 0);
     const section = document.createElement('section');
-    section.className = 'space-y-2';
+    section.className = 'space-y-2.5';
     section.innerHTML = `
-      <div class="flex items-center justify-between gap-2 pt-1 px-0.5">
-        <h4 class="min-w-0 truncate font-display font-bold text-sm uppercase tracking-wider text-graphite-300">${escapeHtml(name)}</h4>
-        <span class="shrink-0 ui-note font-mono text-graphite-500">${items.length}</span>
+      <div class="flex items-center justify-between rounded-lg bg-amber-400 text-white px-3.5 py-2">
+        <h3 class="font-display font-bold text-base uppercase tracking-wider">${escapeHtml(lineaLabel(linea))}</h3>
+        <span class="font-mono text-sm font-semibold">${total}</span>
       </div>`;
-    items.forEach((r) => {
-      const card = document.createElement('button');
-      card.type = 'button';
-      card.dataset.id = r.id;
-      card.className = 'int-card list-item-in card-plate rounded-xl p-3.5 flex items-start gap-3 press-spring';
+    [...machines.keys()].sort((a, b) => idxOf(a) - idxOf(b) || a.localeCompare(b, 'it')).forEach((name) => {
+      const items = machines.get(name).sort(timeSort);
+      const card = document.createElement('div');
+      card.className = 'list-item-in card-plate rounded-xl overflow-hidden';
       card.style.setProperty('--i', staggerIndex(i++));
-      const when = r.stato === 'effettuato' ? `Fatto ${fmtDateTime(r.esito_at)}${r.esito_by_name ? ` · ${r.esito_by_name}` : ''}` : `${fmtDateTime(r.created_at)}${r.created_by_name ? ` · ${r.created_by_name}` : ''}`;
       card.innerHTML = `
-        <div class="min-w-0 flex-1">
-          <div class="flex items-center gap-1.5 flex-wrap mb-1.5">
-            <span class="ui-label font-display font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-400 text-white">${escapeHtml(lineaLabel(r.linea))}</span>
-            <span class="ui-label font-display font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${STATO_CHIP[r.stato]}">${STATI[r.stato]}</span>
+        <div class="flex items-center justify-between gap-2 px-3.5 py-2 bg-graphite-800/70">
+          <h4 class="min-w-0 truncate font-display font-bold text-sm uppercase tracking-wider text-graphite-100">${escapeHtml(name)}</h4>
+          <span class="shrink-0 ui-note font-mono text-graphite-500">${items.length}</span>
+        </div>`;
+      items.forEach((r) => {
+        const row = document.createElement('button');
+        row.type = 'button';
+        row.dataset.id = r.id;
+        row.className = 'int-row w-full text-left px-3.5 py-3 flex items-start gap-3 border-t border-graphite-700/70';
+        const who = r.stato === 'effettuato' ? r.operatore_nome || r.esito_by_name : r.created_by_name;
+        const when = r.stato === 'effettuato' ? `Fatto ${fmtDateTime(r.esito_at)}${who ? ` · ${who}` : ''}` : `${fmtDateTime(r.created_at)}${who ? ` · ${who}` : ''}`;
+        row.innerHTML = `
+          <div class="min-w-0 flex-1">
+            ${r.stato === 'sospeso' ? `<span class="inline-block ui-label font-display font-bold uppercase tracking-wider px-2 py-0.5 rounded-full mb-1 ${STATO_CHIP.sospeso}">${STATI.sospeso}</span>` : ''}
+            <p class="text-sm font-medium text-graphite-100 leading-snug line-clamp-3">${escapeHtml(r.descrizione)}</p>
+            ${r.note_esito ? `<p class="text-xs text-graphite-500 mt-1 line-clamp-1">Esito: ${escapeHtml(r.note_esito)}</p>` : ''}
+            <p class="ui-note text-graphite-500 mt-1">${escapeHtml(when)}</p>
           </div>
-          <p class="text-sm font-medium text-graphite-100 leading-snug line-clamp-3">${escapeHtml(r.descrizione)}</p>
-          ${r.note_esito ? `<p class="text-xs text-graphite-500 mt-1 line-clamp-1">Esito: ${escapeHtml(r.note_esito)}</p>` : ''}
-          <p class="ui-note text-graphite-500 mt-1.5">${escapeHtml(when)}</p>
-        </div>
-        <img class="int-thumb hidden" alt="" data-thumb>`;
-      card.addEventListener('click', () => openDetail(r));
+          <img class="int-thumb hidden" alt="" data-thumb>`;
+        row.addEventListener('click', () => openDetail(r));
+        card.appendChild(row);
+      });
       section.appendChild(card);
     });
     els.list.appendChild(section);
@@ -730,7 +759,8 @@ function initDetailSheet() {
 let wirePhotoDetail = null;
 
 async function openDetail(row) {
-  detail = { row, stato: row.stato, foto: null, fotoUrl: '', rimuovi: false, promemoriaUrl: '' };
+  detail = { row, stato: row.stato, operatore: row.operatore_nome || '', foto: null, fotoUrl: '', rimuovi: false, promemoriaUrl: '' };
+  ensureOperatori().then(() => detail?.row === row && paintDetail());
   els.detNote.value = row.note_esito || '';
   $('int-detail-title').textContent = row.macchina;
   $('int-detail-linea').textContent = lineaLabel(row.linea);
@@ -772,20 +802,45 @@ function paintDetail() {
   chip.textContent = STATI[detail.row.stato];
   chip.className = `ui-label font-display font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${STATO_CHIP[detail.row.stato]}`;
   wirePhotoDetail?.show(detail.fotoUrl);
+  paintOperatore();
+}
+
+/** Sezione "Operatore": si sblocca solo quando l'esito è "Effettuato". Il nome non finisce nel PDF. */
+function paintOperatore() {
+  const step = $('int-operatore-step');
+  step.dataset.locked = String(detail.stato !== 'effettuato');
+  const names = [...state.operatori];
+  if (detail.operatore && !names.includes(detail.operatore)) names.unshift(detail.operatore); // operatore tolto dall'elenco ma già registrato
+  const box = $('int-operatore-chips');
+  box.innerHTML = '';
+  names.forEach((n) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'int-chip press-spring';
+    b.setAttribute('aria-pressed', String(n === detail.operatore));
+    b.textContent = n; // testo, mai HTML
+    b.addEventListener('click', () => {
+      detail.operatore = detail.operatore === n ? '' : n; // un secondo tocco toglie la scelta
+      feedback.presetPick();
+      paintOperatore();
+    });
+    box.appendChild(b);
+  });
+  $('int-operatore-empty').classList.toggle('hidden', names.length > 0);
 }
 
 async function saveDetail() {
   if (!detail) return;
   const { row } = detail;
   const note = els.detNote.value.trim();
-  const unchanged = detail.stato === row.stato && note === (row.note_esito || '') && !detail.foto && !detail.rimuovi;
+  const unchanged = detail.stato === row.stato && note === (row.note_esito || '') && !detail.foto && !detail.rimuovi && (detail.stato !== 'effettuato' || detail.operatore === (row.operatore_nome || ''));
   if (unchanged) {
     closeOverlay(els.detModal);
     return;
   }
   setButtonBusy(els.detSave, true, 'Salvataggio…');
   try {
-    const updated = await updateEsito(row, { stato: detail.stato, note, foto: detail.foto, rimuoviFoto: detail.rimuovi, authorName: authorName() });
+    const updated = await updateEsito(row, { stato: detail.stato, note, operatore: detail.operatore, foto: detail.foto, rimuoviFoto: detail.rimuovi, authorName: authorName() });
     state.open = state.open.filter((r) => r.id !== updated.id);
     state.done = state.done.filter((r) => r.id !== updated.id);
     state.doneRecent = state.doneRecent.filter((r) => r.id !== updated.id);
@@ -913,12 +968,12 @@ async function loadPdfRange(range, { open = false } = {}) {
   }
 }
 
-/** Ordine di elenco e PDF: macchina (come scelto dall'admin), poi linea, poi ora di esecuzione */
+/** Ordine di elenco e PDF: linea, poi macchina (come scelto dall'admin), poi ora di esecuzione */
 function machineRowSort(a, b) {
   const orderIdx = new Map(state.machineOrder.map((n, i) => [n.toLowerCase(), i]));
   const idxOf = (m) => (orderIdx.has(m.toLowerCase()) ? orderIdx.get(m.toLowerCase()) : 9999);
-  const lineaIdx = (v) => LINEE.findIndex((l) => l.value === v);
-  return idxOf(a.macchina) - idxOf(b.macchina) || a.macchina.localeCompare(b.macchina, 'it') || lineaIdx(a.linea) - lineaIdx(b.linea) || new Date(a.esito_at) - new Date(b.esito_at);
+  const lineaIdx = (v) => (LINEE.findIndex((l) => l.value === v) + 1 || 99);
+  return lineaIdx(a.linea) - lineaIdx(b.linea) || idxOf(a.macchina) - idxOf(b.macchina) || a.macchina.localeCompare(b.macchina, 'it') || new Date(a.esito_at) - new Date(b.esito_at);
 }
 
 function paintPdfSheet() {
@@ -933,12 +988,21 @@ function paintPdfSheet() {
 
   const list = $('int-pdf-list');
   list.innerHTML = '';
+  let lastLinea = null;
   let lastMachine = null;
   pdf.rows.forEach((r) => {
+    if (r.linea !== lastLinea) {
+      lastLinea = r.linea;
+      lastMachine = null;
+      const h = document.createElement('p');
+      h.className = 'font-display font-bold text-sm uppercase tracking-wider text-white bg-amber-400 rounded-lg px-3 py-1.5 mt-1.5';
+      h.textContent = lineaLabel(r.linea);
+      list.appendChild(h);
+    }
     if (r.macchina !== lastMachine) {
       lastMachine = r.macchina;
       const h = document.createElement('p');
-      h.className = 'font-display font-bold text-xs uppercase tracking-wider text-graphite-400 pt-1.5';
+      h.className = 'font-display font-bold text-xs uppercase tracking-wider text-graphite-400 pt-1';
       h.textContent = r.macchina; // testo, mai HTML
       list.appendChild(h);
     }
@@ -951,10 +1015,6 @@ function paintPdfSheet() {
     row.innerHTML = `
       <span class="int-check mt-0.5"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="opacity:${on ? 1 : 0}"><path d="m5 12 5 5 9-10"/></svg></span>
       <span class="min-w-0 flex-1">
-        <span class="flex items-center gap-1.5 mb-1">
-          <span class="ui-label font-display font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-400 text-white">${escapeHtml(lineaLabel(r.linea))}</span>
-          <span class="ui-note text-graphite-500">${escapeHtml(new Date(r.esito_at).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }))}</span>
-        </span>
         <span class="block text-sm font-medium text-graphite-100 leading-snug line-clamp-2">${escapeHtml(r.descrizione)}</span>
       </span>`;
     row.addEventListener('click', () => {
@@ -974,7 +1034,7 @@ async function generatePdf() {
   const go = $('int-pdf-go');
   setButtonBusy(go, true, 'Preparo il PDF…');
   try {
-    const result = await exportGiornoPdf(pdf.from, pdf.to, { authorName: authorName(), rows: chosen });
+    const result = await exportGiornoPdf(pdf.from, pdf.to, { rows: chosen });
     if (result === true) {
       feedback.confirmAction();
       toastSuccess('PDF pronto.', 2500);

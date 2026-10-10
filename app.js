@@ -15,7 +15,7 @@ import { initManuals } from './manuals.js';
 import { initManualsBrowser, enterManualsBrowser, resetManualsBrowser } from './manuals-browser.js';
 import { initHistoryAdmin } from './history-admin.js';
 import { initInterventi, enterInterventi, resetInterventi, setInterventiFab } from './interventi.js';
-import { initInterventiRapidi } from './interventi-rapidi.js';
+import { initInterventiRapidi, initOperatori } from './interventi-rapidi.js';
 import { initPicker } from './picker.js';
 import { initGlobalSearch, resetGlobalSearch, syncSearchContext, closePanel as closeGlobalSearch } from './global-search.js';
 import feedback, { initFeedbackSettings } from './feedback.js';
@@ -77,6 +77,7 @@ function onAuthed(profile) {
     initHistoryAdmin();
     initInterventi();
     initInterventiRapidi();
+    initOperatori();
     initNavHistory();
     initNav();
     initSwipeNav();

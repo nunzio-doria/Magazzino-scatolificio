@@ -1,7 +1,8 @@
 // =============================================================
 // interventi-pdf.js — PDF degli interventi effettuati in una giornata (o periodo)
-// Raggruppa per macchina (nell'ordine scelto in Impostazioni, come nell'app), con linea, descrizione,
-// esito, operatori e orari (senza foto). Sui telefoni che lo supportano si apre il foglio di
+// Organizzato per linea e, dentro ogni linea, per macchina (ordine scelto in Impostazioni, come
+// nell'app). Per ogni intervento si legge solo il lavoro effettuato: niente orari, nomi, note o foto,
+// e niente data/ora di generazione. Sui telefoni che lo supportano si apre il foglio di
 // condivisione (mail, WhatsApp…); altrimenti il file viene scaricato.
 // =============================================================
 
@@ -18,8 +19,6 @@ const GREY = [98, 102, 110];
 const LINE = [195, 201, 209];
 
 const fmtDate = (d) => d.toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', year: 'numeric' });
-const fmtTime = (iso) => (iso ? new Date(iso).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }) : '');
-const fmtDT = (iso) => (iso ? `${fmtDate(new Date(iso))} ${fmtTime(iso)}` : '');
 const isoDay = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
 /**
@@ -27,7 +26,7 @@ const isoDay = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2,
  * @param {Date} to   fine (23:59:59 dell'ultimo giorno)
  * @returns {Promise<'empty'|'cancelled'|true>}
  */
-export async function exportGiornoPdf(from, to, { authorName = '', rows: given = null } = {}) {
+export async function exportGiornoPdf(from, to, { rows: given = null } = {}) {
   // `rows`: gli interventi scelti dall'utente; senza, si prendono tutti quelli effettuati nel periodo
   const rows = given ?? (await listEffettuatiRange(from.toISOString(), to.toISOString()));
   if (!rows.length) return 'empty';
@@ -44,7 +43,7 @@ export async function exportGiornoPdf(from, to, { authorName = '', rows: given =
   const sameDay = isoDay(from) === isoDay(to);
   const periodo = sameDay ? fmtDate(from) : `${fmtDate(from)} - ${fmtDate(to)}`;
 
-  // ---- Intestazione ----
+  // ---- Intestazione (senza data/ora di generazione) ----
   doc.setFillColor(...ACCENT);
   doc.rect(0, 0, PW, 26, 'F');
   doc.setTextColor(255, 255, 255);
@@ -57,27 +56,15 @@ export async function exportGiornoPdf(from, to, { authorName = '', rows: given =
   doc.setFont('helvetica', 'bold');
   doc.text(periodo, PW - M, 12, { align: 'right' });
 
-  let y = 33;
-  doc.setTextColor(...GREY);
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(9);
-  doc.text(`Generato il ${fmtDT(new Date().toISOString())}${authorName ? ` da ${authorName}` : ''}`, M, y);
-
-  // ---- Riepilogo per linea ----
-  y += 7;
-  const counts = LINEE.map((l) => ({ label: l.label, n: rows.filter((r) => r.linea === l.value).length })).filter((c) => c.n);
+  let y = 36;
   doc.setTextColor(...DEEP);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(11);
   doc.text(`${rows.length} ${rows.length === 1 ? 'intervento effettuato' : 'interventi effettuati'}`, M, y);
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(9.5);
-  doc.setTextColor(...GREY);
-  doc.text(counts.map((c) => `${c.label}: ${c.n}`).join('   |   '), PW - M, y, { align: 'right' });
   y += 3;
   doc.setDrawColor(...LINE);
   doc.line(M, y, PW - M, y);
-  y += 6;
+  y += 7;
 
   const ensure = (h) => {
     if (y + h > BOTTOM) {
@@ -86,7 +73,8 @@ export async function exportGiornoPdf(from, to, { authorName = '', rows: given =
     }
   };
 
-  // ---- Interventi, per macchina (ordine delle macchine come nell'app) ----
+  // ---- Organizzazione: Linea -> Macchina (ordine come nell'app) -> interventi ----
+  // Solo l'intervento eseguito: niente orari, né chi l'ha annotato o eseguito, né note e foto.
   let order = [];
   try {
     order = await listDistinctMacchine();
@@ -95,80 +83,66 @@ export async function exportGiornoPdf(from, to, { authorName = '', rows: given =
   }
   const orderIdx = new Map(order.map((n, i) => [n.toLowerCase(), i]));
   const idxOf = (m) => (orderIdx.has(m.toLowerCase()) ? orderIdx.get(m.toLowerCase()) : 9999);
-  const lineaIdx = (v) => LINEE.findIndex((l) => l.value === v);
-  const machines = [...new Set(rows.map((r) => r.macchina))].sort((a, b) => idxOf(a) - idxOf(b) || a.localeCompare(b, 'it'));
+  const lineaIdx = (v) => (LINEE.findIndex((l) => l.value === v) + 1 || 99);
 
-  for (const macchina of machines) {
-    const group = rows
-      .filter((r) => r.macchina === macchina)
-      .sort((a, b) => lineaIdx(a.linea) - lineaIdx(b.linea) || new Date(a.esito_at) - new Date(b.esito_at));
+  const linee = [...new Set(rows.map((r) => r.linea))].sort((a, b) => lineaIdx(a) - lineaIdx(b));
+  const LINE_H = 4.9; // altezza di una riga di testo (10,5 pt)
 
-    ensure(16);
+  for (const linea of linee) {
+    const inLinea = rows.filter((r) => r.linea === linea);
+    const machines = [...new Set(inLinea.map((r) => r.macchina))].sort((a, b) => idxOf(a) - idxOf(b) || a.localeCompare(b, 'it'));
+
+    // fascia della linea (con almeno la prima macchina e il suo primo intervento sotto)
+    ensure(34);
     doc.setFillColor(...DEEP);
-    doc.roundedRect(M, y, CW, 7.5, 1.2, 1.2, 'F');
+    doc.roundedRect(M, y, CW, 8.5, 1.2, 1.2, 'F');
     doc.setTextColor(255, 255, 255);
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(10.5);
-    doc.text(macchina.toUpperCase(), M + 3, y + 5.2, { maxWidth: CW - 20 });
+    doc.setFontSize(11.5);
+    doc.text(lineaLabel(linea).toUpperCase(), M + 3.5, y + 5.9);
     doc.setFont('helvetica', 'normal');
-    doc.text(`${group.length}`, PW - M - 3, y + 5.2, { align: 'right' });
-    y += 11;
+    doc.setFontSize(10);
+    doc.text(`${inLinea.length}`, PW - M - 3.5, y + 5.9, { align: 'right' });
+    y += 13;
 
-    for (const r of group) {
-      const innerW = CW - 8;
+    for (const macchina of machines) {
+      const items = inLinea
+        .filter((r) => r.macchina === macchina)
+        .sort((a, b) => new Date(a.esito_at) - new Date(b.esito_at));
+
+      // intestazione della macchina: non resta mai sola in fondo alla pagina
       doc.setFont('helvetica', 'normal');
-      doc.setFontSize(10);
-      const descLines = doc.splitTextToSize(r.descrizione || '', innerW);
-      doc.setFontSize(9.5);
-      const noteLines = r.note_esito ? doc.splitTextToSize(`Esito: ${r.note_esito}`, innerW) : [];
-
-      const h = 9 + descLines.length * 4.6 + (noteLines.length ? noteLines.length * 4.4 + 1.5 : 0) + 6 + 4;
-      ensure(h);
-
-      // scheda
-      doc.setDrawColor(...LINE);
-      doc.setLineWidth(0.3);
-      doc.roundedRect(M, y, CW, h, 1.5, 1.5, 'S');
-      doc.setFillColor(...ACCENT);
-      doc.rect(M, y + 0.6, 1.4, h - 1.2, 'F');
-
-      let cy = y + 6.5;
-      // La macchina è già nell'intestazione del gruppo: nella scheda si indica la linea
+      doc.setFontSize(10.5);
+      const firstLines = doc.splitTextToSize(items[0].descrizione || '', CW - 12);
+      ensure(11 + firstLines.length * LINE_H);
       doc.setTextColor(...ACCENT);
       doc.setFont('helvetica', 'bold');
-      doc.setFontSize(10);
-      doc.text(lineaLabel(r.linea).toUpperCase(), M + 5, cy);
+      doc.setFontSize(11);
+      doc.text(macchina.toUpperCase(), M + 1, y + 4, { maxWidth: CW - 14 });
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(9);
       doc.setTextColor(...GREY);
-      doc.text(sameDay ? fmtTime(r.esito_at) : fmtDT(r.esito_at), PW - M - 4, cy, { align: 'right' });
-      cy += 5.5;
+      doc.text(`${items.length}`, PW - M - 1, y + 4, { align: 'right' });
+      doc.setDrawColor(...ACCENT);
+      doc.setLineWidth(0.4);
+      doc.line(M, y + 6, PW - M, y + 6);
+      doc.setLineWidth(0.2);
+      y += 11.5;
 
-      doc.setTextColor(30, 30, 34);
-      doc.setFontSize(10);
-      doc.text(descLines, M + 5, cy);
-      cy += descLines.length * 4.6;
-
-      if (noteLines.length) {
-        cy += 1.5;
-        doc.setFontSize(9.5);
-        doc.setTextColor(...GREY);
-        doc.text(noteLines, M + 5, cy);
-        cy += noteLines.length * 4.4;
+      for (const r of items) {
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(10.5);
+        const lines = doc.splitTextToSize(r.descrizione || '', CW - 12);
+        ensure(lines.length * LINE_H + 3);
+        doc.setFillColor(...ACCENT);
+        doc.circle(M + 3, y - 1.3, 0.9, 'F');
+        doc.setTextColor(30, 30, 34);
+        doc.text(lines, M + 7, y);
+        y += lines.length * LINE_H + 2.4;
       }
-
-      cy += 4.5;
-      doc.setFontSize(8.5);
-      doc.setTextColor(...GREY);
-      const who = [
-        r.created_by_name ? `Annotato da ${r.created_by_name} (${fmtDT(r.created_at)})` : `Annotato il ${fmtDT(r.created_at)}`,
-        r.esito_by_name ? `Eseguito da ${r.esito_by_name}` : '',
-      ].filter(Boolean).join('  |  ');
-      doc.text(who, M + 5, cy, { maxWidth: CW - 10 });
-
-      y += h + 4;
+      y += 3;
     }
-    y += 2;
+    y += 3;
   }
 
   // ---- Numeri di pagina ----
